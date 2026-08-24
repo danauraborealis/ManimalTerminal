@@ -6,6 +6,10 @@ obj/
 .vs/
 .idea/
 
+# Local agent/build scratch — generated SDK state, decompilations and one-off audits
+/.dotnet-home/
+/.tmp/
+
 # Distribution zips emitted by PackageModForDistribution targets
 *.zip
 

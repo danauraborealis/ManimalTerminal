@@ -64,6 +64,10 @@ namespace Manimal.Terminal
                     Instance = go.AddComponent<TerminalCullingDriver>();
                 }
                 CameraRef = camera;
+                // camera ref is now valid — arm the render-time profiler so it
+                // measures Unity's per-frame render pass on this camera
+                TerminalRenderProfiler.EnsureSubscribed();
+                TerminalFramePhase.EnsureSpawned();
             }
         }
 
@@ -86,17 +90,50 @@ namespace Manimal.Terminal
             // loot tracking is per-raid state — a stale list from the last raid would hold
             // destroyed renderers and a stale hidden flag
             TerminalLootBounds.ResetForRaid();
-            // LOD cull-floor + bias-clamp system removed (user call 2026-08-20):
-            // with bias unclamped there's nothing to compensate for, and the
-            // per-cell re-tier sweep was the source of the periodic GPU spikes
-            // on the harbor. terminal now inherits the player's own LOD
-            // settings verbatim. loot bounds still culls (hard-cutoff, no tiers).
+            // LOD cull-floor RESTORED 2026-08-22. it was pulled on 08-20 blamed for
+            // the periodic GPU spikes; the real cause turned out to be weapon-light
+            // shadow maps accumulating on bots and corpses (TerminalShadowGuard).
+            // the re-tier sweep was never it.
+            yield return Instance.StartCoroutine(TerminalLodCullFloor.Apply());
+        }
+
+        // QualitySettings is GLOBAL engine state — it survives scene unload, and vanilla
+        // only rewrites lodBias at boot or on a settings apply. leaving the clamp set
+        // after a terminal raid gives every OTHER map our bias and its pop-ins until the
+        // player restarts (icebreaker shipped exactly this bug, field-reported 08-18).
+        // called from the !TerminalGate.On branch of Update.
+        private static float _biasOrig = -1f;
+        private static float _lastBiasWritten = float.NaN;
+
+        private static void RestoreLodBias()
+        {
+            if (_biasOrig < 0f) return;
+            QualitySettings.lodBias = _biasOrig;
+            Plugin.Log.LogInfo($"[LOD] left the terminal — lodBias restored to the game's {_biasOrig:F2}");
+            _biasOrig = -1f;
+            _lastBiasWritten = float.NaN;
         }
 
         private void TickLootBounds()
         {
-            try { TerminalLootBounds.Tick(); }
-            catch (Exception e) { Plugin.Log.LogWarning($"[LootBounds] tick failed: {e.Message}"); }
+            try
+            {
+                float want = Plugin.LodBiasClamp.Value;
+                if (want > 0f)
+                {
+                    if (_biasOrig < 0f) _biasOrig = QualitySettings.lodBias; // capture BEFORE the first write
+                    // only write when it actually differs — this runs every frame
+                    if (!Mathf.Approximately(QualitySettings.lodBias, want) || !Mathf.Approximately(_lastBiasWritten, want))
+                    {
+                        QualitySettings.lodBias = want;
+                        _lastBiasWritten = want;
+                    }
+                }
+                else RestoreLodBias(); // config flipped to hands-off mid-raid
+                if (CameraRef != null) TerminalLodCullFloor.Tick(CameraRef.transform.position);
+                TerminalLootBounds.Tick();
+            }
+            catch (Exception e) { Plugin.Log.LogWarning($"[LodCullFloor] tick failed: {e.Message}"); }
         }
 
         private void Update()
@@ -106,14 +143,17 @@ namespace Manimal.Terminal
             if (UnityEngine.Input.GetKeyDown(KeyCode.F8))
                 TerminalEnvDump.Dump(TerminalGate.On ? "terminal" : "vanilla");
 
-            if (!TerminalGate.On) return;
+            // the bias is global engine state — restore it the moment we're off
+            // terminal, or every other map inherits our clamp until a restart
+            if (!TerminalGate.On) { RestoreLodBias(); return; }
             _frames++;
-            TickLootBounds();
-            TickPcDriver();
-            DrainPcGroupToggles();
-            DrainPcToggles();
-            TickCrossCull();
-            TickDeadEffectGuard();
+            long t0;
+            t0 = System.Diagnostics.Stopwatch.GetTimestamp(); TickLootBounds();       TerminalTickProfiler.Add("LootBnds",  System.Diagnostics.Stopwatch.GetTimestamp() - t0);
+            t0 = System.Diagnostics.Stopwatch.GetTimestamp(); TickPcDriver();         TerminalTickProfiler.Add("PcDrv",     System.Diagnostics.Stopwatch.GetTimestamp() - t0);
+            t0 = System.Diagnostics.Stopwatch.GetTimestamp(); DrainPcGroupToggles();  TerminalTickProfiler.Add("PcGrpDrn",  System.Diagnostics.Stopwatch.GetTimestamp() - t0);
+            t0 = System.Diagnostics.Stopwatch.GetTimestamp(); DrainPcToggles();       TerminalTickProfiler.Add("PcTogDrn",  System.Diagnostics.Stopwatch.GetTimestamp() - t0);
+            t0 = System.Diagnostics.Stopwatch.GetTimestamp(); TickCrossCull();        TerminalTickProfiler.Add("XCull",     System.Diagnostics.Stopwatch.GetTimestamp() - t0);
+            t0 = System.Diagnostics.Stopwatch.GetTimestamp(); TickDeadEffectGuard();  TerminalTickProfiler.Add("DeadFxGd",  System.Diagnostics.Stopwatch.GetTimestamp() - t0);
         }
 
         // ------------------------------------------------------------------- attach
@@ -182,6 +222,16 @@ namespace Manimal.Terminal
         private static string PosKey(string name, Vector3 p)
             => $"{name}|{Mathf.RoundToInt(p.x * 20)}|{Mathf.RoundToInt(p.y * 20)}|{Mathf.RoundToInt(p.z * 20)}";
 
+        private static void DisableInvalidVolume(string volName, Type volType)
+        {
+            foreach (var existing in UnityEngine.Object.FindObjectsOfType(volType))
+            {
+                var comp = existing as Component;
+                if (comp != null && comp.name == volName)
+                    comp.gameObject.SetActive(false);
+            }
+        }
+
         private static void RehydrateVolumeFromSidecar(string file, Type volType)
         {
             var volName = SysIoPath.GetFileNameWithoutExtension(file);
@@ -200,6 +250,37 @@ namespace Manimal.Terminal
                 var volSize = new Vector3(r.ReadSingle(), r.ReadSingle(), r.ReadSingle());
                 var bakeCell = new Vector3(r.ReadSingle(), r.ReadSingle(), r.ReadSingle());
                 var cellCount = new Vector3(r.ReadSingle(), r.ReadSingle(), r.ReadSingle());
+                var cellSize = new Vector3(r.ReadSingle(), r.ReadSingle(), r.ReadSingle());
+                var orientation = new Quaternion(r.ReadSingle(), r.ReadSingle(), r.ReadSingle(), r.ReadSingle());
+                int numberOfGroups = r.ReadInt32();
+                int cells = r.ReadInt32();
+
+                // Validate before creating a volume or allocating a potentially huge
+                // array. Perfect Culling allocates every cell at bake start and only
+                // sets bakeCompleted after the final merge. An editor crash therefore
+                // leaves a convincing-sized array containing nothing but zero cells;
+                // the old exporter and loader both accepted it as a real bake.
+                if (cells <= 0) throw new System.IO.InvalidDataException($"invalid cell count {cells}");
+                long cellDataStart = r.BaseStream.Position;
+                int usefulCells = 0;
+                for (int i = 0; i < cells; i++)
+                {
+                    if (r.BaseStream.Length - r.BaseStream.Position < 6)
+                        throw new System.IO.EndOfStreamException($"cell {i} header is truncated");
+                    ushort len = r.ReadUInt16();
+                    int byteCount = r.ReadInt32();
+                    if (byteCount < 0 || byteCount > r.BaseStream.Length - r.BaseStream.Position)
+                        throw new System.IO.InvalidDataException($"cell {i} has invalid payload length {byteCount}");
+                    if (len > 0 && byteCount > 0) usefulCells++;
+                    r.BaseStream.Position += byteCount;
+                }
+                if (usefulCells == 0)
+                {
+                    DisableInvalidVolume(volName, volType);
+                    Plugin.Log.LogWarning($"[Culling] REJECTED {volName}: {cells} allocated cells but zero contain visibility data (interrupted/corrupt bake); volume disabled until rebaked");
+                    return;
+                }
+                r.BaseStream.Position = cellDataStart;
 
                 // find-or-create: the bundle may carry an (empty) volume by this name;
                 // otherwise build fresh — disabled until populated so OnEnable's
@@ -216,11 +297,6 @@ namespace Manimal.Terminal
                 vol.transform.SetPositionAndRotation(volPos, volRot);
                 volType.GetField("volumeSize").SetValue(vol, volSize);
                 volType.GetField("bakeCellSize").SetValue(vol, bakeCell);
-                var cellSize = new Vector3(r.ReadSingle(), r.ReadSingle(), r.ReadSingle());
-                var orientation = new Quaternion(r.ReadSingle(), r.ReadSingle(), r.ReadSingle(), r.ReadSingle());
-                int numberOfGroups = r.ReadInt32();
-
-                int cells = r.ReadInt32();
                 var dataArr = Array.CreateInstance(visType, cells);
                 var fCompressed = visType.GetField("compressed");
                 var fLen = visType.GetField("len");
@@ -292,9 +368,13 @@ namespace Manimal.Terminal
                 if (!vol.gameObject.activeSelf) vol.gameObject.SetActive(true);
                 else { var beh = vol as Behaviour; if (beh != null) { beh.enabled = false; beh.enabled = true; } }
 
-                Plugin.Log.LogInfo($"[Culling] rehydrated {volName}: {cells} cells, {groups} groups ({missing} renderers unresolved)");
+                Plugin.Log.LogInfo($"[Culling] rehydrated {volName}: {cells} cells ({usefulCells} populated), {groups} groups ({missing} renderers unresolved)");
             }
-            catch (Exception e) { Plugin.Log.LogWarning($"[Culling] rehydrate {volName} failed: {e}"); }
+            catch (Exception e)
+            {
+                DisableInvalidVolume(volName, volType);
+                Plugin.Log.LogWarning($"[Culling] rehydrate {volName} failed; volume disabled: {e}");
+            }
         }
 
         // ---------------------------------------------------- toggle path + budgets
@@ -448,6 +528,8 @@ namespace Manimal.Terminal
             }
         }
 
+        internal static int _cullNothingFrames;
+        private static float _lastCullNothingLog;
         private static bool _pcDriverWasOff;
         private static void TickPcDriver()
         {
@@ -495,6 +577,24 @@ namespace Manimal.Terminal
                 var newSet = new HashSet<int>();
                 foreach (var idx in _pcIndices) newSet.Add(idx);
                 bool cullNothing = newSet.Count == 0; // empty/unbaked cell: show all
+
+                // AN UNBAKED CELL TURNS CULLING OFF FOR THE WHOLE VOLUME. that means
+                // every group it owns renders — ContainerPort_B_Courtyard alone is
+                // 2450 — and walking in and out of such cells would read exactly like
+                // the chop: GPU-bound, one region, cyclic, indifferent to bots and
+                // view direction. count it so we know whether that's what's happening.
+                if (cullNothing)
+                {
+                    _cullNothingFrames++;
+                    if (Time.realtimeSinceStartup - _lastCullNothingLog > 5f)
+                    {
+                        _lastCullNothingLog = Time.realtimeSinceStartup;
+                        var vc = pv.Vol as Component;
+                        Plugin.Log.LogWarning($"[Culling] UNBAKED CELL on '{(vc != null ? vc.name : "?")}' cell={cell} — "
+                            + $"culling OFF for this volume, all {pv.Groups.Length} group(s) rendering "
+                            + $"({_cullNothingFrames} such cell-entries this raid)");
+                    }
+                }
 
                 if (pv.VisSet == null)
                 {
@@ -568,6 +668,7 @@ namespace Manimal.Terminal
             public object[] Groups;
             public Bounds[] GB;
             public bool[] Forced;
+            public bool[] OpenSightline;
         }
         private static readonly List<XVol> _xvols = new List<XVol>();
         private static readonly HashSet<object> _crossForced = new HashSet<object>();
@@ -585,13 +686,19 @@ namespace Manimal.Terminal
                 if (comp == null || !comp.name.Contains("Indoor")) continue;
                 var groups = fGroups?.GetValue(v) as Array;
                 if (groups == null || groups.Length == 0) continue;
-                var xv = new XVol { Name = comp.name, Groups = new object[groups.Length], GB = new Bounds[groups.Length], Forced = new bool[groups.Length] };
+                var xv = new XVol { Name = comp.name, Groups = new object[groups.Length], GB = new Bounds[groups.Length], Forced = new bool[groups.Length], OpenSightline = new bool[groups.Length] };
                 bool haveB = false;
+                int openSightline = 0;
                 for (int i = 0; i < groups.Length; i++)
                 {
                     var g = groups.GetValue(i);
                     xv.Groups[i] = g;
                     var rs = _groupRenderersField.GetValue(g) as Renderer[];
+                    if (comp.name == "CullingVolume_Terminal_Area_04_MarineStation_Indoor" && IsMarineStationInteriorShell(rs))
+                    {
+                        xv.OpenSightline[i] = true;
+                        openSightline++;
+                    }
                     Bounds gb = default;
                     bool haveG = false;
                     if (rs != null)
@@ -610,8 +717,22 @@ namespace Manimal.Terminal
                 }
                 xv.B.Expand(3f); // doorway grace at the seams
                 _xvols.Add(xv);
-                Plugin.Log.LogDebug($"[XCull] interior volume '{xv.Name}': {xv.Groups.Length} groups, bounds {xv.B.size}");
+                Plugin.Log.LogDebug($"[XCull] interior volume '{xv.Name}': {xv.Groups.Length} groups, bounds {xv.B.size}"
+                    + (openSightline > 0 ? $", {openSightline} open-hangar shell group(s) exempt" : ""));
             }
+        }
+
+        private static bool IsMarineStationInteriorShell(Renderer[] renderers)
+        {
+            if (renderers == null) return false;
+            for (int i = 0; i < renderers.Length; i++)
+            {
+                var r = renderers[i];
+                if (r == null) continue;
+                if (r.name.StartsWith("Marine_Station_01_INDOOR") || r.name.StartsWith("Marine_Station_01_Fakeindoor"))
+                    return true;
+            }
+            return false;
         }
 
         // every ~15 frames: camera outside an interior volume -> its far groups go dark.
@@ -628,7 +749,7 @@ namespace Manimal.Terminal
                 bool inside = xv.B.Contains(cp);
                 for (int i = 0; i < xv.Groups.Length; i++)
                 {
-                    bool wantForce = !inside && xv.GB[i].SqrDistance(cp) > d2;
+                    bool wantForce = !xv.OpenSightline[i] && !inside && xv.GB[i].SqrDistance(cp) > d2;
                     if (wantForce == xv.Forced[i]) continue;
                     xv.Forced[i] = wantForce;
                     if (wantForce) _crossForced.Add(xv.Groups[i]);

@@ -142,7 +142,20 @@ namespace Manimal.Terminal
         }
 
         // shared accessor for the client-side artillery zone registry — also used
-        // by the perf watcher to annotate spikes
+        // by the perf watcher to annotate spikes.
+        //
+        // reflection is cached per BotsController type: on 4.0.13 there is no
+        // `ArtilleryZonesController` member on BotsController at all, and the
+        // uncached AccessTools.Property lookup emits a WARNING every call
+        // (HarmonyX logs cache misses at Warning level — 2026-08-21 raid log:
+        // one warning per PerfWatch spike-log). resolve once, flag "missing",
+        // then never touch reflection again.
+        private static Type _bcTypeCached;
+        private static System.Reflection.PropertyInfo _bcZcProp;
+        private static System.Reflection.FieldInfo _bcZcField;
+        private static Type _zcTypeCached;
+        private static System.Reflection.PropertyInfo _zcMapProp;
+        private static System.Reflection.FieldInfo _zcMapField;
         internal static System.Collections.IDictionary ActiveZonesDict()
         {
             try
@@ -150,14 +163,29 @@ namespace Manimal.Terminal
                 var game = Singleton<IBotGame>.Instantiated ? Singleton<IBotGame>.Instance : null;
                 var bc = game?.BotsController;
                 if (bc == null) return null;
-                var zcProp = HarmonyLib.AccessTools.Property(bc.GetType(), "ArtilleryZonesController")
-                    ?? null;
-                object zc = zcProp?.GetValue(bc)
-                    ?? HarmonyLib.AccessTools.Field(bc.GetType(), "ArtilleryZonesController")?.GetValue(bc);
+
+                var bcT = bc.GetType();
+                if (_bcTypeCached != bcT)
+                {
+                    _bcTypeCached = bcT;
+                    _bcZcProp = bcT.GetProperty("ArtilleryZonesController",
+                        System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                    _bcZcField = bcT.GetField("ArtilleryZonesController",
+                        System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                }
+                object zc = _bcZcProp?.GetValue(bc) ?? _bcZcField?.GetValue(bc);
                 if (zc == null) return null;
-                return (HarmonyLib.AccessTools.Property(zc.GetType(), "ActiveZonesOnMap")?.GetValue(zc)
-                    ?? HarmonyLib.AccessTools.Field(zc.GetType(), "ActiveZonesOnMap")?.GetValue(zc))
-                    as System.Collections.IDictionary;
+
+                var zcT = zc.GetType();
+                if (_zcTypeCached != zcT)
+                {
+                    _zcTypeCached = zcT;
+                    _zcMapProp = zcT.GetProperty("ActiveZonesOnMap",
+                        System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                    _zcMapField = zcT.GetField("ActiveZonesOnMap",
+                        System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                }
+                return (_zcMapProp?.GetValue(zc) ?? _zcMapField?.GetValue(zc)) as System.Collections.IDictionary;
             }
             catch { return null; }
         }

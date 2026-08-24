@@ -945,14 +945,31 @@ namespace Manimal.Terminal
                 scroll.viewport = vpRt;
                 scroll.content = content;
                 scroll.verticalScrollbar = scrollbar;
-                scroll.verticalScrollbarVisibility = UnityEngine.UI.ScrollRect.ScrollbarVisibility.AutoHideAndExpandViewport;
+                // Permanent, not AutoHideAndExpandViewport — expand mode resizes
+                // the viewport rect when the bar hides, which can NOT-clip
+                // content near the anchor edge (rows visibly bled up above the
+                // panel's own header on the first frame, 2026-08-21)
+                scroll.verticalScrollbarVisibility = UnityEngine.UI.ScrollRect.ScrollbarVisibility.Permanent;
                 scroll.verticalScrollbarSpacing = 4f;
                 scroll.horizontal = false;
                 scroll.vertical = true;
                 scroll.movementType = UnityEngine.UI.ScrollRect.MovementType.Clamped;
                 scroll.scrollSensitivity = 30f;
+                // fresh ScrollRects default to verticalNormalizedPosition=0
+                // (scrolled to bottom) — with pivot-top content that puts the
+                // content TOP above the viewport top and top rows bleed out
+                // over any label above the panel. force top-scroll AFTER the
+                // caller has set content.sizeDelta (deferred by two frames).
+                StartCoroutine(ForceScrollTop(scroll));
 
                 return content;
+            }
+
+            private static IEnumerator ForceScrollTop(UnityEngine.UI.ScrollRect s)
+            {
+                yield return null;
+                yield return null;
+                if (s != null) s.verticalNormalizedPosition = 1f;
             }
 
             // stagger a bunch of CanvasGroups to fade in one at a time (in the
@@ -1102,7 +1119,10 @@ namespace Manimal.Terminal
 
                 // scrollable content — pixel-based grid: 6 cols, 150px cells
                 // with 12px spacing. content height auto-sized to fit total rows.
-                var content = MakeScrollableContent(panelGo, 0.88f, 0.02f);
+                // viewport top well below the profile header (0.87-0.99) so
+                // the first row of cells doesn't collide with the nickname
+                // strip. gap ≈ 5% of the panel = clean visual break.
+                var content = MakeScrollableContent(panelGo, 0.82f, 0.02f);
                 const int cols = 6;
                 const float cellSize = 150f;
                 const float spacing = 12f;
@@ -1255,7 +1275,8 @@ namespace Manimal.Terminal
                 // (matches retail's prestige-reward panel — walls/ceiling/floor
                 // + main-menu-bg cards span 2 tiles each). fixed cell height in
                 // pixels so scaling with resolution doesn't stretch cards weirdly.
-                var content = MakeScrollableContent(panelGo, 0.85f, 0.02f);
+                // viewport top well below the profile header (0.87-0.99)
+                var content = MakeScrollableContent(panelGo, 0.82f, 0.02f);
                 const int cols = 5;
                 const float cellW = 200f;
                 const float rowH = 220f;
@@ -1498,7 +1519,9 @@ namespace Manimal.Terminal
                         _borrowedContainerOrigAnchors = (container.anchorMin, container.anchorMax, container.offsetMin, container.offsetMax);
                         _borrowedContainerOrigSize = (container.sizeDelta, container.anchoredPosition, container.pivot);
 
-                        var scrollContent = MakeScrollableContent(panelGo, 0.90f, 0.02f);
+                        // viewport top well below the "RAID KILL LIST" header
+                        // (0.92-0.99) so row 1 doesn't overlap the label
+                        var scrollContent = MakeScrollableContent(panelGo, 0.87f, 0.02f);
                         container.SetParent(scrollContent, false);
                         container.anchorMin = new Vector2(0f, 1f);
                         container.anchorMax = new Vector2(1f, 1f);
@@ -1557,6 +1580,11 @@ namespace Manimal.Terminal
                     if (h > 1f)
                     {
                         scrollContent.sizeDelta = new Vector2(0f, h + 20f);
+                        // ScrollRect might have drifted after our size push —
+                        // re-force top so row 1 sits at viewport top, not
+                        // above it (matches ForceScrollTop in MakeScrollableContent)
+                        var sr = scrollContent.parent != null ? scrollContent.parent.parent?.GetComponent<UnityEngine.UI.ScrollRect>() : null;
+                        if (sr != null) sr.verticalNormalizedPosition = 1f;
                         yield break;
                     }
                 }

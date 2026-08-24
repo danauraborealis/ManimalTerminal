@@ -68,6 +68,7 @@ namespace Manimal.Terminal
 
         internal static void NoteEvent(string name)
         {
+            TerminalPopulationDirector.NoteProgressEvent(name);
             _eventAt = Time.time;
             Plugin.Log.LogDebug($"[CrewLayer] tier event '{name}' noted — bots spawning in the next {EventWindow:0}s push the players");
             if (string.Equals(name, "TB8", StringComparison.OrdinalIgnoreCase))

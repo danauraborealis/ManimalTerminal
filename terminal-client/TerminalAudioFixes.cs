@@ -71,6 +71,20 @@ namespace Manimal.Terminal
             }
         }
 
+        // Terminal's ripped BarbedWire components have a null _soundBank.  Damage and
+        // movement penalties work, but every contact calls BetterAudio.PlayAtPoint
+        // with that null bank and throws twice per tick.  Skip only the missing sound;
+        // wires with a valid bank and every other map retain normal audio.
+        [HarmonyPatch(typeof(EFT.Interactive.BarbedWire), nameof(EFT.Interactive.BarbedWire.PlaySound))]
+        internal static class Patch_NullBarbedWireSound
+        {
+            [HarmonyPrefix]
+            private static bool Prefix(EFT.SoundBank ____soundBank)
+            {
+                return !TerminalGate.On || ____soundBank;
+            }
+        }
+
         // impacts/gunshots: BetterAudio routes them through ProcessSourceOcclusion —
         // icebreaker measured thousands of NREs per mag dump on the uninitialized
         // system. -1 = BSG's own EOcclusionTest.None "no occlusion" result; the sound

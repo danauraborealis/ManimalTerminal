@@ -291,6 +291,18 @@ namespace Manimal.Terminal
 
             double dur = _director.duration;
             float hardStop = Time.realtimeSinceStartup + (float)dur + 10f;
+
+            // retail's UI_FadeToBlack alpha is a timeline track. on this rip it can
+            // arrive PINNED OPAQUE, which blacks out the entire take (2026-08-21:
+            // black screen, a couple frames of the very end, black again — the
+            // director ran to 87s the whole time). we can't tell a dead binding from
+            // an authored hold up front, so watch it: alpha that never moves for 2s
+            // while opaque is not being driven, and we take it out. our own _ownFade
+            // owns the real fade in/out regardless, so nothing is lost either way.
+            float lastAlpha = _fadeImage != null ? _fadeImage.color.a : 0f;
+            float lastAlphaMove = Time.realtimeSinceStartup;
+            bool fadeNeutered = false;
+
             while (Time.realtimeSinceStartup < hardStop)
             {
                 if (_director == null) break;
@@ -301,7 +313,28 @@ namespace Manimal.Terminal
                 {
                     var fc = _fadeImage.color;
                     if (fc.r > 0f || fc.g > 0f || fc.b > 0f)
+                    {
                         _fadeImage.color = new Color(0f, 0f, 0f, fc.a);
+                        fc = _fadeImage.color;
+                    }
+
+                    if (fadeNeutered)
+                    {
+                        if (fc.a > 0.001f) _fadeImage.color = new Color(0f, 0f, 0f, 0f);
+                    }
+                    else if (Mathf.Abs(fc.a - lastAlpha) > 0.002f)
+                    {
+                        lastAlpha = fc.a;
+                        lastAlphaMove = Time.realtimeSinceStartup;   // track is alive, leave it alone
+                    }
+                    else if (fc.a > 0.5f && Time.realtimeSinceStartup - lastAlphaMove > 2f)
+                    {
+                        fadeNeutered = true;
+                        _fadeImage.color = new Color(0f, 0f, 0f, 0f);
+                        Plugin.Log.LogWarning($"[Ending] retail UI_FadeToBlack sat opaque (a={fc.a:0.00}) for 2s with no "
+                            + "timeline movement — its alpha track is dead on this rip. neutralised for the rest of the "
+                            + "take; our own fade still handles the in/out.");
+                    }
                 }
                 yield return null;
             }

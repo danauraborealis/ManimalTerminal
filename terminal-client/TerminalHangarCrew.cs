@@ -23,10 +23,11 @@ namespace Manimal.Terminal
     {
         private static bool _armedThisRaid;
         private static bool _zoneAugmented;
+        private bool _waitingForCapacity;
 
         internal static void Arm()
         {
-            if (_armedThisRaid || !Plugin.EventWavesPush.Value) return;
+            if (_armedThisRaid || TerminalSpawnGate.BotsDisabled || !Plugin.EventWavesPush.Value) return;
             _armedThisRaid = true;
             new GameObject("Terminal_HangarCrew").AddComponent<TerminalHangarCrew>();
         }
@@ -43,7 +44,7 @@ namespace Manimal.Terminal
         // whole. runs at BotsController.Init, long before the trigger can fire.
         internal static void AugmentHangarZone()
         {
-            if (_zoneAugmented) return;
+            if (_zoneAugmented || TerminalSpawnGate.BotsDisabled) return;
             try
             {
                 var hold = TerminalCrewJobs.BdHoldBoundsPublic();
@@ -172,8 +173,45 @@ namespace Manimal.Terminal
             var role0 = exemplar
                 ? exemplar.Profile.Info.Settings.Role
                 : TerminalCrewJobs.LastBlackDivRole.Value;
+            if (!TerminalSpawnGate.TryReserveDirectAdmissions(need))
+            {
+                if (!_waitingForCapacity)
+                {
+                    _waitingForCapacity = true;
+                    Plugin.Log.LogInfo($"[HangarCrew] squad {present}/{want}, but the total-AI ceiling has no room for {need}; waiting without creating profiles");
+                    StartCoroutine(RetryWhenCapacityExists());
+                }
+                return;
+            }
             Plugin.Log.LogInfo($"[HangarCrew] hangar squad {present}/{want} — force-spawning {need}x {role0}");
             _ = TopUp(role0, zone, need, hold.Value);
+        }
+
+        private IEnumerator RetryWhenCapacityExists()
+        {
+            while (TerminalGate.On)
+            {
+                yield return new WaitForSeconds(5f);
+                int need = CountShortfall(out _);
+                if (need <= 0) { Done("squad completed while waiting for total-AI capacity"); yield break; }
+                if (!TerminalSpawnGate.TryReserveDirectAdmissions(need)) continue;
+                _waitingForCapacity = false;
+
+                var hold = TerminalCrewJobs.BdHoldBoundsPublic();
+                BotZone zone = null;
+                foreach (var z in FindObjectsOfType<BotZone>())
+                    if (z && z.name == "Zone1BD1HangarBD11") { zone = z; break; }
+                var role = TerminalCrewJobs.LastBlackDivRole;
+                if (hold == null || !zone || role == null)
+                {
+                    Done("capacity opened but hangar top-up context no longer exists");
+                    yield break;
+                }
+                Plugin.Log.LogInfo($"[HangarCrew] total-AI capacity opened — force-spawning delayed {need}x {role.Value}");
+                _ = TopUp(role.Value, zone, need, hold.Value);
+                yield break;
+            }
+            Destroy(gameObject);
         }
 
         private async Task TopUp(WildSpawnType role, BotZone zone, int count, Bounds holdTight)

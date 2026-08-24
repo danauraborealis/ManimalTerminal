@@ -69,6 +69,24 @@ try {
         [void][System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile($archive, $_.FullName, $rel, [System.IO.Compression.CompressionLevel]::Optimal)
     }
 } finally { $archive.Dispose() }
+
+# UPDATE ZIP: same tree minus the giant scene bundle under streamingassets/.
+# for players who already have the map bundle and just want the latest DLLs /
+# plugin-data / db updates. small (~100 MB range) vs the full ~4 GB archive.
+Write-Host "=== zipping update archive (no scene bundle) ===" -ForegroundColor Cyan
+$updateZip = "$root\dist\Manimal-Terminal-update-$ver.zip"
+if (Test-Path $updateZip) { Remove-Item $updateZip -Force }
+$updateArchive = [System.IO.Compression.ZipFile]::Open($updateZip, 'Create')
+try {
+    Get-ChildItem $stage -Recurse -File | ForEach-Object {
+        $rel = $_.FullName.Substring($stage.Length + 1) -replace '\\', '/'
+        # skip the streamingassets tree wholesale — that's where the multi-GB
+        # scene bundle lives, and it's what returning players already have
+        if ($rel -like 'BepInEx/plugins/ManimalTerminal/streamingassets/*') { return }
+        [void][System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile($updateArchive, $_.FullName, $rel, [System.IO.Compression.CompressionLevel]::Optimal)
+    }
+} finally { $updateArchive.Dispose() }
+
 Remove-Item -Recurse -Force $stage
 
 # THE VIRUSTOTAL ARCHIVE. forge wants a scan link per version; the release zip is

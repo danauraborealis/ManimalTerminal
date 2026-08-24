@@ -38,7 +38,10 @@ namespace Manimal.Terminal
         {
             private static void Prefix(LocationSettingsClass.Location location)
             {
+                bool previousWasTerminal = string.Equals(PendingLocationId, LocationId, StringComparison.OrdinalIgnoreCase);
                 PendingLocationId = location?.Id;
+                if (previousWasTerminal || string.Equals(PendingLocationId, LocationId, StringComparison.OrdinalIgnoreCase))
+                    TerminalExternalBotCleanup.ResetForRaid();
                 TerminalIntroCutscene.ResetForNewRaid();
                 TerminalAttackCutscene.ResetForNewRaid();
                 TerminalLights.ResetForNewRaid();
@@ -59,12 +62,15 @@ namespace Manimal.Terminal
                 TerminalRainAudio.ResetForRaid();
                 TerminalHoldLock.ResetForRaid();
                 TerminalPerfWatch.ResetForRaid();
+                TerminalShadowGuard.ResetForRaid();
                 TerminalSceneScrub.ResetForRaid();
                 Civilian.CivilianFleeState.ClearAll();
                 Civilian.CivilianUnstickHelper.ClearAll();
                 Civilian.CivilianMeleeEnforcer.ClearAll();
+                TerminalCrewJobs.Reset();
                 TerminalShaderRebind.ResetForRaid();
                 TerminalSpawnGate.ResetForRaid();
+                TerminalPopulationDirector.ResetForRaid();
                 if (PendingLocationId == "Terminal")
                 {
                     TerminalArtillery.InjectConfig();

@@ -37,8 +37,17 @@ namespace Manimal.Terminal
         internal static ConfigEntry<float> AmbientColorB;
         internal static ConfigEntry<bool> LampShadows;
         internal static ConfigEntry<float> LightCullDistance;
-        // LOD bias/cull config entries removed (2026-08-20) — terminal now
-        // inherits the player's own LOD settings verbatim, no clamp or sweep
+        internal static ConfigEntry<bool> GrassEnabled;
+        // LOD cull-floor set. removed 2026-08-20 on the theory that its per-cell
+        // re-tier sweep caused the periodic GPU spikes; RESTORED 2026-08-22 after
+        // the chop was traced to weapon-light shadow maps instead (see
+        // TerminalShadowGuard). the LOD system was never the culprit.
+        internal static ConfigEntry<float> LodBiasClamp;
+        internal static ConfigEntry<float> LodCullFloor;
+        internal static ConfigEntry<float> LodCullNearFloor;
+        internal static ConfigEntry<float> LodCullNearRadius;
+        internal static ConfigEntry<float> LodCullNearRadiusIndoor;
+        internal static ConfigEntry<float> LodCellSize;
         internal static ConfigEntry<float> LootCullRadius;
         internal static ConfigEntry<string> CamDonorSkip;
         internal static ConfigEntry<bool> DevMode;
@@ -50,13 +59,38 @@ namespace Manimal.Terminal
         internal static ConfigEntry<bool> PcDriverEnabled;
         internal static ConfigEntry<float> RaidStartHour;
         internal static ConfigEntry<bool> RetailAIBake;
-        internal static ConfigEntry<bool> InstantDoorInteract;
         internal static ConfigEntry<bool> HoldBotsForCutscene;
         internal static ConfigEntry<bool> EventWavesPush;
         internal static ConfigEntry<bool> RuafNeutral;
         internal static ConfigEntry<bool> RuafDefense;
         internal static ConfigEntry<bool> StageDirector;
         internal static ConfigEntry<int> BdHangarSquad;
+        internal static ConfigEntry<int> MaxAliveScavs;
+        internal static ConfigEntry<int> MaxAliveBots;
+        internal static ConfigEntry<int> MaxResidentScavs;
+        internal static ConfigEntry<int> MaxBotsCreatedPerRaid;
+        internal static ConfigEntry<bool> DisableAllBots;
+        internal static ConfigEntry<bool> ScavCorpseCleanup;
+        internal static ConfigEntry<float> ScavCorpseLifetime;
+        internal static ConfigEntry<float> ScavCorpseCleanupDistance;
+        internal static ConfigEntry<float> SpecialCorpseLifetime;
+        internal static ConfigEntry<float> SpecialCorpseCleanupDistance;
+        internal static ConfigEntry<int> ScavCorpseCleanupPerSweep;
+        internal static ConfigEntry<BepInEx.Configuration.KeyboardShortcut> ScavCorpseCleanupKey;
+        internal static ConfigEntry<bool> ScavRecycler;
+        internal static ConfigEntry<bool> RuafRecycler;
+        internal static ConfigEntry<bool> BlackDivisionRecycler;
+        internal static ConfigEntry<float> ScavRecycleMinDistance;
+        internal static ConfigEntry<float> ScavRecycleDestinationDistance;
+        internal static ConfigEntry<float> ScavRecycleMinAge;
+        internal static ConfigEntry<bool> TerminalBosses;
+        internal static ConfigEntry<int> BreachableDoors;
+        internal static ConfigEntry<bool> BreachDoorProbe;
+        internal static ConfigEntry<bool> ProfilePlayerLoop;
+        internal static ConfigEntry<bool> TraceFrameCycle;
+        internal static ConfigEntry<bool> WorldDiff;
+        internal static ConfigEntry<bool> WeaponLightShadows;
+        internal static ConfigEntry<bool> ShowSpawnTriggers;
         internal static ConfigEntry<float> NvgAmbient;
         internal static ConfigEntry<bool> GearConfiscation;
         internal static ConfigEntry<bool> SpatialAudio;
@@ -100,19 +134,21 @@ namespace Manimal.Terminal
         private void Update()
         {
             TerminalPerfWatch.OursBegin();
-            TerminalGatesExplosion.TryStage();
-            TerminalCraneFalling.TryStage();
-            TerminalFinalExit.TryStage();
-            TerminalArtillery.TryStage();
-            TerminalPumpStation.TryStage();
-            TerminalWater.TryStage();
-            TerminalDryPlanes.TryStage();
-            TerminalRainAudio.TryStage();
-            TerminalArtillery.Pump();
+            long t0;
+            t0 = System.Diagnostics.Stopwatch.GetTimestamp(); TerminalGatesExplosion.TryStage(); TerminalTickProfiler.Add("GatesExpl", System.Diagnostics.Stopwatch.GetTimestamp() - t0);
+            t0 = System.Diagnostics.Stopwatch.GetTimestamp(); TerminalCraneFalling.TryStage();    TerminalTickProfiler.Add("Crane",     System.Diagnostics.Stopwatch.GetTimestamp() - t0);
+            t0 = System.Diagnostics.Stopwatch.GetTimestamp(); TerminalFinalExit.TryStage();       TerminalTickProfiler.Add("FinalExit", System.Diagnostics.Stopwatch.GetTimestamp() - t0);
+            t0 = System.Diagnostics.Stopwatch.GetTimestamp(); TerminalArtillery.TryStage();       TerminalTickProfiler.Add("ArtyStg",   System.Diagnostics.Stopwatch.GetTimestamp() - t0);
+            t0 = System.Diagnostics.Stopwatch.GetTimestamp(); TerminalPumpStation.TryStage();     TerminalTickProfiler.Add("PumpStg",   System.Diagnostics.Stopwatch.GetTimestamp() - t0);
+            t0 = System.Diagnostics.Stopwatch.GetTimestamp(); TerminalWater.TryStage();           TerminalTickProfiler.Add("Water",     System.Diagnostics.Stopwatch.GetTimestamp() - t0);
+            t0 = System.Diagnostics.Stopwatch.GetTimestamp(); TerminalDryPlanes.TryStage();       TerminalTickProfiler.Add("DryPln",    System.Diagnostics.Stopwatch.GetTimestamp() - t0);
+            t0 = System.Diagnostics.Stopwatch.GetTimestamp(); TerminalRainAudio.TryStage();       TerminalTickProfiler.Add("RainAud",   System.Diagnostics.Stopwatch.GetTimestamp() - t0);
+            t0 = System.Diagnostics.Stopwatch.GetTimestamp(); TerminalArtillery.Pump();           TerminalTickProfiler.Add("ArtyPump",  System.Diagnostics.Stopwatch.GetTimestamp() - t0);
+            t0 = System.Diagnostics.Stopwatch.GetTimestamp(); TerminalShadowGuard.Tick();         TerminalTickProfiler.Add("ShadowGd",  System.Diagnostics.Stopwatch.GetTimestamp() - t0);
             TerminalPerfWatch.OursEnd();
             TerminalPerfWatch.Tick();
-            TerminalSceneScrub.TickLateSweep();
-            TerminalAcoustics.TickDiagnostics();
+            t0 = System.Diagnostics.Stopwatch.GetTimestamp(); TerminalSceneScrub.TickLateSweep(); TerminalTickProfiler.Add("Scrub",     System.Diagnostics.Stopwatch.GetTimestamp() - t0);
+            t0 = System.Diagnostics.Stopwatch.GetTimestamp(); TerminalAcoustics.TickDiagnostics(); TerminalTickProfiler.Add("AcousDiag", System.Diagnostics.Stopwatch.GetTimestamp() - t0);
         }
 
         private void Awake()
@@ -158,12 +194,39 @@ namespace Manimal.Terminal
             // fps benefit at retail bias. now inherits the player's own LOD
             // settings verbatim. LootCullRadius stays — it's a hard cutoff,
             // not a tiering system, and still helps with hundreds of props.
+            // LOD CULL FLOOR SET, ported from icebreaker. defaults are deliberately LOOSER
+            // than the ship's: terminal is a big open map, so the near bubble has to cover
+            // real sightlines rather than a corridor, and the cells are coarser to keep the
+            // re-tier sweep cheap over that area. all live except LodCellSize.
+            // LodCellSize defaults to 100 here (not the old 30) — the user tuned it up for
+            // terminal's harbour before the system was pulled, and coarse cells keep the
+            // sweep cheap across an open map.
+            LodBiasClamp = Config.Bind("Terminal", "LodBiasClamp", -1f,
+                new ConfigDescription("caps unity's global LOD bias (LIVE). EFT's own slider floors at 2.0, which on a ripped map means props render at full detail far past where they matter. lower = more fps and earlier mesh swaps, higher = retail look. -1 = leave the game's value alone. NOTE this also shrinks every LOD CULL distance, which is what the floors below exist to compensate for",
+                    new AcceptableValueRange<float>(-1f, 4f)));
+            LodCullFloor = Config.Bind("Terminal", "LodCullFloor", 0.05f,
+                new ConfigDescription("FAR-tier cull cap (LIVE): past LodCullNearRadius, props stop rendering below this screen fraction. higher = culls more = more fps but more visible popping at distance. -1 = retail heights",
+                    new AcceptableValueRange<float>(-1f, 0.2f)));
+            LodCullNearFloor = Config.Bind("Terminal", "LodCullNearFloor", 0.006f,
+                new ConfigDescription("NEAR-tier cull cap (LIVE): inside the near radius, props only vanish below this screen fraction — the anti-dither guarantee for scenery around you. -1 = retail heights near you",
+                    new AcceptableValueRange<float>(-1f, 0.05f)));
+            LodCullNearRadius = Config.Bind("Terminal", "LodCullNearRadius", 80f,
+                new ConfigDescription("meters around the camera that count as the near tier while OUTDOORS (LIVE). terminal's open sightlines need far more than a ship corridor, so this starts high — lower it for fps, raise it if scenery pops in ahead of you",
+                    new AcceptableValueRange<float>(5f, 250f)));
+            LodCullNearRadiusIndoor = Config.Bind("Terminal", "LodCullNearRadiusIndoor", 35f,
+                new ConfigDescription("same, but while the camera is INDOORS (LIVE) — interiors have short sightlines, so a tighter bubble lets the far tier eat everything outside the room. drives off retail's EnvironmentManager/IndoorTriggers",
+                    new AcceptableValueRange<float>(5f, 250f)));
+            LodCellSize = Config.Bind("Terminal", "LodCellSize", 100f,
+                new ConfigDescription("size in meters of the cells the map is bucketed into for tiering. bigger = fewer cells and a cheaper re-tier sweep, but coarser granularity at the radius edge. terminal's harbour wants coarse cells. NEEDS A RAID RESTART — cells are quantized around this at build",
+                    new AcceptableValueRange<float>(10f, 200f)));
             LootCullRadius = Config.Bind("Terminal", "LootCullRadius", 60f,
                 new ConfigDescription("meters at which loose LOOT stops rendering (LIVE). a hard cutoff — loot is visible at EVERY range inside it and simply gone outside, no fading. cheaper than hundreds of loot models rendering to subpixel size. 0 = off (loot follows the global LOD bias again)",
                     new AcceptableValueRange<float>(0f, 250f)));
             LightCullDistance = Config.Bind("Terminal", "LightCullDistance", 25f,
                 new ConfigDescription("meters at which lamp lights finish fading to zero (live, lowering only — raising needs a raid restart). tightens bsg's native 50-80m fade window; lower = more fps + darker distance, 80 = authored retail look",
                     new AcceptableValueRange<float>(20f, 80f)));
+            GrassEnabled = Config.Bind("Terminal", "GrassEnabled", true,
+                new ConfigDescription("restore Terminal's retail GPU-instanced grass (88,215 placements, 150m authored draw distance). takes effect next raid"));
             CamDonorSkip = Config.Bind("Terminal", "CamDonorSkip", "",
                 new ConfigDescription("comma-separated component type names the donor graft must skip (bisecting a bad graft component)"));
             DevMode = Config.Bind("Terminal", "DevMode", false,
@@ -179,8 +242,6 @@ namespace Manimal.Terminal
                     new AcceptableValueRange<float>(5f, 600f)));
             AttackCutsceneSkippable = Config.Bind("Terminal", "AttackCutsceneSkippable", true,
                 new ConfigDescription("SPACE skips the attack cutscene (mid-raid; off = retail-faithful unskippable)"));
-            InstantDoorInteract = Config.Bind("Terminal", "InstantDoorInteract", true,
-                new ConfigDescription("open doors through the direct state path instead of the player animation (also the door-swing diagnostic — see TerminalInteractables)"));
             HoldBotsForCutscene = Config.Bind("Terminal", "HoldBotsForCutscene", true,
                 new ConfigDescription("no bots until the attack cutscene has played — the port isnt at war before the attack"));
             DoorFoleyVolume = Config.Bind("Terminal", "DoorFoleyVolume", 1.0f,
@@ -264,6 +325,72 @@ namespace Manimal.Terminal
             BdHangarSquad = Config.Bind("Terminal", "BdHangarSquad", 4,
                 new ConfigDescription("total black division holding the keycard hangar — the TB8 wave under-delivers past the zone's 2 born positions, the topper force-spawns the shortfall",
                     new AcceptableValueRange<int>(0, 8)));
+            MaxAliveScavs = Config.Bind("Population", "MaxAliveScavs", 10,
+                new ConfigDescription("maximum living ordinary scavs, enforced as a scav-only sub-ceiling in addition to MaxAliveBots. scav waves wait before profile generation above either ceiling. 0 = no separate scav limit",
+                    new AcceptableValueRange<int>(0, 60)));
+            MaxAliveBots = Config.Bind("Population", "MaxAliveBots", 18,
+                new ConfigDescription("maximum living AI of every role on Terminal. waves wait before profile generation until the whole authored squad fits; faction recyclers can still fulfil a waiting wave without consuming new slots. 0 = unlimited",
+                    new AcceptableValueRange<int>(0, 60)));
+            MaxResidentScavs = Config.Bind("Population", "MaxResidentScavs", 32,
+                new ConfigDescription("maximum resident ordinary-scav resources: living scavs plus uncleaned scav corpses. retiring a corpse refunds capacity, while recycled survivors add no cost. prevents corpse/resource accumulation without permanently exhausting later-map spawns. 0 = unlimited",
+                    new AcceptableValueRange<int>(0, 120)));
+            MaxBotsCreatedPerRaid = Config.Bind("Terminal", "MaxBotsCreatedPerRaid", 0,
+                new ConfigDescription("DIAGNOSTIC lifetime bot budget for one Terminal raid. each final bot placement consumes one slot and deaths do NOT refund it, so corpses/replacements/new gear cannot accumulate past this many unique bot instances. 0 = unlimited lifetime spawns; takes effect next raid",
+                    new AcceptableValueRange<int>(0, 500)));
+            DisableAllBots = Config.Bind("Terminal", "DisableAllBots", false,
+                new ConfigDescription("DIAGNOSTIC Terminal-only botless mode. ON removes every authored bot row and blocks wave, boss/event, non-wave and hangar fallback spawn paths at runtime. map progression, triggers and cutscenes remain enabled; takes effect next raid"));
+            ScavCorpseCleanup = Config.Bind("Population", "ScavCorpseCleanup", true,
+                new ConfigDescription("retire AI corpses through EFT's unregister/dispose/pool path. ordinary scavs use the short cleanup tier and are always processed before remote, older special-role corpses"));
+            ScavCorpseLifetime = Config.Bind("Population", "ScavCorpseLifetime", 300f,
+                new ConfigDescription("seconds an ordinary scav corpse remains lootable before it can be retired",
+                    new AcceptableValueRange<float>(30f, 1800f)));
+            ScavCorpseCleanupDistance = Config.Bind("Population", "ScavCorpseCleanupDistance", 75f,
+                new ConfigDescription("minimum player distance from an eligible scav corpse. this also guarantees a body being searched cannot disappear",
+                    new AcceptableValueRange<float>(20f, 300f)));
+            SpecialCorpseLifetime = Config.Bind("Population", "SpecialCorpseLifetime", 600f,
+                new ConfigDescription("seconds a Black Division, RUAF, civilian, boss, follower, PMC or other non-scav AI corpse remains lootable before remote cleanup",
+                    new AcceptableValueRange<float>(60f, 3600f)));
+            SpecialCorpseCleanupDistance = Config.Bind("Population", "SpecialCorpseCleanupDistance", 300f,
+                new ConfigDescription("minimum player distance for cleanup of any non-scav AI corpse",
+                    new AcceptableValueRange<float>(75f, 600f)));
+            ScavCorpseCleanupPerSweep = Config.Bind("Population", "ScavCorpseCleanupPerSweep", 2,
+                new ConfigDescription("maximum AI corpses retired in one 10-second sweep; eligible ordinary scavs are processed first and disposal work is spread across frames",
+                    new AcceptableValueRange<int>(1, 12)));
+            ScavCorpseCleanupKey = Config.Bind("Population", "ScavCorpseCleanupKey",
+                new BepInEx.Configuration.KeyboardShortcut(UnityEngine.KeyCode.F6),
+                new ConfigDescription("manually retire every currently distance-eligible AI corpse. age is ignored; scav and special-role distance protections still apply"));
+            ScavRecycler = Config.Bind("Population", "ScavRecycler", true,
+                new ConfigDescription("fulfil later ordinary-scav wave demand with living idle scavs from earlier progression tiers before generating new bot profiles"));
+            RuafRecycler = Config.Bind("Population", "RuafRecycler", true,
+                new ConfigDescription("fulfil later RUAF/VSRF waves with living idle RUAF soldiers from earlier progression tiers before generating new profiles; RUAF are never substituted into scav or other-faction waves"));
+            BlackDivisionRecycler = Config.Bind("Population", "BlackDivisionRecycler", true,
+                new ConfigDescription("fulfil later Black Division waves with remote idle Black Division survivors from earlier progression tiers before generating new profiles; active/recent combatants and visible bots are never moved"));
+            ScavRecycleMinDistance = Config.Bind("Population", "ScavRecycleMinDistance", 100f,
+                new ConfigDescription("minimum player distance from a living scav, RUAF soldier or Black Division operator before it may be recycled out of its old zone",
+                    new AcceptableValueRange<float>(50f, 300f)));
+            ScavRecycleDestinationDistance = Config.Bind("Population", "ScavRecycleDestinationDistance", 50f,
+                new ConfigDescription("minimum player distance from a destination marker used by the scav recycler. lower than the source distance so progression zones can actually accept recycled scavs",
+                    new AcceptableValueRange<float>(30f, 200f)));
+            ScavRecycleMinAge = Config.Bind("Population", "ScavRecycleMinAge", 90f,
+                new ConfigDescription("minimum seconds a living recyclable bot must have occupied its current assignment before it can be recycled forward",
+                    new AcceptableValueRange<float>(15f, 600f)));
+            TerminalBosses = Config.Bind("Terminal", "TerminalBosses", true,
+                new ConfigDescription("spawn the Terminal container-berth boss selected by BossRoll. diagnostic control: OFF removes all five Terminal-specific boss candidates while leaving T4, black division, scav waves, pump and map progression unchanged; takes effect next raid"));
+            BreachableDoors = Config.Bind("Terminal", "BreachableDoors", 1,
+                new ConfigDescription("how many of the OilStorage courtyard's authored-locked doors get rolled BREACHABLE at raid start. they ship Locked with both breach flags off (no key, no breach) — this picks a random one each raid so the route through changes. 0 = none (retail-faithful dead ends)",
+                    new AcceptableValueRange<int>(0, 7)));
+            ShowSpawnTriggers = Config.Bind("Terminal", "ShowSpawnTriggers", false,
+                new ConfigDescription("draw every AI spawn-trigger box as a see-through wireframe with a label. visual only — the colliders are untouched, you still walk through them. flip live."));
+            WeaponLightShadows = Config.Bind("Terminal", "WeaponLightShadows", false,
+                new ConfigDescription("let bot/player weapon flashlights and IR illuminators cast real-time shadows. OFF is the fix for the north-half frame chop: these accumulate through a raid (1 -> 23 shadow casters measured) and each one re-renders shadow casters into a shadow map every frame against a 208k-renderer scene, stalling the GPU. corpses keep their lights on, which is why killing bots never helped. map lamps are unaffected — they follow LampShadows"));
+            WorldDiff = Config.Bind("Terminal", "WorldDiff", false,
+                new ConfigDescription("automatic sawtooth-onset recorder: keeps 45 seconds of frame-phase history and recent map events, snapshots component counts plus per-instance animator/particle/audio/timeline/light/camera/probe state while smooth, then dumps the before/after evidence when postLate chop becomes sustained. causes a brief hitch during state snapshots: diagnostic raids only"));
+            TraceFrameCycle = Config.Bind("Terminal", "TraceFrameCycle", false,
+                new ConfigDescription("log frame timings 4x/sec so the chop's actual WAVEFORM is visible — period, duty cycle, and which phase leads. every other perf number here is a 30s average, which cannot resolve a ~4-5s cycle at all. noisy: diagnostic raids only"));
+            ProfilePlayerLoop = Config.Bind("Terminal", "ProfilePlayerLoop", false,
+                new ConfigDescription("instrument Unity's PostLateUpdate subsystems individually (UpdateAllRenderers / UpdateAllSkinnedMeshes / PlayerUpdateCanvases / particles / cloth) and report per-system ms in the perf heartbeat. this is the chop-hunt instrument — it rewrites the engine update loop, so leave it off for normal play"));
+            BreachDoorProbe = Config.Bind("Terminal", "BreachDoorProbe", false,
+                new ConfigDescription("log every door interaction's action list + full breach flag state when you look at a door — the why-is-BREACH-greyed-out switch"));
             InteractProbeKey = Config.Bind("Terminal", "InteractProbeKey",
                 new BepInEx.Configuration.KeyboardShortcut(UnityEngine.KeyCode.F9),
                 new ConfigDescription("dump the full interaction state of every interactive object within 6m (the why-cant-i-open-this-door button)"));
@@ -339,13 +466,20 @@ namespace Manimal.Terminal
             Patch(typeof(TerminalBotFixes.Patch_PatrolSubPoints));
             Patch(typeof(TerminalBotFixes.Patch_GetSubPointEmptyGuard));
             Patch(typeof(TerminalInteractables.Patch_HealInteractables));
+            Patch(typeof(TerminalBreachDoors.Patch_RollBreachableDoor));
+            Patch(typeof(Patch_BreachActionProbe));
             Patch(typeof(TerminalSpawnGate.Patch_ArmGate));
             Patch(typeof(TerminalSpawnGate.Patch_GateWaves));
             Patch(typeof(TerminalSpawnGate.Patch_GateBosses));
             Patch(typeof(TerminalSpawnGate.Patch_GateNonWaves));
+            Patch(typeof(TerminalSpawnGate.Patch_AdmitWithoutWave));
+            Patch(typeof(TerminalSpawnGate.Patch_BypassNativeCapForAdmittedScavs));
+            Patch(typeof(TerminalSpawnGate.Patch_FinalLifetimeCap));
+            Patch(typeof(TerminalPopulationDirector.Patch_Attach));
             Patch(typeof(TerminalAudioFixes.Patch_SpatialAudioInitSkip));
             Patch(typeof(TerminalAudioFixes.Patch_InteractiveOcclusionUninit));
             Patch(typeof(TerminalAudioFixes.Patch_SourceOcclusionUninit));
+            Patch(typeof(TerminalAudioFixes.Patch_NullBarbedWireSound));
             Patch(typeof(TerminalInteractables.Patch_DoorProbe));
             Patch(typeof(TerminalRuafNeutral.Patch_RuafNeutralToHumans));
             Patch(typeof(TerminalGearTax.Patch_GearTax));
@@ -367,6 +501,7 @@ namespace Manimal.Terminal
             Patch(typeof(Patch_EffectsControllerInit));
             Patch(typeof(TerminalCullingDriver.Patch_CaptureCamera));
             Patch(typeof(TerminalCullingDriver.Patch_AttachAtRaidStart));
+            Patch(typeof(TerminalGrass.Patch_RestoreAtRaidStart));
             Patch(typeof(Patch_OcclusionWhenUninitialized));
             Patch(typeof(Patch_WindowBreakerPrewarm));
             Patch(typeof(Patch_SpawnPmcScan));
@@ -401,6 +536,8 @@ namespace Manimal.Terminal
             // gate its methods behind the terminal check — fully active elsewhere.
             try { TerminalQuestingBotsOff.TryPatch(HarmonyInstance); }
             catch (System.Exception e) { Log.LogWarning($"questing-bots mute failed: {e}"); }
+            try { TerminalSptCustomAiGuard.TryPatch(HarmonyInstance); }
+            catch (System.Exception e) { Log.LogWarning($"SPT custom-AI map guard failed: {e}"); }
             try { TerminalLockableDoorsOff.TryPatch(HarmonyInstance); }
             catch (System.Exception e) { Log.LogWarning($"lockable-doors shim failed: {e}"); }
 

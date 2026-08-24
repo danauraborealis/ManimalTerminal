@@ -208,6 +208,7 @@ namespace Manimal.Terminal
         {
             try
             {
+                TerminalWorldDiff.RecordEvent("map trigger", trigger);
                 var player = Singleton<GameWorld>.Instance?.MainPlayer;
                 GClass3592.Instance.Emit(trigger, player != null ? player.ProfileId : "");
                 Plugin.Log.LogInfo($"[Gates] emitted '{trigger}'");

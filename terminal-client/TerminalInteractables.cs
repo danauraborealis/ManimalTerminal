@@ -216,21 +216,6 @@ namespace Manimal.Terminal
                     if (stripped > 0)
                         Plugin.Log.LogInfo($"[Interactables] {stripped} door animator(s) stripped");
 
-                    if (Plugin.InstantDoorInteract.Value)
-                    {
-                        int doors = 0;
-                        foreach (var d in UnityEngine.Object.FindObjectsOfType<Door>(true))
-                        {
-                            if (d == null) continue;
-                            try
-                            {
-                                var f = AccessTools.Field(typeof(WorldInteractiveObject), "interactWithoutAnimation");
-                                if (f != null) { f.SetValue(d, true); doors++; }
-                            }
-                            catch { }
-                        }
-                        Plugin.Log.LogInfo($"[Interactables] InteractWithoutAnimation forced on {doors} door(s)");
-                    }
                 }
                 catch (Exception e) { Plugin.Log.LogWarning($"[Interactables] heal failed: {e.Message}"); }
             }

@@ -28,6 +28,7 @@ namespace Manimal.Terminal
         {
             if (_marker != null) UnityEngine.Object.Destroy(_marker);
             _marker = null;
+            TerminalTierEventLogic.ResetFireCounts();
         }
 
         private static string DataDir =>
@@ -218,20 +219,39 @@ namespace Manimal.Terminal
             base.Dispose();
         }
 
+        // there is NO one-shot guard here — by design these mirror BSG's own
+        // EventRaise, which re-raises on every entry. that makes re-entry churn a
+        // real possibility (two separate boxes both raise 'T4'), so count the
+        // fires per raid and log at Warning: if an event climbs past 1-2, the
+        // player is crossing a boundary repeatedly and re-triggering waves.
+        internal static readonly Dictionary<string, int> FireCounts = new Dictionary<string, int>();
+        internal static void ResetFireCounts() => FireCounts.Clear();
+
         private void OnEnter(Player p)
         {
             if (EnterRaise && p != null && p.IsYourPlayer)
             {
-                Plugin.Log.LogDebug($"[AIPlaces] '{gameObject.name}' entered -> event '{EventName}'");
+                FireCounts.TryGetValue(EventName, out var n);
+                FireCounts[EventName] = ++n;
+                Plugin.Log.LogWarning($"[AIPlaces] ENTER '{gameObject.name}' -> raising event '{EventName}' (fire #{n} this raid)");
                 TerminalCrewJobs.NoteEvent(EventName); // wave bots born off this event push the players
                 Singleton<BotEventHandler>.Instance?.AnyEvent(EventName);
+                TerminalPopulationDirector.EnsureProgressWavesActivated(EventName);
             }
         }
 
         private void OnExit(Player p)
         {
-            if (ExitRaise && p != null && p.IsYourPlayer)
+            if (p == null || !p.IsYourPlayer) return;
+            // log the exit even when ExitRaise is off — enter/exit churn is exactly
+            // what we're looking for and it's invisible otherwise
+            Plugin.Log.LogWarning($"[AIPlaces] EXIT  '{gameObject.name}' ('{EventName}')"
+                + (ExitRaise ? " -> raising on exit too" : ""));
+            if (ExitRaise)
+            {
                 Singleton<BotEventHandler>.Instance?.AnyEvent(EventName);
+                TerminalPopulationDirector.EnsureProgressWavesActivated(EventName);
+            }
         }
     }
 }

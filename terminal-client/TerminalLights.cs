@@ -117,18 +117,24 @@ namespace Manimal.Terminal
     			}
     			if (Time.frameCount % 10 == 7)
     			{
+    				long __t0 = System.Diagnostics.Stopwatch.GetTimestamp();
     				TickSkyTime();
+    				TerminalTickProfiler.Add("SkyTime", System.Diagnostics.Stopwatch.GetTimestamp() - __t0);
     			}
-    			if (Time.frameCount % 300 == 47)
-    			{
-    				_lastAmbient = -1f;
-    			}
+    			// 2026-08-21: removed the periodic _lastAmbient=-1f force-resample
+    			// while hunting a cyclic FPS/lighting chop. it re-ran ApplyAmbient
+    			// every 300 frames and produced identical values every time (log
+    			// spam confirms), so at best it wasted work; at worst it was the
+    			// source of the periodic re-apply. config-diff check at line 30
+    			// still re-runs it when the user tweaks the slider.
     			if (Time.frameCount % 120 == 23)
     			{
+    				long __t0 = System.Diagnostics.Stopwatch.GetTimestamp();
     				TerminalWeather.TryStage();
     				TerminalWeather.TickProbe();
+    				TerminalTickProfiler.Add("WeatherTk", System.Diagnostics.Stopwatch.GetTimestamp() - __t0);
     			}
-    			TickNightSky();
+    			{ long __t0 = System.Diagnostics.Stopwatch.GetTimestamp(); TickNightSky(); TerminalTickProfiler.Add("NightSky", System.Diagnostics.Stopwatch.GetTimestamp() - __t0); }
     			if (Plugin.SpatialAudio.Value)
     			{
     				if (Time.frameCount % 120 == 7)
@@ -350,10 +356,43 @@ namespace Manimal.Terminal
     			{
     				Plugin.Log.LogWarning((object)("[Sky] state probe failed: " + ex3.Message));
     			}
+    			DumpSkyRig();
     		}
     		catch
     		{
     		}
+    	}
+
+    	// black sky with a visible sun means the Sun mesh draws but the Atmosphere
+    	// dome doesn't. that's either (a) brightness driven to ~0, or (b) the dome
+    	// renderer disabled / its material dead / it got occlusion-culled. dump both
+    	// sides so we stop guessing which.
+    	internal static void DumpSkyRig()
+    	{
+    		try
+    		{
+    			if (!_sky) { Plugin.Log.LogWarning((object)"[SkyRig] no TOD_Sky"); return; }
+    			var sb = new StringBuilder();
+    			sb.Append($"init={_sky.Initialized} atmoBrightness={_sky.Atmosphere.Brightness:0.####} ")
+    			  .Append($"scattering={_sky.Atmosphere.ScatteringBrightness:0.####} fog={_sky.Atmosphere.Fogginess:0.###} ")
+    			  .Append($"authoredCapture={_authoredBrightness:0.####} nightStrength={Plugin.SkyNightStrength.Value:0.##} ")
+    			  .Append($"weatherCtrl={(bool)WeatherController.Instance} skybox={(RenderSettings.skybox ? RenderSettings.skybox.name : "NULL")} ")
+    			  .Append($"ambientMode={RenderSettings.ambientMode}");
+
+    			foreach (var r in ((Component)_sky).GetComponentsInChildren<Renderer>(true))
+    			{
+    				if (r == null) continue;
+    				var m = r.sharedMaterial;
+    				sb.Append($"\n    '{((UnityEngine.Object)r).name}' enabled={((Renderer)r).enabled} "
+    					+ $"forceOff={r.forceRenderingOff} activeGO={r.gameObject.activeInHierarchy} "
+    					+ $"layer={LayerMask.LayerToName(r.gameObject.layer)} "
+    					+ $"mat='{(m ? ((UnityEngine.Object)m).name : "NULL")}' "
+    					+ $"shader='{(m && m.shader ? m.shader.name : "NULL")}' "
+    					+ $"queue={(m ? m.renderQueue : -1)}");
+    			}
+    			Plugin.Log.LogWarning((object)("[SkyRig] " + sb.ToString()));
+    		}
+    		catch (Exception e) { Plugin.Log.LogWarning((object)("[SkyRig] dump failed: " + e.Message)); }
     	}
 
     	internal static void TickNightSky()
@@ -368,10 +407,28 @@ namespace Manimal.Terminal
     			float value = Plugin.SkyNightStrength.Value;
     			if (!(value <= 0f))
     			{
+    				// CAPTURE RACE (2026-08-22, black-sky-at-14:00 hunt): this samples
+    				// the LIVE brightness once and lerps toward it forever. if the first
+    				// call lands while the sky is dark — mid-load, pre-Initialize, or
+    				// after something else zeroed it — we latch near-zero as "authored"
+    				// and the sky can never recover. only accept a plausible value, and
+    				// keep looking until we get one.
     				if (_authoredBrightness < 0f)
     				{
-    					_authoredBrightness = _sky.Atmosphere.Brightness;
-    					_authoredScatter = _sky.Atmosphere.ScatteringBrightness;
+    					float b = _sky.Atmosphere.Brightness;
+    					float s = _sky.Atmosphere.ScatteringBrightness;
+    					if (b > 0.02f)
+    					{
+    						_authoredBrightness = b;
+    						_authoredScatter = s;
+    						Plugin.Log.LogWarning((object)$"[Sky] authored atmosphere captured: brightness={b:0.###} scattering={s:0.###}");
+    					}
+    					else
+    					{
+    						// nothing sane to work from yet — leave the sky alone rather
+    						// than lerping it toward a bogus baseline
+    						return;
+    					}
     				}
     				float y = _sky.SunDirection.y;
     				float hour = _sky.Cycle.Hour;
