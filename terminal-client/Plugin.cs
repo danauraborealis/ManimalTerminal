@@ -166,7 +166,7 @@ namespace Manimal.Terminal
             // has no baked lighting (user correction 2026-08-15; earlier "lightmaps"
             // comments were an unverified story). we revive the lights directly.
             // defaults are icebreaker's shipped values — retune per-map once in-raid.
-            LampAuthored = Config.Bind("Terminal", "LampAuthored", true,
+            LampAuthored = Config.Bind("Terminal", "LampAuthored", false,
                 new ConfigDescription("restore each lamp's RETAIL-authored intensity/color/range (7585 extracted — colored indicators, sodium spots, and ~3000 authored-dark broken fixtures that stay dark). off = the old flat LampIntensity for everything"));
             LampAuthoredScale = Config.Bind("Terminal", "LampAuthoredScale", 1.0f,
                 new ConfigDescription("multiplier on the authored intensities (1.0 = exactly retail)",
@@ -174,7 +174,7 @@ namespace Manimal.Terminal
             LampIntensity = Config.Bind("Terminal", "LampIntensity", 2.0f,
                 new ConfigDescription("brightness of the revived lamp lights (0 = lights fully OFF — a big GPU win, emissives carry the look)",
                     new AcceptableValueRange<float>(0f, 12f)));
-            AmbientIntensity = Config.Bind("Terminal", "AmbientIntensity", 1.6f,
+            AmbientIntensity = Config.Bind("Terminal", "AmbientIntensity", 1.8f,
                 new ConfigDescription("flat ambient fill light — lifts shadowed areas out of black (no real bounce without a bake)",
                     new AcceptableValueRange<float>(0f, 3f)));
             AmbientColorOverride = Config.Bind("Terminal", "AmbientColorOverride", false,
@@ -201,7 +201,7 @@ namespace Manimal.Terminal
             // LodCellSize defaults to 100 here (not the old 30) — the user tuned it up for
             // terminal's harbour before the system was pulled, and coarse cells keep the
             // sweep cheap across an open map.
-            LodBiasClamp = Config.Bind("Terminal", "LodBiasClamp", -1f,
+            LodBiasClamp = Config.Bind("Terminal", "LodBiasClamp", 1f,
                 new ConfigDescription("caps unity's global LOD bias (LIVE). EFT's own slider floors at 2.0, which on a ripped map means props render at full detail far past where they matter. lower = more fps and earlier mesh swaps, higher = retail look. -1 = leave the game's value alone. NOTE this also shrinks every LOD CULL distance, which is what the floors below exist to compensate for",
                     new AcceptableValueRange<float>(-1f, 4f)));
             LodCullFloor = Config.Bind("Terminal", "LodCullFloor", 0.05f,
@@ -213,16 +213,16 @@ namespace Manimal.Terminal
             LodCullNearRadius = Config.Bind("Terminal", "LodCullNearRadius", 80f,
                 new ConfigDescription("meters around the camera that count as the near tier while OUTDOORS (LIVE). terminal's open sightlines need far more than a ship corridor, so this starts high — lower it for fps, raise it if scenery pops in ahead of you",
                     new AcceptableValueRange<float>(5f, 250f)));
-            LodCullNearRadiusIndoor = Config.Bind("Terminal", "LodCullNearRadiusIndoor", 35f,
+            LodCullNearRadiusIndoor = Config.Bind("Terminal", "LodCullNearRadiusIndoor", 40f,
                 new ConfigDescription("same, but while the camera is INDOORS (LIVE) — interiors have short sightlines, so a tighter bubble lets the far tier eat everything outside the room. drives off retail's EnvironmentManager/IndoorTriggers",
                     new AcceptableValueRange<float>(5f, 250f)));
-            LodCellSize = Config.Bind("Terminal", "LodCellSize", 100f,
+            LodCellSize = Config.Bind("Terminal", "LodCellSize", 70f,
                 new ConfigDescription("size in meters of the cells the map is bucketed into for tiering. bigger = fewer cells and a cheaper re-tier sweep, but coarser granularity at the radius edge. terminal's harbour wants coarse cells. NEEDS A RAID RESTART — cells are quantized around this at build",
                     new AcceptableValueRange<float>(10f, 200f)));
-            LootCullRadius = Config.Bind("Terminal", "LootCullRadius", 60f,
+            LootCullRadius = Config.Bind("Terminal", "LootCullRadius", 40f,
                 new ConfigDescription("meters at which loose LOOT stops rendering (LIVE). a hard cutoff — loot is visible at EVERY range inside it and simply gone outside, no fading. cheaper than hundreds of loot models rendering to subpixel size. 0 = off (loot follows the global LOD bias again)",
                     new AcceptableValueRange<float>(0f, 250f)));
-            LightCullDistance = Config.Bind("Terminal", "LightCullDistance", 25f,
+            LightCullDistance = Config.Bind("Terminal", "LightCullDistance", 20f,
                 new ConfigDescription("meters at which lamp lights finish fading to zero (live, lowering only — raising needs a raid restart). tightens bsg's native 50-80m fade window; lower = more fps + darker distance, 80 = authored retail look",
                     new AcceptableValueRange<float>(20f, 80f)));
             GrassEnabled = Config.Bind("Terminal", "GrassEnabled", true,
@@ -249,21 +249,21 @@ namespace Manimal.Terminal
                     new AcceptableValueRange<float>(0f, 1f)));
             // weather, set the Time&Weather-Changer way (WeatherDebug + the sliders).
             // retail terminal is a wet night port — rain by default.
-            GateAmbushTime = Config.Bind("Terminal", "GateAmbushTime", 720f,
+            GateAmbushTime = Config.Bind("Terminal", "GateAmbushTime", 450f,
                 new ConfigDescription("raid seconds until the Zone1BDGateAmbush13 pair spawns. retail authors 950 (15:50 in) — they beat you to the gate only if you fight slow; -1 keeps the authored timer",
                     new AcceptableValueRange<float>(-1f, 1800f)));
             BallisticGlassPen = Config.Bind("Terminal", "BallisticGlassPen", true,
                 new ConfigDescription("make terminal's armored-glass panes shoot-through for player and AI (their colliders ship with penetration chance 0 = invisible bulletproof walls)"));
-            SkyHourOffset = Config.Bind("Terminal", "SkyHourOffset", 2.5f,
+            SkyHourOffset = Config.Bind("Terminal", "SkyHourOffset", 0f,
                 new ConfigDescription("hours added to the SKY's copy of the raid time (raid clock untouched). the TOD solver reads retail's backend time reference, not raw raid time — at 0 offset a 22:00 raid renders the sun ~7 degrees ABOVE the horizon (probe-verified). ~15 degrees of sun drop per hour; raise if you can still see sun glow at night",
                     new AcceptableValueRange<float>(-6f, 6f)));
-            SkyNightStrength = Config.Bind("Terminal", "SkyNightStrength", 1f,
+            SkyNightStrength = Config.Bind("Terminal", "SkyNightStrength", 0f,
                 new ConfigDescription("how hard to pin the sky to NIGHT between 21:00-06:00. the game's own ToDController (which normally darkens the atmosphere as the sun sets) lives on the scrubbed WeatherController, so without this the sky keeps the scene's authored daytime constants. 0 = leave the sky to the authored values",
                     new AcceptableValueRange<float>(0f, 1f)));
             // stencil ambient masking + darken bindings removed (2026-08-20) —
             // the underlying system was ripped in the "remove stencilslop"
             // commit, PR #1 briefly re-added the config surface only
-            AmbientSplines = Config.Bind("Terminal", "AmbientSplines", true,
+            AmbientSplines = Config.Bind("Terminal", "AmbientSplines", false,
                 new ConfigDescription("run the ambient spline emitter stack (sea/wind/rain movers). turn OFF for one raid as an A/B test for the periodic frame chop — onset correlates with ambient staging"));
             SoundRigFirefight = Config.Bind("Terminal", "SoundRigFirefight", true,
                 new ConfigDescription("distant firefight ambience bursts. turn OFF for one raid as the other half of the frame-chop A/B"));
@@ -328,8 +328,8 @@ namespace Manimal.Terminal
             MaxAliveScavs = Config.Bind("Population", "MaxAliveScavs", 10,
                 new ConfigDescription("maximum living ordinary scavs, enforced as a scav-only sub-ceiling in addition to MaxAliveBots. scav waves wait before profile generation above either ceiling. 0 = no separate scav limit",
                     new AcceptableValueRange<int>(0, 60)));
-            MaxAliveBots = Config.Bind("Population", "MaxAliveBots", 18,
-                new ConfigDescription("maximum living AI of every role on Terminal. waves wait before profile generation until the whole authored squad fits; faction recyclers can still fulfil a waiting wave without consuming new slots. 0 = unlimited",
+            MaxAliveBots = Config.Bind("Population", "MaxAliveBots", 24,
+                new ConfigDescription("maximum living AI of every role on Terminal. waves wait before profile generation until the whole authored squad fits; faction recyclers can still fulfil a waiting wave without consuming new slots. 24 leaves room for authored faction encounters while avoiding the former 18-bot queue starvation. 0 = unlimited",
                     new AcceptableValueRange<int>(0, 60)));
             MaxResidentScavs = Config.Bind("Population", "MaxResidentScavs", 32,
                 new ConfigDescription("maximum resident ordinary-scav resources: living scavs plus uncleaned scav corpses. retiring a corpse refunds capacity, while recycled survivors add no cost. prevents corpse/resource accumulation without permanently exhausting later-map spawns. 0 = unlimited",
@@ -365,13 +365,13 @@ namespace Manimal.Terminal
                 new ConfigDescription("fulfil later RUAF/VSRF waves with living idle RUAF soldiers from earlier progression tiers before generating new profiles; RUAF are never substituted into scav or other-faction waves"));
             BlackDivisionRecycler = Config.Bind("Population", "BlackDivisionRecycler", true,
                 new ConfigDescription("fulfil later Black Division waves with remote idle Black Division survivors from earlier progression tiers before generating new profiles; active/recent combatants and visible bots are never moved"));
-            ScavRecycleMinDistance = Config.Bind("Population", "ScavRecycleMinDistance", 100f,
+            ScavRecycleMinDistance = Config.Bind("Population", "ScavRecycleMinDistance", 75f,
                 new ConfigDescription("minimum player distance from a living scav, RUAF soldier or Black Division operator before it may be recycled out of its old zone",
                     new AcceptableValueRange<float>(50f, 300f)));
-            ScavRecycleDestinationDistance = Config.Bind("Population", "ScavRecycleDestinationDistance", 50f,
+            ScavRecycleDestinationDistance = Config.Bind("Population", "ScavRecycleDestinationDistance", 40f,
                 new ConfigDescription("minimum player distance from a destination marker used by the scav recycler. lower than the source distance so progression zones can actually accept recycled scavs",
                     new AcceptableValueRange<float>(30f, 200f)));
-            ScavRecycleMinAge = Config.Bind("Population", "ScavRecycleMinAge", 90f,
+            ScavRecycleMinAge = Config.Bind("Population", "ScavRecycleMinAge", 45f,
                 new ConfigDescription("minimum seconds a living recyclable bot must have occupied its current assignment before it can be recycled forward",
                     new AcceptableValueRange<float>(15f, 600f)));
             TerminalBosses = Config.Bind("Terminal", "TerminalBosses", true,
@@ -387,8 +387,8 @@ namespace Manimal.Terminal
                 new ConfigDescription("automatic sawtooth-onset recorder: keeps 45 seconds of frame-phase history and recent map events, snapshots component counts plus per-instance animator/particle/audio/timeline/light/camera/probe state while smooth, then dumps the before/after evidence when postLate chop becomes sustained. causes a brief hitch during state snapshots: diagnostic raids only"));
             TraceFrameCycle = Config.Bind("Terminal", "TraceFrameCycle", false,
                 new ConfigDescription("log frame timings 4x/sec so the chop's actual WAVEFORM is visible — period, duty cycle, and which phase leads. every other perf number here is a 30s average, which cannot resolve a ~4-5s cycle at all. noisy: diagnostic raids only"));
-            ProfilePlayerLoop = Config.Bind("Terminal", "ProfilePlayerLoop", false,
-                new ConfigDescription("instrument Unity's PostLateUpdate subsystems individually (UpdateAllRenderers / UpdateAllSkinnedMeshes / PlayerUpdateCanvases / particles / cloth) and report per-system ms in the perf heartbeat. this is the chop-hunt instrument — it rewrites the engine update loop, so leave it off for normal play"));
+            ProfilePlayerLoop = Config.Bind("Terminal", "ProfilePlayerLoop", true,
+                new ConfigDescription("TEST-BUILD DIAGNOSTIC: instrument Unity's PostLateUpdate subsystems individually (UpdateAllRenderers / UpdateAllSkinnedMeshes / PlayerUpdateCanvases / particles / cloth) and report per-system ms in the perf heartbeat. useful in tester logs; disable after the performance test cycle"));
             BreachDoorProbe = Config.Bind("Terminal", "BreachDoorProbe", false,
                 new ConfigDescription("log every door interaction's action list + full breach flag state when you look at a door — the why-is-BREACH-greyed-out switch"));
             InteractProbeKey = Config.Bind("Terminal", "InteractProbeKey",
@@ -409,7 +409,7 @@ namespace Manimal.Terminal
             UnityEngine.SceneManagement.SceneManager.sceneLoaded += TerminalAcoustics.OnSceneLoaded;
             RetailAIBake = Config.Bind("Terminal", "RetailAIBake", true,
                 new ConfigDescription("fill the AI holders with the retail bake (covers/voxels/patrols/mines) at raid start — off = empty holders, bots stand around"));
-            RaidStartHour = Config.Bind("Terminal", "RaidStartHour", 22f,
+            RaidStartHour = Config.Bind("Terminal", "RaidStartHour", 21f,
                 new ConfigDescription("anchor the raid clock to this hour at raid start (clock keeps ticking after; the terminal event is authored for night). -1 = keep natural raid time",
                     new AcceptableValueRange<float>(-1f, 23.99f)));
             SoundRig = Config.Bind("Terminal", "SoundRig", true,
@@ -423,7 +423,7 @@ namespace Manimal.Terminal
                 new ConfigDescription("occlusion culling from the .pcbake sidecars (live kill switch — flip off to isolate pop-in: pops that stop are stale bake data)"));
             InteriorCrossCull = Config.Bind("Terminal", "InteriorCrossCull", true,
                 new ConfigDescription("cull interior volumes wholesale when the camera is outside them beyond CrossCullDistance (live)"));
-            CrossCullDistance = Config.Bind("Terminal", "CrossCullDistance", 20f,
+            CrossCullDistance = Config.Bind("Terminal", "CrossCullDistance", 30f,
                 new ConfigDescription("how close an out-of-volume interior group must be to still render (doorway/window sightlines) (live)",
                     new AcceptableValueRange<float>(10f, 80f)));
 

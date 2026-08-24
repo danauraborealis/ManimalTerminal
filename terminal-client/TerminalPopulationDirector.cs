@@ -52,6 +52,7 @@ namespace Manimal.Terminal
         private static int _avoidedCreations;
         private static int _recoveredBirths;
         private static float _nextNativeReconcile;
+        private static readonly Dictionary<string, float> RecycleDiagnosticTimes = new Dictionary<string, float>();
 
         // Retail stage 2 contains every Zone2 AI place except its three finale places.
         private static readonly HashSet<string> Stage1Zones = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
@@ -95,6 +96,7 @@ namespace Manimal.Terminal
             _highestProgressTier = -1;
             _created = _died = _retiredCorpses = _recycledPlacements = _avoidedCreations = _recoveredBirths = 0;
             _nextNativeReconcile = 0f;
+            RecycleDiagnosticTimes.Clear();
             if (_host) UnityEngine.Object.Destroy(_host);
             _host = null;
         }
@@ -573,11 +575,26 @@ namespace Manimal.Terminal
             float sourceMinDistSq = Plugin.ScavRecycleMinDistance.Value * Plugin.ScavRecycleMinDistance.Value;
             float targetMinDistSq = Plugin.ScavRecycleDestinationDistance.Value * Plugin.ScavRecycleDestinationDistance.Value;
             var positions = EligibleTargetPositions(targetZone, player.Position, targetMinDistSq);
-            if (positions.Count == 0) return 0;
+            if (positions.Count == 0)
+            {
+                LogRecycleBlock(pool, targetZone.name, "no safe destination marker (all too close, visible, or off NavMesh)");
+                return 0;
+            }
 
             var candidates = new List<Entry>();
+            var rejects = new int[9];
             foreach (var e in Entries.Values)
-                if (CanRecycle(e, targetStage, targetTier, player.Position, sourceMinDistSq, pool)) candidates.Add(e);
+            {
+                if (CanRecycle(e, targetStage, targetTier, targetZone.name, player.Position, sourceMinDistSq, pool, out var reason))
+                    candidates.Add(e);
+                else
+                    rejects[(int)reason]++;
+            }
+            if (candidates.Count == 0)
+            {
+                LogRecycleBlock(pool, targetZone.name,
+                    $"no eligible survivor among {Entries.Count}: faction={rejects[(int)RecycleReject.WrongFaction]}, invalid/dead={rejects[(int)RecycleReject.Invalid]}, same/newerAssignment={rejects[(int)RecycleReject.Progress]}, young={rejects[(int)RecycleReject.TooYoung]}, nearOrVisible={rejects[(int)RecycleReject.NearOrVisible]}, inactive={rejects[(int)RecycleReject.Inactive]}, combat={rejects[(int)RecycleReject.Combat]}, error={rejects[(int)RecycleReject.Error]}");
+            }
             candidates.Sort((a, b) => a.SpawnAt.CompareTo(b.SpawnAt));
             int candidateLimit = Math.Min(Math.Min(wanted, positions.Count), candidates.Count);
 
@@ -622,30 +639,65 @@ namespace Manimal.Terminal
         private static string PoolLabel(RecyclePool pool)
             => pool == RecyclePool.Ruaf ? "RUAF" : pool == RecyclePool.BlackDivision ? "Black Division" : "scav";
 
-        private static bool CanRecycle(Entry e, int targetStage, int targetTier, Vector3 playerPos, float minDistSq, RecyclePool pool)
+        private enum RecycleReject
         {
+            Invalid,
+            WrongFaction,
+            Progress,
+            TooYoung,
+            NearOrVisible,
+            Inactive,
+            Combat,
+            Error,
+            Reserved,
+        }
+
+        private static void LogRecycleBlock(RecyclePool pool, string targetZone, string reason)
+        {
+            string key = pool + ":" + targetZone;
+            if (RecycleDiagnosticTimes.TryGetValue(key, out var last) && Time.realtimeSinceStartup - last < 30f) return;
+            RecycleDiagnosticTimes[key] = Time.realtimeSinceStartup;
+            Plugin.Log.LogInfo($"[RecyclerDiag] {PoolLabel(pool)} -> '{targetZone}' blocked: {reason}");
+        }
+
+        private static bool CanRecycle(Entry e, int targetStage, int targetTier, string targetZone,
+            Vector3 playerPos, float minDistSq, RecyclePool pool, out RecycleReject reason)
+        {
+            reason = RecycleReject.Invalid;
             if (e == null || !e.Alive || e.Removed || !e.Bot || !e.Player) return false;
-            if (pool == RecyclePool.Ruaf && !IsRuaf(e.Role)) return false;
-            if (pool == RecyclePool.BlackDivision && !IsBlackDivision(e.Role)) return false;
-            if (pool == RecyclePool.Scav && !e.OrdinaryScav) return false;
-            if (e.LogicalStage <= 0 || e.LogicalStage > targetStage || e.LogicalTier >= targetTier) return false;
+            if (pool == RecyclePool.Ruaf && !IsRuaf(e.Role)) { reason = RecycleReject.WrongFaction; return false; }
+            if (pool == RecyclePool.BlackDivision && !IsBlackDivision(e.Role)) { reason = RecycleReject.WrongFaction; return false; }
+            if (pool == RecyclePool.Scav && !e.OrdinaryScav) { reason = RecycleReject.WrongFaction; return false; }
+            // Unknown/opening assignments and earlier positions in the same tier are
+            // valid sources.  Only protect the destination itself and assignments
+            // genuinely ahead of the requested wave.
+            if (string.Equals(e.LogicalZone, targetZone, StringComparison.OrdinalIgnoreCase)
+                || e.LogicalStage > targetStage || e.LogicalTier > targetTier)
+            {
+                reason = RecycleReject.Progress;
+                return false;
+            }
             float ageFromLastPlacement = Time.time - Math.Max(e.SpawnAt, e.LastRecycledAt);
-            if (ageFromLastPlacement < Plugin.ScavRecycleMinAge.Value) return false;
-            if ((e.Bot.Position - playerPos).sqrMagnitude < minDistSq || IsInCamera(e.Bot.Position)) return false;
+            if (ageFromLastPlacement < Plugin.ScavRecycleMinAge.Value) { reason = RecycleReject.TooYoung; return false; }
+            if ((e.Bot.Position - playerPos).sqrMagnitude < minDistSq || IsInCamera(e.Bot.Position))
+            {
+                reason = RecycleReject.NearOrVisible;
+                return false;
+            }
             try
             {
-                if (e.Bot.BotState != EBotState.Active || e.Bot.Mover == null) return false;
+                if (e.Bot.BotState != EBotState.Active || e.Bot.Mover == null) { reason = RecycleReject.Inactive; return false; }
                 if (e.Player.HealthController == null || !e.Player.HealthController.IsAlive) return false;
-                if (e.Bot.Memory == null || e.Bot.Memory.IsUnderFire) return false;
+                if (e.Bot.Memory == null || e.Bot.Memory.IsUnderFire) { reason = RecycleReject.Combat; return false; }
                 // GoalEnemy can remain assigned long after a fight has ended. Treat it
-                // as active combat only while visible/shootable or seen in the last 30s;
-                // otherwise survivors that are genuinely standing idle never recycle.
+                // as active combat only while visible/shootable or seen in the last
+                // 10s. Persistent patrol/guard requests are deliberately NOT a veto:
+                // virtually every authored survivor owns one even while standing idle.
                 var enemy = e.Bot.Memory.GoalEnemy;
                 if (enemy != null && (enemy.IsVisible || enemy.CanShoot
-                    || Time.time - enemy.PersonalLastSeenTime < 30f)) return false;
-                if (e.Bot.BotRequestController?.CurRequest != null) return false;
+                    || Time.time - enemy.PersonalLastSeenTime < 10f)) { reason = RecycleReject.Combat; return false; }
             }
-            catch { return false; }
+            catch { reason = RecycleReject.Error; return false; }
             return true;
         }
 
