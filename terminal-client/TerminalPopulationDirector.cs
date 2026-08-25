@@ -5,7 +5,9 @@ using Comfort.Common;
 using EFT;
 using EFT.Game.Spawning;
 using EFT.Interactive;
+using EFT.InventoryLogic;
 using HarmonyLib;
+using Systems.Effects;
 using UnityEngine;
 using UnityEngine.AI;
 
@@ -40,6 +42,7 @@ namespace Manimal.Terminal
             internal float DeathAt = -1f;
             internal float LastRecycledAt = -1f;
             internal int RecycleCount;
+            internal float VisualRepairUntil = -1f;
         }
 
         private static readonly Dictionary<string, Entry> Entries = new Dictionary<string, Entry>();
@@ -226,9 +229,96 @@ namespace Manimal.Terminal
             }
         }
 
+        // Defense in depth for both vanilla and third-party corpse removal. Unity's
+        // destroyed Components compare equal to null, and AITaskManager interprets a
+        // null Bot as an ownerless task that SHOULD run. Mark fake-null bot tasks for
+        // cancellation before it executes their closures against a pooled transform.
+        [HarmonyPatch(typeof(AITaskManager), "method_0")]
+        internal static class Patch_DropDestroyedBotTasks
+        {
+            [HarmonyPrefix]
+            private static void Prefix(AITaskManager __instance)
+            {
+                if (!TerminalGate.On || __instance?.SimpleTasks == null) return;
+                foreach (var task in __instance.SimpleTasks)
+                    if (task != null && !ReferenceEquals(task.Bot, null) && !task.Bot)
+                        task.IsCancelRequested = true;
+            }
+        }
+
+        // EffectsCommutator retains bleeding players independently of GameWorld.
+        // Scrub any fake-null entry before its unguarded Player.Position read. The
+        // normal cleaner explicitly unregisters first; this catches races and other
+        // cleanup mods without changing behavior on non-Terminal maps.
+        [HarmonyPatch(typeof(EffectsCommutator), "UpdatePlayersBleedings")]
+        internal static class Patch_DropDestroyedBleedingPlayers
+        {
+            private static readonly FieldInfo BleedingPlayers = AccessTools.Field(typeof(EffectsCommutator), "list_1");
+
+            [HarmonyPrefix]
+            private static void Prefix(EffectsCommutator __instance)
+            {
+                if (!TerminalGate.On || __instance == null) return;
+                var list = BleedingPlayers?.GetValue(__instance) as System.Collections.IList;
+                if (list == null) return;
+                for (int i = list.Count - 1; i >= 0; i--)
+                {
+                    object pair = list[i];
+                    object player = pair?.GetType().GetProperty("Key")?.GetValue(pair);
+                    if (player == null || (player is UnityEngine.Object unityPlayer && !unityPlayer))
+                        list.RemoveAt(i);
+                }
+            }
+        }
+
         private static void OnBotCreated(BotOwner bot)
         {
+            ScrubPooledCorpseComponents(bot);
             RecordBot(bot, false);
+        }
+
+        // Corpse is added dynamically when a Player dies. Unlike the Player component,
+        // it is not placed in PlayerPoolObject.RegisteredComponentsToClean. Calling
+        // Corpse.Kill directly can therefore return the GO to the player pool with an
+        // old LootItem/InventoryEquipment component still attached. The next bot can
+        // look and behave correctly while interaction selects that older inventory.
+        private static void ScrubPooledCorpseComponents(BotOwner bot)
+        {
+            try
+            {
+                var player = bot ? bot.GetPlayer : null;
+                if (!player) return;
+                var stale = player.gameObject.GetComponents<Corpse>();
+                if (stale == null || stale.Length == 0) return;
+                foreach (var corpse in stale)
+                    if (corpse) UnityEngine.Object.DestroyImmediate(corpse);
+                Plugin.Log.LogWarning($"[CorpseIdentity] removed {stale.Length} stale pooled corpse component(s) before activating {bot.ProfileId} role={bot.Profile?.Info?.Settings?.Role}");
+            }
+            catch (Exception e)
+            {
+                Plugin.Log.LogWarning($"[CorpseIdentity] pooled corpse scrub failed: {e.Message}");
+            }
+        }
+
+        [HarmonyPatch(typeof(Corpse), "method_17")]
+        internal static class Patch_AuditCorpseIdentity
+        {
+            [HarmonyPostfix]
+            private static void Postfix(Corpse __instance, string playerProfileID, InventoryEquipment equipment)
+            {
+                if (!TerminalGate.On || !__instance || string.IsNullOrEmpty(playerProfileID)) return;
+                try
+                {
+                    Entries.TryGetValue(playerProfileID, out var entry);
+                    bool equipmentMatch = entry != null && entry.Player
+                        && ReferenceEquals(entry.Player.Equipment, equipment);
+                    int components = __instance.gameObject.GetComponents<Corpse>().Length;
+                    Plugin.Log.LogInfo($"[CorpseIdentity] created profile={playerProfileID} role={(entry != null ? entry.Role.ToString() : "untracked")}"
+                        + $" equipment={(equipment != null ? equipment.Id.ToString() : "NULL")} playerEquipmentMatch={equipmentMatch}"
+                        + $" corpseComponentsOnObject={components} recycled={(entry != null ? entry.RecycleCount : 0)}");
+                }
+                catch (Exception e) { Plugin.Log.LogWarning($"[CorpseIdentity] creation audit failed: {e.Message}"); }
+            }
         }
 
         private static void RecordBot(BotOwner bot, bool recovered)
@@ -350,6 +440,30 @@ namespace Manimal.Terminal
                 catch { }
                 return n;
             }
+        }
+
+        internal static int DespawnAllForEnding()
+        {
+            int despawned = 0;
+            var snapshot = new List<Entry>(Entries.Values);
+            foreach (var entry in snapshot)
+            {
+                if (entry == null || !entry.Alive || entry.Removed || !entry.Bot) continue;
+                try
+                {
+                    entry.Removed = true;
+                    TerminalCrewJobs.ByProfile.Remove(entry.ProfileId);
+                    entry.Bot.LeaveData.RemoveFromMap();
+                    despawned++;
+                }
+                catch (Exception e)
+                {
+                    entry.Removed = false;
+                    Plugin.Log.LogWarning($"[Ending] bot despawn failed for {entry.ProfileId} role={entry.Role}: {e.Message}");
+                }
+            }
+            Plugin.Log.LogInfo($"[Ending] despawned {despawned} living bot(s) before the ending cutscene");
+            return despawned;
         }
 
         internal static int LivingOrdinaryScavCount
@@ -568,7 +682,12 @@ namespace Manimal.Terminal
             int targetTier = TierOf(targetZone.name);
             // Opening-area waves remain authored.  Recycling begins only once the
             // player reaches Zone2 and its corresponding progression tier has fired.
-            if (targetStage < 2 || targetTier < 0 || !HasReachedTier(targetTier)) return 0;
+            // RUAF/BD are different: their trigger boxes can fire out of numerical
+            // stage order (TB4 did so after T0 in the 08-24 witness raid). A requested
+            // faction encounter is itself proof that the destination is now legal, so
+            // remote survivors may answer it even when the zone number points back.
+            if (pool == RecyclePool.Scav
+                && (targetStage < 2 || targetTier < 0 || !HasReachedTier(targetTier))) return 0;
 
             var player = Singleton<GameWorld>.Instantiated ? Singleton<GameWorld>.Instance.MainPlayer : null;
             if (!player) return 0;
@@ -593,7 +712,7 @@ namespace Manimal.Terminal
             if (candidates.Count == 0)
             {
                 LogRecycleBlock(pool, targetZone.name,
-                    $"no eligible survivor among {Entries.Count}: faction={rejects[(int)RecycleReject.WrongFaction]}, invalid/dead={rejects[(int)RecycleReject.Invalid]}, same/newerAssignment={rejects[(int)RecycleReject.Progress]}, young={rejects[(int)RecycleReject.TooYoung]}, nearOrVisible={rejects[(int)RecycleReject.NearOrVisible]}, inactive={rejects[(int)RecycleReject.Inactive]}, combat={rejects[(int)RecycleReject.Combat]}, error={rejects[(int)RecycleReject.Error]}");
+                    $"no eligible survivor among {Entries.Count}: faction={rejects[(int)RecycleReject.WrongFaction]}, invalid/dead={rejects[(int)RecycleReject.Invalid]}, protectedAssignment={rejects[(int)RecycleReject.Progress]}, young={rejects[(int)RecycleReject.TooYoung]}, nearOrVisible={rejects[(int)RecycleReject.NearOrVisible]}, inactive={rejects[(int)RecycleReject.Inactive]}, combat={rejects[(int)RecycleReject.Combat]}, error={rejects[(int)RecycleReject.Error]}");
             }
             candidates.Sort((a, b) => a.SpawnAt.CompareTo(b.SpawnAt));
             int candidateLimit = Math.Min(Math.Min(wanted, positions.Count), candidates.Count);
@@ -606,12 +725,27 @@ namespace Manimal.Terminal
                 try
                 {
                     var bot = e.Bot;
+                    // External AI limiters may have left a perfectly reusable survivor
+                    // inactive. The destination is safe and out of view, so wake it as
+                    // part of the move instead of throwing away the recycler candidate.
+                    if (!e.Player.gameObject.activeSelf) e.Player.gameObject.SetActive(true);
+                    bot.BotState = EBotState.Active;
+                    bot.StandBy?.Activate();
                     bot.Memory?.Spotted(false, null, null);
                     bot.Mover.Stop();
                     bot.Mover.Teleport(pos);
                     bot.Transform.position = pos;
                     bot.SpawnBotZone = targetZone;
                     bot.LookSensor?.UpdateZoneValue(targetZone);
+
+                    // Observed/player-body culling evaluates the old position for at
+                    // least one job cycle after a teleport. In the witness raid that
+                    // state stuck on a recycled RUAF soldier: clothing/body renderers
+                    // remained forceRenderingOff while independently owned equipment
+                    // stayed visible. Clear the stale flag now and for a short settling
+                    // window while the culling sphere catches the new transform.
+                    e.VisualRepairUntil = Time.time + 3f;
+                    RepairRecycledBodyVisibility(e, out int bodyRenderers, out int forcedBackOn);
 
                     TerminalCrewJobs.ByProfile[e.ProfileId] = new TerminalCrewJobs.Rec
                     {
@@ -627,6 +761,7 @@ namespace Manimal.Terminal
                     moved++;
                     _recycledPlacements++;
                     Plugin.Log.LogDebug($"[Recycler] {PoolLabel(pool)} {e.ProfileId} '{e.Role}' -> {targetZone.name} at {pos} (reuse #{e.RecycleCount})");
+                    Plugin.Log.LogDebug($"[Recycler] body visibility refreshed for {e.ProfileId}: {bodyRenderers} renderer(s), {forcedBackOn} stale force-off flag(s) cleared");
                 }
                 catch (Exception ex)
                 {
@@ -634,6 +769,34 @@ namespace Manimal.Terminal
                 }
             }
             return moved;
+        }
+
+        private static void RepairRecycledBodyVisibility(Entry entry, out int renderers, out int forcedBackOn)
+        {
+            renderers = 0;
+            forcedBackOn = 0;
+            try
+            {
+                if (entry == null || !entry.Player || !entry.Player.PlayerBody) return;
+                var body = new List<Renderer>(128);
+                entry.Player.PlayerBody.GetRenderersNonAlloc(body);
+                renderers = body.Count;
+                foreach (var renderer in body)
+                {
+                    if (!renderer) continue;
+                    if (renderer.forceRenderingOff)
+                    {
+                        renderer.forceRenderingOff = false;
+                        forcedBackOn++;
+                    }
+                    // A teleported skinned mesh can retain bounds/bones from its old
+                    // culled position. Let it update offscreen thereafter; recycler
+                    // populations are deliberately small, so this is bounded.
+                    if (renderer is SkinnedMeshRenderer skinned)
+                        skinned.updateWhenOffscreen = true;
+                }
+            }
+            catch { }
         }
 
         private static string PoolLabel(RecyclePool pool)
@@ -668,11 +831,15 @@ namespace Manimal.Terminal
             if (pool == RecyclePool.Ruaf && !IsRuaf(e.Role)) { reason = RecycleReject.WrongFaction; return false; }
             if (pool == RecyclePool.BlackDivision && !IsBlackDivision(e.Role)) { reason = RecycleReject.WrongFaction; return false; }
             if (pool == RecyclePool.Scav && !e.OrdinaryScav) { reason = RecycleReject.WrongFaction; return false; }
-            // Unknown/opening assignments and earlier positions in the same tier are
-            // valid sources.  Only protect the destination itself and assignments
-            // genuinely ahead of the requested wave.
-            if (string.Equals(e.LogicalZone, targetZone, StringComparison.OrdinalIgnoreCase)
-                || e.LogicalStage > targetStage || e.LogicalTier > targetTier)
+            // Never recycle a bot into the assignment it already owns. Ordinary
+            // scavs remain forward-only so background population follows progression.
+            // Triggered RUAF/BD encounters may arrive out of numeric stage order, and
+            // their already-spawned remote survivors are exactly the resources those
+            // later requests should reuse rather than strand behind the total cap.
+            bool sameAssignment = string.Equals(e.LogicalZone, targetZone, StringComparison.OrdinalIgnoreCase);
+            bool scavAheadOfTarget = pool == RecyclePool.Scav
+                && (e.LogicalStage > targetStage || e.LogicalTier > targetTier);
+            if (sameAssignment || scavAheadOfTarget)
             {
                 reason = RecycleReject.Progress;
                 return false;
@@ -686,7 +853,7 @@ namespace Manimal.Terminal
             }
             try
             {
-                if (e.Bot.BotState != EBotState.Active || e.Bot.Mover == null) { reason = RecycleReject.Inactive; return false; }
+                if (e.Bot.Mover == null) { reason = RecycleReject.Inactive; return false; }
                 if (e.Player.HealthController == null || !e.Player.HealthController.IsAlive) return false;
                 if (e.Bot.Memory == null || e.Bot.Memory.IsUnderFire) { reason = RecycleReject.Combat; return false; }
                 // GoalEnemy can remain assigned long after a fight has ended. Treat it
@@ -704,15 +871,30 @@ namespace Manimal.Terminal
         private static List<Vector3> EligibleTargetPositions(BotZone zone, Vector3 playerPos, float minDistSq)
         {
             var result = new List<Vector3>();
+            var fallback = new List<Vector3>();
             try
             {
                 if (zone.SpawnPointMarkers == null) return result;
+                float fallbackMinDistSq = Mathf.Min(minDistSq, 20f * 20f);
                 foreach (var marker in zone.SpawnPointMarkers)
                 {
                     if (!marker) continue;
                     var p = marker.Position;
-                    if ((p - playerPos).sqrMagnitude < minDistSq || IsInCamera(p)) continue;
-                    if (NavMesh.SamplePosition(p, out var hit, 6f, NavMesh.AllAreas)) result.Add(hit.position);
+                    if (IsInCamera(p)) continue;
+                    if (!NavMesh.SamplePosition(p, out var hit, 6f, NavMesh.AllAreas)) continue;
+                    if (IsInCamera(hit.position)) continue;
+                    float distSq = (hit.position - playerPos).sqrMagnitude;
+                    if (distSq >= minDistSq) result.Add(hit.position);
+                    else if (distSq >= fallbackMinDistSq) fallback.Add(hit.position);
+                }
+                // Do not strand a triggered wave merely because every authored point
+                // is 20-39m away. Visibility remains a hard veto; only the conservative
+                // distance buffer relaxes when a zone has no full-distance marker.
+                if (result.Count == 0 && fallback.Count > 0)
+                {
+                    fallback.Sort((a, b) => (b - playerPos).sqrMagnitude.CompareTo((a - playerPos).sqrMagnitude));
+                    result.AddRange(fallback);
+                    Plugin.Log.LogDebug($"[Recycler] '{zone.name}' using out-of-view destination fallback ({Mathf.Sqrt((fallback[0] - playerPos).sqrMagnitude):F0}m)");
                 }
             }
             catch { }
@@ -740,6 +922,9 @@ namespace Manimal.Terminal
             {
                 if (!TerminalGate.On) { Destroy(gameObject); return; }
                 ReconcileNativeBots();
+                foreach (var entry in Entries.Values)
+                    if (entry.Alive && !entry.Removed && entry.VisualRepairUntil >= Time.time)
+                        RepairRecycledBodyVisibility(entry, out _, out _);
                 bool manual = Plugin.ScavCorpseCleanupKey.Value.IsDown();
                 if (manual || (Plugin.ScavCorpseCleanup.Value && Time.time >= _nextCleanup))
                 {
@@ -802,16 +987,59 @@ namespace Manimal.Terminal
                     // corpse is an ordinary component attached to this same pooled GO.
                     var corpse = e.Player.GetComponent<Corpse>();
                     if (!corpse) continue; // Player.OnDead has not built it yet
-                    if ((corpse.transform.position - me.Position).sqrMagnitude < distance * distance) continue;
+                    // Protect proximity to EVERY human, not just the host/local player.
+                    // This matters now that the retention radii are less conservative:
+                    // a Fika client looting far from the host must never lose its body.
+                    if (IsNearAnyHuman(world, corpse.transform.position, distance * distance)) continue;
                     if (RetireCorpse(world, e, corpse)) removed++;
                 }
                 if (manual)
                     Plugin.Log.LogWarning($"[CorpseCleanup] manual sweep retired {removed} distance-eligible AI corpse(s), scav priority first");
             }
 
+            private static bool IsNearAnyHuman(GameWorld world, Vector3 corpsePosition, float distanceSq)
+            {
+                bool foundHuman = false;
+                try
+                {
+                    var players = world.RegisteredPlayers;
+                    for (int i = 0; i < players.Count; i++)
+                    {
+                        var player = players[i];
+                        if (player == null || player.IsAI) continue;
+                        foundHuman = true;
+                        if ((player.Position - corpsePosition).sqrMagnitude < distanceSq) return true;
+                    }
+                }
+                catch { }
+
+                // Defensive fallback for unusual startup/teardown registry timing.
+                var main = world ? world.MainPlayer : null;
+                return !foundHuman && main
+                    && (main.Position - corpsePosition).sqrMagnitude < distanceSq;
+            }
+
             private static bool RetireCorpse(GameWorld world, Entry e, Corpse corpse)
             {
                 var player = e.Player;
+                int cancelledAiTasks = 0;
+
+                // Corpse.Kill returns the entire pooled player GO and invalidates its
+                // BifacialTransform. Several EFT registries live outside GameWorld and
+                // are NOT cleaned by GameWorld.UnregisterPlayer. The old cleaner left
+                // the dead player in EffectsCommutator (16,052 Position NREs in one
+                // raid) and left delayed hearing work owned by the pooled BotOwner
+                // (1,031 more Transform NREs). Detach those consumers before touching
+                // the corpse object.
+                try
+                {
+                    if (Singleton<Effects>.Instantiated)
+                        Singleton<Effects>.Instance.EffectsCommutator?.StopBleedingForPlayer(player);
+                }
+                catch (Exception ex) { Plugin.Log.LogWarning($"[CorpseCleanup] bleeding unregister failed for {e.ProfileId}: {ex.Message}"); }
+                try { cancelledAiTasks = CancelDelayedBotTasks(e.Bot); }
+                catch (Exception ex) { Plugin.Log.LogWarning($"[CorpseCleanup] delayed-AI purge failed for {e.ProfileId}: {ex.Message}"); }
+
                 try
                 {
                     // Remove the AI's dead-body search record before its Player leaves
@@ -828,6 +1056,13 @@ namespace Manimal.Terminal
                 }
                 catch (Exception ex) { Plugin.Log.LogWarning($"[CorpseCleanup] body-ledger removal failed for {e.ProfileId}: {ex.Message}"); }
 
+                // Bot death removes BotOwner from the live count but deliberately
+                // leaves its Player in BotSpawner.AllPlayers and every group's player
+                // connector so the corpse can still be perceived. Once we are actually
+                // retiring the corpse, use EFT's native metadata cleanup as well.
+                try { e.Bot?.BotsController?.DestroyInfo(player); }
+                catch (Exception ex) { Plugin.Log.LogWarning($"[CorpseCleanup] bot metadata unregister failed for {e.ProfileId}: {ex.Message}"); }
+
                 // LocalGame owns two private player dictionaries in addition to
                 // GameWorld. If a pooled corpse remains in either one, raid teardown
                 // calls Player.Dispose on the already-returned object and
@@ -837,6 +1072,15 @@ namespace Manimal.Terminal
                 catch (Exception ex) { Plugin.Log.LogWarning($"[CorpseCleanup] local-game unregister failed for {e.ProfileId}: {ex.Message}"); }
                 try { if (world) world.UnregisterPlayer(player); }
                 catch (Exception ex) { Plugin.Log.LogWarning($"[CorpseCleanup] world unregister failed for {e.ProfileId}: {ex.Message}"); }
+                try { RemoveFromGameWorldRetainedRegistries(world, e.ProfileId, player); }
+                catch (Exception ex) { Plugin.Log.LogWarning($"[CorpseCleanup] retained-world unregister failed for {e.ProfileId}: {ex.Message}"); }
+
+                // Retiring the corpse bypasses Player.Dispose, but another retained
+                // teardown path may still invoke it. Destroy the hands controller once
+                // while its animator is valid; a later Dispose then sees null instead
+                // of double-destroying a pooled firearm animator.
+                try { player.method_118(); }
+                catch (Exception ex) { Plugin.Log.LogWarning($"[CorpseCleanup] hands release failed for {e.ProfileId}: {ex.Message}"); }
                 try
                 {
                     e.Removed = true;
@@ -844,8 +1088,18 @@ namespace Manimal.Terminal
                     // loot/culling, and returns the pooled player object. Calling
                     // Player.Dispose first double-destroys its firearm animator.
                     corpse.Kill();
+                    // LootItem.Kill returns the GO, but this dynamically added Corpse
+                    // component is not one of the pool's registered cleanup components.
+                    // Destroy it before the object can be checked out as another bot.
+                    try { if (corpse) UnityEngine.Object.DestroyImmediate(corpse); }
+                    catch (Exception componentError)
+                    {
+                        // Kill already completed and the object is pooled; never roll
+                        // the ledger back to "present" if only this hardening step fails.
+                        Plugin.Log.LogWarning($"[CorpseIdentity] retired component cleanup failed for {e.ProfileId}: {componentError.Message}");
+                    }
                     _retiredCorpses++;
-                    Plugin.Log.LogInfo($"[CorpseCleanup] retired {(e.OrdinaryScav ? "ordinary scav" : "remote special")} {e.ProfileId} role={e.Role} age={Time.time - e.DeathAt:0}s");
+                    Plugin.Log.LogInfo($"[CorpseCleanup] safely retired {(e.OrdinaryScav ? "ordinary scav" : "remote special")} {e.ProfileId} role={e.Role} age={Time.time - e.DeathAt:0}s aiTasksCancelled={cancelledAiTasks}");
                     return true;
                 }
                 catch (Exception ex)
@@ -853,6 +1107,48 @@ namespace Manimal.Terminal
                     e.Removed = false;
                     Plugin.Log.LogError($"[CorpseCleanup] Corpse.Kill failed for {e.ProfileId}; object left in place: {ex}");
                     return false;
+                }
+            }
+
+            private static int CancelDelayedBotTasks(BotOwner bot)
+            {
+                if (!bot || bot.AITaskManager == null || bot.AITaskManager.SimpleTasks == null) return 0;
+                int cancelled = 0;
+                // Cancellation is applied by AITaskManager on its next tick; iterate a
+                // snapshot so this remains safe if a mod cancels synchronously.
+                var tasks = new List<AITaskManager.GClass607>(bot.AITaskManager.SimpleTasks);
+                foreach (var task in tasks)
+                {
+                    if (task == null || !ReferenceEquals(task.Bot, bot)) continue;
+                    bot.AITaskManager.CancelDelayedTask(task.Id);
+                    cancelled++;
+                }
+                return cancelled;
+            }
+
+            private static void RemoveFromGameWorldRetainedRegistries(GameWorld world, string profileId, Player player)
+            {
+                if (!world || string.IsNullOrEmpty(profileId) || !player) return;
+                for (Type type = world.GetType(); type != null; type = type.BaseType)
+                {
+                    foreach (var field in type.GetFields(BindingFlags.Instance | BindingFlags.NonPublic
+                        | BindingFlags.Public | BindingFlags.DeclaredOnly))
+                    {
+                        object value = field.GetValue(world);
+                        if (value is IDictionary<string, Player> players)
+                        {
+                            if (players.TryGetValue(profileId, out var registered)
+                                && ReferenceEquals(registered, player))
+                                players.Remove(profileId);
+                        }
+                        else if (value is IDictionary<string, IPlayerOwner> owners)
+                        {
+                            if (!owners.TryGetValue(profileId, out var owner) || owner == null
+                                || !ReferenceEquals(owner.iPlayer, player)) continue;
+                            try { owner.Dispose(); } catch { }
+                            owners.Remove(profileId);
+                        }
+                    }
                 }
             }
 

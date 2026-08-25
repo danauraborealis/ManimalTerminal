@@ -1,8 +1,10 @@
 using HarmonyLib;
 using SPTarkov.DI.Annotations;
 using SPTarkov.Server.Core.DI;
+using SPTarkov.Server.Core.Controllers;
 using SPTarkov.Server.Core.Helpers;
 using SPTarkov.Server.Core.Models.Common;
+using SPTarkov.Server.Core.Models.Eft.Common;
 using SPTarkov.Server.Core.Models.Eft.Common.Tables;
 using SPTarkov.Server.Core.Models.Eft.Match;
 using SPTarkov.Server.Core.Models.Utils;
@@ -14,9 +16,10 @@ namespace Manimal.Terminal.Server;
 
 // SELF-CONTAINED TERMINAL (user 2026-08-19): the raid never happened, gear-wise.
 // a PMC raid on terminal snapshots the full inventory at StartLocalRaid; at
-// EndLocalRaid — death, extract, MIA or transit alike — the snapshot stomps
-// whatever SPT's post-raid processing produced and the profile re-saves. loot
-// found in-raid is discarded with everything else; gear lost comes back.
+// EndLocalRaid — death, extract, MIA or transit alike — the entry snapshot is
+// re-applied from a Harmony finalizer after every normal raid-end postfix, then
+// the profile re-saves. loot found in-raid is discarded with everything else;
+// gear lost comes back.
 // inspired by ScrewTSW's EquipmentIsEternal (death-only), extended to every
 // outcome and scoped to this map.
 //
@@ -56,8 +59,18 @@ public class TerminalSelfContained(
         var h = new Harmony("com.manimal.terminal.selfcontained");
         h.Patch(AccessTools.Method(typeof(LocationLifecycleService), nameof(LocationLifecycleService.StartLocalRaid)),
             prefix: new HarmonyMethod(typeof(TerminalSelfContained), nameof(StartPrefix)));
+        var locationFinalizer = new HarmonyMethod(typeof(TerminalSelfContained), nameof(EndFinalizer))
+        {
+            priority = Priority.Last,
+        };
         h.Patch(AccessTools.Method(typeof(LocationLifecycleService), nameof(LocationLifecycleService.EndLocalRaid)),
-            postfix: new HarmonyMethod(typeof(TerminalSelfContained), nameof(EndPostfix)));
+            finalizer: locationFinalizer);
+        var controllerFallback = new HarmonyMethod(typeof(TerminalSelfContained), nameof(EndControllerPostfix))
+        {
+            priority = Priority.Last,
+        };
+        h.Patch(AccessTools.Method(typeof(MatchController), nameof(MatchController.EndLocalRaid)),
+            postfix: controllerFallback);
         // nothing is ever lost on a self-contained map, so the insurance-lost
         // pipeline must not fire at all — it queues return mail for "lost" gear
         // BEFORE the snapshot restore runs, which would deliver as dupes later
@@ -109,28 +122,110 @@ public class TerminalSelfContained(
         return true;
     }
 
-    public static void EndPostfix(MongoId sessionId, EndLocalRaidRequestData request)
+    /// <summary>
+    /// A finalizer runs after every normal LocationLifecycleService postfix. This
+    /// matters when another server mod also rewrites the profile at raid end.
+    /// </summary>
+    public static Exception? EndFinalizer(
+        MongoId sessionId,
+        EndLocalRaidRequestData request,
+        Exception? __exception)
     {
+        if (__exception is null)
+        {
+            FinalizeRestore(sessionId, request, "location finalizer");
+        }
+        else
+        {
+            _instance?._log.Warning(
+                $"[Terminal] normal raid-end processing threw before final restore; snapshot retained: {__exception.Message}");
+        }
+
+        return __exception;
+    }
+
+    /// <summary>
+    /// Direct wrapper around LocationLifecycleService.EndLocalRaid. Normally the
+    /// finalizer has already consumed the snapshot; this is a second boundary in
+    /// case a runtime patch prevents that finalizer from executing.
+    /// </summary>
+    public static void EndControllerPostfix(MongoId sessionId, EndLocalRaidRequestData request)
+    {
+        FinalizeRestore(sessionId, request, "controller fallback");
+    }
+
+    private static void FinalizeRestore(MongoId sessionId, EndLocalRaidRequestData request, string boundary)
+    {
+        var self = _instance;
+        if (self is null) return;
+        var key = sessionId.ToString();
+        if (!_snapshots.TryGetValue(key, out var snap)) return;
+
         try
         {
-            var self = _instance;
-            if (self is null) return;
-            var key = sessionId.ToString();
-            if (!_snapshots.TryGetValue(key, out var snap)) return; // not a terminal pmc raid
-            _snapshots.Remove(key);
-
             var pmc = self._profiles.GetFullProfile(sessionId)?.CharacterData?.PmcData;
-            if (pmc is null) return;
-            pmc.Inventory = snap.Inventory;
-            if (snap.Insured is not null) pmc.InsuredItems = snap.Insured;
-            // EndLocalRaid already saved the post-raid state — save again with the
-            // snapshot applied so the revert is what lands on disk
+            if (pmc is null)
+            {
+                self._log.Warning("[Terminal] final restore skipped: authoritative PMC profile was unavailable");
+                return;
+            }
+
+            var processedCount = pmc.Inventory?.Items?.Count ?? 0;
+            pmc.Inventory = self._cloner.Clone(snap.Inventory)!;
+            if (snap.Insured is not null)
+            {
+                pmc.InsuredItems = self._cloner.Clone(snap.Insured);
+            }
+
+            RestoreFullHealth(pmc);
+
+            // LocationLifecycleService has already saved the post-raid state.
+            // Save again while the snapshot remains active, and only retire it
+            // after the authoritative profile has been serialized successfully.
             self._saves.SaveProfileAsync(sessionId).GetAwaiter().GetResult();
-            self._log.Info($"[Terminal] raid over ({request.Results?.Result}) — gear restored to the entry snapshot, as if the raid never happened");
+            var restoredCount = pmc.Inventory?.Items?.Count ?? 0;
+            _snapshots.Remove(key);
+            self._log.Info(
+                $"[Terminal] raid over ({request.Results?.Result}) — final authoritative restore complete " +
+                $"({processedCount} post-raid item(s) -> {restoredCount} snapshot item(s)); " +
+                $"health, hydration and energy restored to full via {boundary}");
         }
         catch (Exception e)
         {
-            _instance?._log.Warning($"[Terminal] gear restore failed: {e.Message}");
+            // Keep the snapshot until the next raid start rather than discarding
+            // the only recoverable copy after a failed save.
+            self._log.Warning($"[Terminal] final profile restore failed (snapshot retained): {e}");
+        }
+    }
+
+    private static void RestoreFullHealth(PmcData pmc)
+    {
+        var health = pmc.Health;
+        if (health is null) return;
+
+        if (health.BodyParts is not null)
+        {
+            foreach (var bodyPart in health.BodyParts.Values)
+            {
+                if (bodyPart.Health is not null)
+                {
+                    bodyPart.Health.Current = bodyPart.Health.Maximum;
+                }
+
+                // Full recovery also means no persistent fracture, bleed, pain,
+                // contusion, toxin, or other limb effects from Terminal.
+                bodyPart.Effects?.Clear();
+            }
+        }
+
+        if (health.Hydration is not null)
+        {
+            health.Hydration.Current = health.Hydration.Maximum;
+        }
+
+        if (health.Energy is not null)
+        {
+            health.Energy.Current = health.Energy.Maximum;
         }
     }
 }

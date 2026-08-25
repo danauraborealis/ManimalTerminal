@@ -40,6 +40,13 @@ namespace Manimal.Terminal
             {
                 bool previousWasTerminal = string.Equals(PendingLocationId, LocationId, StringComparison.OrdinalIgnoreCase);
                 PendingLocationId = location?.Id;
+                // All BepInEx plugins are loaded by raid creation. This second chance
+                // arms the optional AI Limit hook even when it loaded after us.
+                if (string.Equals(PendingLocationId, LocationId, StringComparison.OrdinalIgnoreCase))
+                {
+                    TerminalAILimitFirewall.TryInstall();
+                    TerminalSainCompat.TryInstall();
+                }
                 if (previousWasTerminal || string.Equals(PendingLocationId, LocationId, StringComparison.OrdinalIgnoreCase))
                     TerminalExternalBotCleanup.ResetForRaid();
                 TerminalIntroCutscene.ResetForNewRaid();
@@ -59,6 +66,7 @@ namespace Manimal.Terminal
                 TerminalWater.ResetForRaid();
                 TerminalLootBind.ResetForRaid();
                 TerminalDryPlanes.ResetForRaid();
+                TerminalShoreAudio.ResetForRaid();
                 TerminalRainAudio.ResetForRaid();
                 TerminalHoldLock.ResetForRaid();
                 TerminalPerfWatch.ResetForRaid();

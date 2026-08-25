@@ -30,7 +30,7 @@ namespace Manimal.Terminal
     {
         private const string BoxesFixedTrigger = "on_electric_boxes_fixed";
         private const string WaterRemoveTrigger = "Water_remove_1178689405";
-        private const float RepairSeconds = 5f;
+        internal const float RepairSeconds = 5f;
         private const float UnsafeChance = 0.1f;
 
         // the safe-repair tool: the toolset (user-confirmed — the odin requirement
@@ -204,8 +204,6 @@ namespace Manimal.Terminal
             // native rows on the cabinet listen for its repaired trigger (green light,
             // spark loop off, working loop on)
             TerminalGatesExplosion.Emit("repaired_electicity_terminal_" + cab.Suffix);
-            TerminalGatesExplosion.PlayAt(TerminalFxBundle.FindClip("amb_terminal_interactive_control_cabinet_repair"),
-                cab.Root.position, 20f);
             Plugin.Log.LogInfo($"[Pump] cabinet repaired ({_broken.Count} left)");
             if (_broken.Count == 0 && !PowerFixed)
             {
@@ -280,12 +278,20 @@ namespace Manimal.Terminal
                         Disabled = false,
                         Action = () =>
                         {
+                            // Retail's HandlerPlaySoundAdvanced begins the 6.42s
+                            // cabinet-repair clip on this trigger and stops it only
+                            // when a hold is dropped. Previously we played the clip
+                            // in OnRepaired, five seconds late.
+                            string repairMode = hasTool ? "safe" : "unsafe";
+                            TerminalGatesExplosion.Emit($"start_{repairMode}_repair_electricity_terminal_{cab.Suffix}");
                             var go = new GameObject("Terminal_CabinetRepair");
                             var s = go.AddComponent<GateHoldSession>();
                             s.Owner = owner;
                             s.Anchor = sw.transform;
-                            s.Seconds = 5f;
+                            s.Seconds = TerminalPumpStation.RepairSeconds;
                             s.PanelText = "Repairing {0:F1}";
+                            s.OnCancel = () => TerminalGatesExplosion.Emit(
+                                $"dropped_{repairMode}_repair_electricity_{cab.Suffix}");
                             s.OnSuccess = () =>
                             {
                                 bool toolNow = false;

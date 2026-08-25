@@ -373,9 +373,12 @@ namespace Manimal.Terminal
     		{
     			if (!_sky) { Plugin.Log.LogWarning((object)"[SkyRig] no TOD_Sky"); return; }
     			var sb = new StringBuilder();
-    			sb.Append($"init={_sky.Initialized} atmoBrightness={_sky.Atmosphere.Brightness:0.####} ")
-    			  .Append($"scattering={_sky.Atmosphere.ScatteringBrightness:0.####} fog={_sky.Atmosphere.Fogginess:0.###} ")
-    			  .Append($"authoredCapture={_authoredBrightness:0.####} nightStrength={Plugin.SkyNightStrength.Value:0.##} ")
+				sb.Append($"init={_sky.Initialized} atmoBrightness={_sky.Atmosphere.Brightness:0.####} ")
+				  .Append($"scattering={_sky.Atmosphere.ScatteringBrightness:0.####} fog={_sky.Atmosphere.Fogginess:0.###} ")
+				  .Append($"sunSky={_sky.SunSkyColor} moonSky={_sky.MoonSkyColor} sunMesh={_sky.SunMeshColor} ")
+				  .Append($"stars={_sky.Stars.Brightness:0.##}x tile={_sky.Stars.Tiling:0.##} "
+				    + $"effectiveStars={(_sky.Stars.Brightness * (1f - _sky.Atmosphere.Fogginess) * (1f - _sky.LerpValue)):0.###} ")
+				  .Append($"authoredCapture={_authoredBrightness:0.####} nightStrength={Plugin.SkyNightStrength.Value:0.##} ")
     			  .Append($"weatherCtrl={(bool)WeatherController.Instance} skybox={(RenderSettings.skybox ? RenderSettings.skybox.name : "NULL")} ")
     			  .Append($"ambientMode={RenderSettings.ambientMode}");
 

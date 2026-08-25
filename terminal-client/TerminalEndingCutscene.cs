@@ -80,6 +80,11 @@ namespace Manimal.Terminal
 
                     _played = true;
                     Plugin.Log.LogInfo("[Ending] Zubr extraction — holding raid end for the ending cutscene");
+                    // No encounter can be reached after extraction. Stop every admission
+                    // path first, then use EFT's native non-corpse despawn so the long
+                    // cinematic does not render/tick an unseen battlefield behind it.
+                    TerminalSpawnGate.StopForEnding();
+                    TerminalPopulationDirector.DespawnAllForEnding();
                     var go = new GameObject("Terminal_EndingCutscene");
                     var c = go.AddComponent<EndingRunner>();
                     c.Game = __instance;
@@ -474,49 +479,29 @@ namespace Manimal.Terminal
                 }
                 if (!dst) { Plugin.Log.LogDebug($"[Ending] {actorGoName} has no SkinnedMeshRenderer — packed kept"); return; }
 
-                // bone source priority (user video 2026-08-18: swapped body froze
-                // while the rest of the cast animated): the packed mesh's OWN bones
-                // are by construction the animated skeleton — a whole-subtree walk
-                // can hit dead duplicate bone chains first (clothing armature
-                // copies share names) and bind the swap to a skeleton nothing drives
-                var boneByName = new Dictionary<string, Transform>();
-                foreach (var b in dst.bones)
-                    if (b && !boneByName.ContainsKey(b.name)) boneByName[b.name] = b;
-                if (dst.rootBone && !boneByName.ContainsKey(dst.rootBone.name))
-                    boneByName[dst.rootBone.name] = dst.rootBone;
                 var actorAnim = actorRoot.GetComponentInChildren<Animator>(true);
                 var skelRoot = actorAnim ? actorAnim.transform : actorRoot;
-                foreach (var t in skelRoot.GetComponentsInChildren<Transform>(true))
-                    if (!boneByName.ContainsKey(t.name)) boneByName[t.name] = t;
-
                 var srcBones = src.bones;
-                var mapped = new Transform[srcBones.Length];
-                var missing = new List<string>();
-                for (int i = 0; i < srcBones.Length; i++)
+                if (!TerminalCutsceneClothing.TryBind(src, dst, actorRoot, "Ending",
+                    out var mapped, out var mappedRoot, out int auxiliaryBones, out string bindFailure))
                 {
-                    var n = srcBones[i] ? srcBones[i].name : null;
-                    if (n == null || !boneByName.TryGetValue(n, out mapped[i])) missing.Add(n ?? $"#{i}");
-                }
-                if (missing.Count > 0)
-                {
-                    Plugin.Log.LogWarning($"[Ending] {actorGoName} swap aborted — {missing.Count} bone(s) not on the actor rig "
-                        + $"({string.Join(", ", missing.GetRange(0, Math.Min(8, missing.Count)))}"
-                        + (missing.Count > 8 ? "...)" : ")") + " — skeleton mismatch, packed kept");
+                    Plugin.Log.LogWarning($"[Ending] {actorGoName} swap aborted — {bindFailure}; packed clothing kept");
                     return;
                 }
 
                 dst.sharedMesh = src.sharedMesh;
                 dst.sharedMaterials = src.sharedMaterials;
                 dst.bones = mapped;
-                if (src.rootBone && boneByName.TryGetValue(src.rootBone.name, out var rb)) dst.rootBone = rb;
+                if (mappedRoot) dst.rootBone = mappedRoot;
                 dst.localBounds = src.localBounds;
+                dst.updateWhenOffscreen = true;
                 // freeze forensics: which rig did the bones land on
                 int onAnim = 0;
                 for (int i = 0; i < mapped.Length; i++)
                     if (mapped[i] && mapped[i].IsChildOf(skelRoot)) onAnim++;
                 Plugin.Log.LogInfo($"[Ending] actor wears the player's {part}: '{src.sharedMesh.name}' "
                     + $"({srcBones.Length} bones remapped, {onAnim} on the animated rig '{skelRoot.name}', "
-                    + $"{src.sharedMaterials.Length} material(s))");
+                    + $"{auxiliaryBones} clothing helper bone(s) carried, {src.sharedMaterials.Length} material(s))");
             }
             catch (Exception e) { Plugin.Log.LogWarning($"[Ending] {actorGoName} swap failed: {e.Message}"); }
         }

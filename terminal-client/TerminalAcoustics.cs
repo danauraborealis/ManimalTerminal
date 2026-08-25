@@ -22,8 +22,8 @@ namespace Manimal.Terminal
     // plugin-data/acoustics/terminal_spatial_audio.json:
     //   tier 2: EnvironmentManager + 7 TriggerGroups + 64 IndoorTriggers from
     //           recovered world transforms — indoor/outdoor banks, exposure, rain.
-    //   tier 3: 104 SpatialAudioRooms / 345 portals / 158 AudioTriggerAreas onto the
-    //           bundled Terminal_Sound GOs, location-info + occlusion assets rebuilt
+    //   tier 3: the bake-verified 76 SpatialAudioRooms / 220 portals / 110 trigger
+    //           areas onto bundled Terminal_Sound GOs, location-info + occlusion rebuilt
     //           from recovered values, BSG's own terminal_sound.audiobakedata into
     //           StreamingAssets, then the REAL SpatialAudioSystem.Initialize runs.
     // staging failure at any point returns false -> TerminalAudioFixes falls back to
@@ -198,9 +198,61 @@ namespace Manimal.Terminal
         // the end — which also gives every BSG Awake correct field values on the first
         // read (the same deactivated-create discipline the spatial tier uses).
         private static GameObject _ambientRoot;
+        private static Dictionary<long, Component> _ambientComponents;
         private static readonly Dictionary<string, UnityEngine.Object> _banks =
             new Dictionary<string, UnityEngine.Object>();
         private static readonly HashSet<string> _bankClipMisses = new HashSet<string>();
+        private static readonly List<AudioSource> _forcedLoopSources = new List<AudioSource>();
+        private static readonly Dictionary<string, AudioClip> _recoveredLoopClips =
+            new Dictionary<string, AudioClip>(StringComparer.OrdinalIgnoreCase);
+
+        internal static void ResetRecoveredAudioForRaid()
+        {
+            _recoveredLoopClips.Clear();
+            _ambientComponents = null;
+            _clipCache = null;
+        }
+
+        // The three sea clips live in retail sharedassets rather than the custom map
+        // bundle. They may finish loading before or after the ambient tree stages, so
+        // register them in FindClip's catalog and also repair already-created players.
+        internal static void RegisterRecoveredLoopClip(string clipName, AudioClip clip)
+        {
+            if (string.IsNullOrEmpty(clipName) || !clip) return;
+            _recoveredLoopClips[clipName] = clip;
+            if (_clipCache != null) _clipCache[clipName] = clip;
+
+            if (!_ambientRoot || _ambientComponents == null) return;
+            var sound = Sidecar()?["scenes"]?["Terminal_Sound"] as JObject;
+            if (sound == null) return;
+
+            int bound = 0;
+            foreach (var row in Rows(sound, "LoopAmbientSoundPlayer"))
+            {
+                if (!string.Equals(row.Value<string>("_loopClipName"), clipName,
+                    StringComparison.OrdinalIgnoreCase)) continue;
+                if (!_ambientComponents.TryGetValue(row.Value<long>("path_id"), out var player) || !player)
+                    continue;
+
+                var fi = AccessTools.Field(player.GetType(), "_loopClip");
+                if (fi != null && fi.FieldType == typeof(AudioClip)) fi.SetValue(player, clip);
+                // These authored emitter branches ship inactive and normally wake
+                // only after their clip is available. A disk load may complete after
+                // ambient staging, so activate the branch now (but never override a
+                // cutscene's deliberate deactivation of the ambient root itself).
+                for (var t = player.transform; t != null && t.gameObject != _ambientRoot; t = t.parent)
+                    if (!t.gameObject.activeSelf) t.gameObject.SetActive(true);
+                var src = player.GetComponent<AudioSource>() ?? player.gameObject.AddComponent<AudioSource>();
+                TerminalAudioRouting.Route(src);
+                src.clip = clip;
+                src.loop = true;
+                src.playOnAwake = false;
+                if (!_forcedLoopSources.Contains(src)) _forcedLoopSources.Add(src);
+                if (src.gameObject.activeInHierarchy && !src.isPlaying) src.Play();
+                bound++;
+            }
+            Plugin.Log.LogInfo($"[ShoreAudio] '{clipName}' bound to {bound} authored shoreline player(s)");
+        }
 
         // creation order: content providers first, consumers after. every one of these
         // is alive in 4.0's Assembly-CSharp (verified 2026-08-11); the season/event
@@ -261,7 +313,8 @@ namespace Manimal.Terminal
                         float d = me != null ? (src.transform.position - me.Position).magnitude : -1f;
                         Plugin.Log.LogInfo($"[Ambient][sea] '{src.gameObject.name}' clip='{(src.clip ? src.clip.name : "NULL")}'"
                             + $" playing={src.isPlaying} vol={src.volume:F2} blend={src.spatialBlend:F1}"
-                            + $" maxDist={src.maxDistance:F0} activeGO={src.gameObject.activeInHierarchy} dist={d:F0}m");
+                            + $" maxDist={src.maxDistance:F0} activeGO={src.gameObject.activeInHierarchy} dist={d:F0}m"
+                            + $" mixer='{(src.outputAudioMixerGroup ? src.outputAudioMixerGroup.name : "BYPASS/NULL")}'");
                     }
                 }
                 if (found == 0) Plugin.Log.LogWarning("[Ambient][sea] sea group has NO AudioSources at diag time");
@@ -284,11 +337,25 @@ namespace Manimal.Terminal
         internal static void SetAmbientSilenced(bool silent)
         {
             _ambientSilenced = silent;
+            // The shoreline fallback owns direct AudioSources because retail's
+            // network spline movers never reposition in offline raids. Keep it on
+            // the same sticky cutscene mute state as the resurrected ambient tree.
+            TerminalShoreAudio.SetSilenced(silent);
             try
             {
                 if (_ambientRoot == null) return; // staging honors the flag later
                 if (_ambientRoot.activeSelf == !silent) return;
                 _ambientRoot.SetActive(!silent);
+                if (!silent)
+                {
+                    // Raw AudioSources created as the offline fallback do not receive
+                    // retail's network ambience resume call after a cutscene toggles
+                    // the root. Resume only the sources we explicitly woke, leaving
+                    // authored one-shot/random players under their own governors.
+                    foreach (var src in _forcedLoopSources)
+                        if (src && src.gameObject.activeInHierarchy && src.clip && !src.isPlaying)
+                            src.Play();
+                }
                 Plugin.Log.LogDebug($"[Ambient] retail layer {(silent ? "silenced for the cutscene" : "back up")}");
             }
             catch { }
@@ -380,7 +447,14 @@ namespace Manimal.Terminal
             try
             {
                 _clipCache = null; // clip instances are per raid
+                // SoundBank ScriptableObjects retain references to the AudioClips from
+                // the raid that created them.  A dictionary surviving into raid two
+                // therefore contains Unity fake-null clips and silently builds an
+                // ambient layer with no content.  Every Terminal_Sound load gets fresh
+                // banks from that raid's bundle instances.
+                _banks.Clear();
                 _bankClipMisses.Clear();
+                _forcedLoopSources.Clear();
                 BuildBanks(sc);
                 if (_banks.Count == 0) return false;
 
@@ -455,9 +529,6 @@ namespace Manimal.Terminal
                 // movers NRE right after. drop both while the root is still inactive
                 // so the healthy rest wake clean (2026-08-18: 33 dead Awakes a raid)
                 int pruned = PruneDeadSplineEmitters(comps);
-                int woken = WakeGroupPlayers(comps);
-                if (grouped > 0 || pruned > 0 || woken > 0)
-                    Plugin.Log.LogInfo($"[Ambient] spline emitters: {grouped} group emitter(s) wired (sea/waves), {pruned} dead emitter/mover(s) pruned, {woken} loop player(s) woken");
 
                 // frame-chop A/B (2026-08-18): the periodic chop onset tracks ambient
                 // staging — this drops the whole spline mover/emitter stack for a raid
@@ -465,7 +536,8 @@ namespace Manimal.Terminal
                 {
                     int axed = 0;
                     foreach (var cls in new[] { "SplineEmitterPathMover", "SplineTriggerChecker",
-                        "AmbientPlayerSplineMappedEmitter", "AmbientPlayerGroupSplineEmitter" })
+                        "AmbientPlayerSplineMappedEmitter", "AmbientPlayerGroupSplineEmitter",
+                        "SoundAmbientZoneCalculator" })
                     {
                         var t = ResolveType(cls);
                         if (t == null) continue;
@@ -473,12 +545,18 @@ namespace Manimal.Terminal
                         {
                             var c = comps[k];
                             if (c == null || !t.IsInstanceOfType(c)) continue;
+                            // Keep only Terminal's two listener-projected sea emitters.
+                            // They are lightweight proximity calculators, not the
+                            // continuously moving wind/rain/metal spline stack this
+                            // diagnostic switch was introduced to suppress.
+                            if (IsUnderSeaGroup(c.transform)) continue;
                             UnityEngine.Object.DestroyImmediate(c);
                             comps[k] = null;
                             axed++;
                         }
                     }
-                    Plugin.Log.LogWarning($"[Ambient] SPLINE STACK OFF (config A/B) — {axed} component(s) dropped");
+                    Plugin.Log.LogWarning($"[Ambient] OPTIONAL SPLINE STACK OFF — {axed} component(s) dropped; "
+                        + "2 authored shoreline proximity emitters retained");
                 }
 
                 // the system LAST: its Awake harvests the workers above via
@@ -492,6 +570,16 @@ namespace Manimal.Terminal
 
                 root.SetActive(true);
                 if (!wasActive) Plugin.Log.LogDebug("[Ambient] root GO was inactive in the bundle — activated");
+
+                // WakeGroupPlayers needs the root marker and live GameObjects.  It
+                // previously ran while _ambientRoot was still null and the subtree was
+                // inactive, so it returned zero every raid: the exact reason all six
+                // sea sources logged clip=NULL/activeGO=False despite valid sea clips.
+                _ambientRoot = root;
+                _ambientComponents = comps;
+                int woken = WakeGroupPlayers(comps);
+                if (grouped > 0 || pruned > 0 || woken > 0)
+                    Plugin.Log.LogInfo($"[Ambient] spline emitters: {grouped} group emitter(s) wired (sea/waves), {pruned} dead emitter/mover(s) pruned, {woken} loop player(s) woken");
 
                 // Initialize: NetworkGame calls this for online raids; offline nobody
                 // does, so drive it ourselves once the tree is awake
@@ -508,8 +596,8 @@ namespace Manimal.Terminal
                 }
                 catch (Exception e) { Plugin.Log.LogWarning($"[Ambient] system init failed: {e.Message}"); }
 
+                int mixerRouted = TerminalAudioRouting.RouteTree(root);
                 RepairInteractiveLayers();
-                _ambientRoot = root;
                 // a cutscene may already own the audio (intro at raid start) — come up
                 // silenced when the sticky flag says so, resume on its Restore
                 if (_ambientSilenced && root.activeSelf)
@@ -518,7 +606,7 @@ namespace Manimal.Terminal
                     Plugin.Log.LogDebug("[Ambient] staged silenced — a cutscene is running");
                 }
                 Plugin.Log.LogInfo($"[Ambient] AMBIENT LAYER STAGED: {created} component(s) rebuilt, {filled} filled, "
-                    + $"{_banks.Count} banks"
+                    + $"{_banks.Count} banks, {mixerRouted} source(s) -> Tarkov AmbientOut mixer"
                     + (occupied > 0 ? $", {occupied} left to the sound rig" : "")
                     + (missing > 0 ? $", {missing} GO(s) not in the bundle" : ""));
                 _seaDiagAt = Time.realtimeSinceStartup + 30f;
@@ -531,6 +619,9 @@ namespace Manimal.Terminal
             catch (Exception e)
             {
                 Plugin.Log.LogWarning($"[Ambient] staging failed (interim authoring keeps the map alive): {e}");
+                _ambientRoot = null;
+                _ambientComponents = null;
+                _forcedLoopSources.Clear();
                 try { root.SetActive(true); } catch { }
                 return false;
             }
@@ -670,12 +761,14 @@ namespace Manimal.Terminal
                     if (!t.gameObject.activeSelf) t.gameObject.SetActive(true);
                 var src = player.gameObject.GetComponent<AudioSource>();
                 if (!src) src = player.gameObject.AddComponent<AudioSource>();
+                TerminalAudioRouting.Route(src);
                 if (src.clip == null) src.clip = clip;
                 src.loop = true;
                 src.playOnAwake = false;
                 float v = fVolume != null ? (float)fVolume.GetValue(player) : 1f;
                 if (v > 0f) src.volume = v;
                 if (!src.isPlaying) src.Play();
+                if (!_forcedLoopSources.Contains(src)) _forcedLoopSources.Add(src);
                 woken++;
             }
             return woken;
@@ -797,6 +890,7 @@ namespace Manimal.Terminal
                         foreach (var src in sources)
                         {
                             if (src == null) continue;
+                            TerminalAudioRouting.Route(src);
                             src.volume = vol;
                             src.spatialBlend = blend;
                             src.minDistance = minD;
@@ -1024,12 +1118,24 @@ namespace Manimal.Terminal
             {
                 if (!EnsureBakeFile(sc)) return false;
 
+                var infoFields = sc["assets"]?["location_info"]?["fields"] as JObject;
+                if (!ValidateSpatialGraph(sound, infoFields, out var graphError))
+                {
+                    Plugin.Log.LogError($"[Acoustics] RETAIL GRAPH REJECTED: {graphError} — spatial audio remains off");
+                    return false;
+                }
+
                 _clipCache = null; // per-raid clip instances
                 _roomTonesBound = 0;
                 _volumesFixed = 0;
                 _roomToneMisses.Clear();
 
                 var goIndex = BuildGoIndex();
+                if (!ValidateSpatialSceneBindings(sound, goIndex, out var bindingError))
+                {
+                    Plugin.Log.LogError($"[Acoustics] RETAIL GRAPH COULD NOT BIND: {bindingError} — spatial audio remains off");
+                    return false;
+                }
                 var comps = new Dictionary<long, Component>();
                 var reactivate = new List<GameObject>();
 
@@ -1087,7 +1193,6 @@ namespace Manimal.Terminal
                 StampDoorIds(sound, comps);
 
                 // per-location assets rebuilt from recovered values
-                var infoFields = sc["assets"]?["location_info"]?["fields"] as JObject;
                 var info = ScriptableObject.CreateInstance<SpatialAudioLocationInfo>();
                 if (infoFields != null) FillFields(info, infoFields, null);
                 AccessTools.Field(typeof(SpatialAudioSystem), "_locationInfo").SetValue(system, info);
@@ -1212,6 +1317,134 @@ namespace Manimal.Terminal
 
         private static IEnumerable<JToken> Rows(JObject scene, string cls)
             => (scene[cls] as JArray) ?? Enumerable.Empty<JToken>();
+
+        private static long? RefId(JToken token)
+            => (token as JObject)?.Value<long?>("ref");
+
+        // The retail scene contains 104 room and 345 portal authoring components, but
+        // terminal_sound.audiobakedata was built from exactly 76 / 220. The shipped
+        // sidecar is reduced by matching every portal ID to the endpoint pair encoded
+        // in the bake. Refuse to initialize if a future extraction/package edit brings
+        // back a duplicate ID or breaks either side of that graph.
+        private static bool ValidateSpatialGraph(JObject sound, JObject info, out string error)
+        {
+            error = null;
+            var rooms = Rows(sound, "SpatialAudioRoom").ToArray();
+            var portals = Rows(sound, "SpatialAudioPortal")
+                .Concat(Rows(sound, "UniversalTriggerSpatialAudioPortal")).ToArray();
+            var areas = Rows(sound, "AudioTriggerArea").ToArray();
+            int expectedRooms = info?.Value<int?>("roomsCount") ?? 76;
+            int expectedPortals = info?.Value<int?>("portalsCount") ?? 220;
+
+            if (rooms.Length != expectedRooms || portals.Length != expectedPortals)
+            {
+                error = $"component counts are {rooms.Length} rooms / {portals.Length} portals; bake requires {expectedRooms} / {expectedPortals}";
+                return false;
+            }
+
+            var roomPaths = new HashSet<long>(rooms.Select(r => r.Value<long>("path_id")));
+            var portalPaths = new HashSet<long>(portals.Select(p => p.Value<long>("path_id")));
+            var areaPaths = new HashSet<long>(areas.Select(a => a.Value<long>("path_id")));
+            var roomIds = rooms.Select(r => r["fields"]?.Value<int?>("_iD") ?? -1).ToArray();
+            var portalIds = portals.Select(p => p["fields"]?.Value<int?>("_iD") ?? -1).ToArray();
+            if (roomIds.Distinct().Count() != expectedRooms ||
+                !new HashSet<int>(roomIds).SetEquals(Enumerable.Range(1, expectedRooms)))
+            {
+                error = "room IDs are not the unique contiguous bake range";
+                return false;
+            }
+            if (portalIds.Distinct().Count() != expectedPortals ||
+                !new HashSet<int>(portalIds).SetEquals(Enumerable.Range(1, expectedPortals)))
+            {
+                error = "portal IDs are not the unique contiguous bake range";
+                return false;
+            }
+
+            var portalEnds = new Dictionary<long, HashSet<long>>();
+            foreach (var portal in portals)
+            {
+                long path = portal.Value<long>("path_id");
+                var ends = ((portal["fields"]?["_connectedRooms"] as JArray) ?? new JArray())
+                    .Select(RefId).Where(id => id.HasValue).Select(id => id.Value).ToArray();
+                if (ends.Length != 2 || ends[0] == ends[1] || ends.Any(id => !roomPaths.Contains(id)))
+                {
+                    error = $"portal {portal["fields"]?.Value<int?>("_iD")} does not connect two valid distinct rooms";
+                    return false;
+                }
+                portalEnds[path] = new HashSet<long>(ends);
+            }
+
+            var portalMentions = portalPaths.ToDictionary(path => path, _ => 0);
+            foreach (var room in rooms)
+            {
+                long roomPath = room.Value<long>("path_id");
+                foreach (var area in (room["fields"]?["Areas"] as JArray) ?? new JArray())
+                {
+                    var areaPath = RefId(area);
+                    if (!areaPath.HasValue || !areaPaths.Contains(areaPath.Value))
+                    {
+                        error = $"room {room["fields"]?.Value<int?>("_iD")} references a missing trigger area";
+                        return false;
+                    }
+                }
+
+                foreach (var connection in (room["fields"]?["roomConnections"] as JArray) ?? new JArray())
+                {
+                    var other = RefId(connection["connectedRoom"]);
+                    if (!other.HasValue || !roomPaths.Contains(other.Value) || other.Value == roomPath)
+                    {
+                        error = $"room {room["fields"]?.Value<int?>("_iD")} has an invalid room connection";
+                        return false;
+                    }
+                    foreach (var portalRef in (connection["connectingPortals"] as JArray) ?? new JArray())
+                    {
+                        var portalPath = RefId(portalRef);
+                        if (!portalPath.HasValue || !portalEnds.TryGetValue(portalPath.Value, out var ends) ||
+                            !ends.Contains(roomPath) || !ends.Contains(other.Value))
+                        {
+                            error = $"room {room["fields"]?.Value<int?>("_iD")} has a portal wired to the wrong endpoint pair";
+                            return false;
+                        }
+                        portalMentions[portalPath.Value]++;
+                    }
+                }
+            }
+
+            if (portalMentions.Any(pair => pair.Value != 2))
+            {
+                var bad = portalMentions.First(pair => pair.Value != 2);
+                error = $"portal path {bad.Key} appears in {bad.Value} room connection lists instead of 2";
+                return false;
+            }
+
+            Plugin.Log.LogInfo($"[Acoustics] RETAIL GRAPH VERIFIED: {expectedRooms} unique rooms, {expectedPortals} unique portals, {areas.Length} trigger areas; all endpoint references are symmetric");
+            return true;
+        }
+
+        private static bool ValidateSpatialSceneBindings(JObject sound,
+            Dictionary<string, List<Transform>> goIndex, out string error)
+        {
+            error = null;
+            foreach (var cls in new[] { "AudioTriggerArea", "SpatialAudioPortal",
+                         "UniversalTriggerSpatialAudioPortal", "SpatialAudioRoom" })
+            {
+                foreach (var row in Rows(sound, cls))
+                {
+                    var target = FindGo(goIndex, row);
+                    if (target == null)
+                    {
+                        error = $"{cls} path {row.Value<string>("go")} was not found in the loaded Terminal scenes";
+                        return false;
+                    }
+                    if (target.GetComponent<WorldInteractiveObject>() != null)
+                    {
+                        error = $"{cls} path {row.Value<string>("go")} resolves to an interactive object";
+                        return false;
+                    }
+                }
+            }
+            return true;
+        }
 
         private static void CreateAll<T>(JObject scene, string cls, Dictionary<string, List<Transform>> goIndex,
             Dictionary<long, Component> comps, List<GameObject> reactivate) where T : Component
@@ -1343,6 +1576,8 @@ namespace Manimal.Terminal
 
         private static AudioClip FindClip(string name)
         {
+            if (_recoveredLoopClips.TryGetValue(name, out var recovered) && recovered)
+                return recovered;
             if (_clipCache == null)
             {
                 _clipCache = new Dictionary<string, AudioClip>(StringComparer.OrdinalIgnoreCase);
@@ -1350,6 +1585,14 @@ namespace Manimal.Terminal
                     if (c != null && !string.IsNullOrEmpty(c.name)) _clipCache[c.name] = c;
             }
             return _clipCache.TryGetValue(name, out var clip) ? clip : null;
+        }
+
+        private static bool IsUnderSeaGroup(Transform transform)
+        {
+            for (var t = transform; t != null; t = t.parent)
+                if (string.Equals(t.name, "AmbientSplineEmitterSeaGroup", StringComparison.Ordinal))
+                    return true;
+            return false;
         }
 
         private static void FillRoom(SpatialAudioRoom r, JToken row, Dictionary<long, Component> comps)

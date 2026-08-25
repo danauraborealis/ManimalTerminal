@@ -47,7 +47,13 @@ namespace Manimal.Terminal
             _pcVols.Clear();
             _xvols.Clear();
             _crossForced.Clear();
-            if (Instance != null) Instance._frames = 0;
+            _amCachedProfile = null;
+            _amEnabledParam = null;
+            if (Instance != null)
+            {
+                Instance._frames = 0;
+                Instance._amandsStateLogged = false;
+            }
         }
 
         // probe host rides the camera lifecycle — SetCamera fires on every raid
@@ -154,6 +160,7 @@ namespace Manimal.Terminal
             t0 = System.Diagnostics.Stopwatch.GetTimestamp(); DrainPcToggles();       TerminalTickProfiler.Add("PcTogDrn",  System.Diagnostics.Stopwatch.GetTimestamp() - t0);
             t0 = System.Diagnostics.Stopwatch.GetTimestamp(); TickCrossCull();        TerminalTickProfiler.Add("XCull",     System.Diagnostics.Stopwatch.GetTimestamp() - t0);
             t0 = System.Diagnostics.Stopwatch.GetTimestamp(); TickDeadEffectGuard();  TerminalTickProfiler.Add("DeadFxGd",  System.Diagnostics.Stopwatch.GetTimestamp() - t0);
+            t0 = System.Diagnostics.Stopwatch.GetTimestamp(); TickAmandsReapply();     TerminalTickProfiler.Add("Amands",    System.Diagnostics.Stopwatch.GetTimestamp() - t0);
         }
 
         // ------------------------------------------------------------------- attach
@@ -800,6 +807,108 @@ namespace Manimal.Terminal
                 }
             }
             catch (Exception e) { Plugin.Log.LogDebug($"[RaidFix] dead-effect guard: {e.Message}"); }
+        }
+
+        // ---------------------------------------------------- Amands Graphics reconcile
+
+        // Amands injects MotionBlur into the camera's PostProcessVolume and disables
+        // the profile instance it captured during camera activation. Terminal then
+        // finishes repairing/grafting the Cam2 fallback, which can replace the live
+        // profile while Amands still holds the old instance. The replacement may carry
+        // enabled default motion blur even when the user's Amands config says Off.
+        // Reconcile the LIVE profile continuously, as Icebreaker does; this also covers
+        // the persistent FPS camera being reused across consecutive raids.
+        private bool _amandsStateLogged;
+        private static bool _amResolved;
+        private static bool _amPresent;
+        private static BepInEx.Configuration.ConfigEntryBase _amMbCfg;
+        private static Type _amVolType;
+        private static PropertyInfo _amProfileProp;
+        private static object _amCachedProfile;
+        private static object _amEnabledParam;
+        private static FieldInfo _amValueField;
+        private static MethodInfo _amOverride;
+
+        private void TickAmandsReapply()
+        {
+            // Reflection/type discovery is cached session-wide. The steady-state call
+            // is two field reads every ~2 seconds, avoiding the rhythmic stutter caused
+            // by resolving types on every sweep in Icebreaker's early implementation.
+            if (_frames < 300 || _frames % 120 != 0) return;
+            try
+            {
+                if (!_amResolved)
+                {
+                    _amResolved = true;
+                    _amPresent = BepInEx.Bootstrap.Chainloader.PluginInfos.ContainsKey("com.Amanda.Graphics");
+                    if (_amPresent)
+                    {
+                        var pluginType = Type.GetType("AmandsGraphics.AmandsGraphicsPlugin, AmandsGraphics");
+                        _amMbCfg = pluginType?.GetProperty("MotionBlur",
+                            BindingFlags.Public | BindingFlags.Static)
+                            ?.GetValue(null) as BepInEx.Configuration.ConfigEntryBase;
+                        _amVolType = AccessTools.TypeByName("UnityEngine.Rendering.PostProcessing.PostProcessVolume");
+                        if (_amVolType != null) _amProfileProp = AccessTools.Property(_amVolType, "profile");
+                        _amPresent = _amMbCfg != null && _amProfileProp != null;
+                    }
+                }
+                if (!_amPresent) return;
+
+                bool wantOn = _amMbCfg.BoxedValue?.ToString() == "On";
+                var cam = CameraRef != null ? CameraRef : Camera.main;
+                if (cam == null) return;
+                var volume = cam.GetComponent(_amVolType);
+                if (volume == null) return;
+                var profile = _amProfileProp.GetValue(volume);
+                if (profile == null) return;
+
+                if (!ReferenceEquals(profile, _amCachedProfile))
+                {
+                    _amCachedProfile = profile;
+                    _amEnabledParam = null;
+                    _amValueField = null;
+                    _amOverride = null;
+                    var settings = AccessTools.Field(profile.GetType(), "settings")
+                        ?.GetValue(profile) as System.Collections.IEnumerable;
+                    if (settings != null)
+                        foreach (var setting in settings)
+                            if (setting != null && setting.GetType().Name == "MotionBlur")
+                            {
+                                _amEnabledParam = AccessTools.Field(setting.GetType(), "enabled")?.GetValue(setting);
+                                if (_amEnabledParam != null)
+                                {
+                                    _amValueField = AccessTools.Field(_amEnabledParam.GetType(), "value");
+                                    _amOverride = AccessTools.Method(_amEnabledParam.GetType(), "Override");
+                                }
+                                break;
+                            }
+                }
+
+                if (!_amandsStateLogged)
+                {
+                    _amandsStateLogged = true;
+                    bool liveNow = _amEnabledParam != null && _amValueField != null
+                        && (bool)_amValueField.GetValue(_amEnabledParam);
+                    Plugin.Log.LogInfo($"[Amands] reconcile armed — config MotionBlur={_amMbCfg.BoxedValue}, live profile MotionBlur "
+                        + $"{(_amEnabledParam == null ? "ABSENT" : liveNow ? "enabled" : "disabled")}");
+                }
+
+                if (_amEnabledParam == null || _amValueField == null) return;
+                if ((bool)_amValueField.GetValue(_amEnabledParam) && !wantOn)
+                {
+                    _amOverride?.Invoke(_amEnabledParam, new object[] { false });
+                    Plugin.Log.LogWarning("[Amands] live profile MotionBlur was ON with config Off — overridden off "
+                        + "(Amands disabled a stale profile while Terminal's camera repair installed the live one)");
+                }
+            }
+            catch (Exception e)
+            {
+                if (!_amandsStateLogged)
+                {
+                    _amandsStateLogged = true;
+                    Plugin.Log.LogWarning($"[Amands] reconcile failed (cosmetic only): {e.Message}");
+                }
+            }
         }
     }
 }

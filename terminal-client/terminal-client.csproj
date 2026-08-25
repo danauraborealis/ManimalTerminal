@@ -163,6 +163,25 @@
     <RemoveDir Directories="$(TempPackageDir)" />
     <MakeDir Directories="$(ModPackageDir)" />
     <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(ModPackageDir)" />
+    <!-- Cloud rendering now depends on the recovered retail coverage map; include
+         this one data asset even in the otherwise DLL-only tester update. -->
+    <MakeDir Directories="$(ModPackageDir)\plugin-data\weather" />
+    <Copy SourceFiles="$(ProjectDir)plugin-data\weather\CloudMapWoHorizonBorder2.png"
+          DestinationFolder="$(ModPackageDir)\plugin-data\weather"
+          Condition="Exists('$(ProjectDir)plugin-data\weather\CloudMapWoHorizonBorder2.png')" />
+    <!-- Terminal's retail precipitation catalog and sharedassets shoreline clips
+         are not present in custom-map bundles. The DLL loads these recovered
+         loops directly and feeds them into Tarkov's ambient mixer. -->
+    <MakeDir Directories="$(ModPackageDir)\plugin-data\audio" />
+    <Copy SourceFiles="$(ProjectDir)plugin-data\audio\amb_rain_outdoor_strong.wav;$(ProjectDir)plugin-data\audio\amb_rain_indoor_strong.wav;$(ProjectDir)plugin-data\audio\amb_terminal_spline_sea_close_quite.wav;$(ProjectDir)plugin-data\audio\amb_terminal_spline_sea_distant_quite.wav;$(ProjectDir)plugin-data\audio\amb_terminal_spline_sea_far_quite.wav"
+          DestinationFolder="$(ModPackageDir)\plugin-data\audio" />
+    <!-- The verified 76-room/220-portal graph is a data fix, not DLL state. Ship
+         the corrected sidecar in incremental updates so an older 104/345 graph
+         cannot be paired with the new runtime validator. The bake itself is part
+         of the full install and does not need to be duplicated here. -->
+    <MakeDir Directories="$(ModPackageDir)\plugin-data\acoustics" />
+    <Copy SourceFiles="$(ProjectDir)plugin-data\acoustics\terminal_spatial_audio.json"
+          DestinationFolder="$(ModPackageDir)\plugin-data\acoustics" />
     <ZipDirectory SourceDirectory="$(TempPackageDir)" DestinationFile="$(ProjectDir)$(ZipFileName)" Overwrite="true" />
     <RemoveDir Directories="$(TempPackageDir)" />
     <Message Text="--- dll-update zip at: $(ProjectDir)$(ZipFileName) ---" Importance="high" />

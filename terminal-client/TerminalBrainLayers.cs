@@ -17,9 +17,10 @@ namespace Manimal.Terminal
     //
     // priorities carry icebreaker's measured numbers: crew 68 owns the idle slot
     // (above vanilla idle <=65, below combat >=70, stands down on any live threat);
-    // rush 110 clears AvoidDanger (ExUsec 100 / PMC 80) so a deploy order actually
-    // executes, yielding only on a VISIBLE enemy. hold tier + speaker muting NOT
-    // ported — terminal has no scripted ambush squads yet.
+    // vanilla rush 150 clears AvoidDanger (ExUsec 100 / PMC 80) so a deploy order
+    // actually executes. Under SAIN it registers at 75 instead: above SAIN combat
+    // (20/22), below SAIN AvoidThreat (80) and Flashed (85). The stage director owns
+    // deployment; SAIN owns emergencies and contact combat.
     internal static class TerminalCrewJobs
     {
         internal enum Job { None, Guard, Hunt, Siege }
@@ -42,28 +43,57 @@ namespace Manimal.Terminal
         private static float _eventAt = -1f;
         private const float EventWindow = 180f;
 
+        // BotSpawner.OnBotCreated fires before the remainder of BotSpawner.method_11
+        // has finished wiring the bot into its group.  In particular, the brain can
+        // still be between strategies at this point.  Calling BotEventActive here
+        // bypassed BSG's own inactive-bot deferral and produced an NRE for virtually
+        // every assault bot.  Keep the request raid-scoped and finish it from Update
+        // once the bot's native brain is genuinely ready.
+        private sealed class PendingForceAttack
+        {
+            internal BotOwner Bot;
+            internal string Role;
+            internal float QueuedAt;
+            internal float NextTry;
+            internal int Attempts;
+            internal string LastError;
+        }
+
+        private static readonly Dictionary<string, PendingForceAttack> PendingForceAttacks =
+            new Dictionary<string, PendingForceAttack>();
+        private static GameObject _forceAttackHost;
+        private const float ForceAttackTimeout = 20f;
+
         private static bool _registered;
+        private static bool _sainMode;
 
         internal static void Register()
         {
             if (_registered) return;
             _registered = true;
+            _sainMode = TerminalSainCompat.Detected;
             // Assault = the scav brain the TB waves run; PMC-family = blackdiv/RUAF
             // (icebreaker's post-release diagnostic: faction mods run the LITERAL
             // 'PMC' brain; ExUsec included for any rogue-brained strays)
             var brains = new List<string> { "Assault", "CursedAssault", "PMC", "PmcBear", "PmcUsec", "ExUsec" };
             BrainManager.AddCustomLayer(typeof(TerminalCrewLayer), brains, 68);
-            // 150, not 110 (2026-08-15: the armory squad spawned ~176m out and never
+            // Vanilla: 150, not 110 (2026-08-15: the armory squad spawned ~176m out and never
             // arrived — vanilla AvoidDangerLayer runs at 120-140 in every EFT brain
             // we've decompiled, and the spawn area is a scav battlefield, so danger
             // reactions owned the bots over a 110 rush and they shuffled near spawn.
             // a determined rush outranks danger flinching; it still yields the moment
             // an enemy is VISIBLE, so real fights are untouched)
-            BrainManager.AddCustomLayer(typeof(TerminalRushLayer), brains, 150);
+            // SAIN removes the native ForceAttack/Pursuit layers and replaces combat
+            // with priorities 20/22. 75 keeps Terminal's authored travel order above
+            // that combat layer while allowing SAIN's grenade/dogfight (80) and
+            // flashed (85) layers to interrupt it.
+            int rushPriority = _sainMode ? 75 : 150;
+            BrainManager.AddCustomLayer(typeof(TerminalRushLayer), brains, rushPriority);
             // 72: above crew/patrol, below combat — and it self-yields to vanilla combat
             // whenever the enemy is visible, so gunfights never route through us
             BrainManager.AddCustomLayer(typeof(TerminalRuafDefenseLayer), brains, 72);
-            Plugin.Log.LogInfo("[CrewLayer] bigbrain layers registered (Assault/PMC-family, crew 68 / ruaf-defense 72 / rush 150)");
+            Plugin.Log.LogWarning($"[CrewLayer] bigbrain layers registered (Assault/PMC-family, crew 68 / ruaf-defense 72 / rush {rushPriority}; "
+                + (_sainMode ? "SAIN handoff mode" : "native force-attack mode") + ")");
         }
 
         internal static void NoteEvent(string name)
@@ -128,30 +158,153 @@ namespace Manimal.Terminal
                     Plugin.Log.LogDebug($"[CrewLayer] {bot.name}: role '{role}' not a push role — left to its own brain");
                     return;
                 }
-                // NATIVE PUSH (user calls 2026-08-18, replaces our Hunt rush for scavs):
-                // BSG ships dormant ForceAttack/ForcePersuit brain layers (501/502),
-                // activated per-bot through BotsForceAttackEvent. STRICTLY BSG-design:
-                // the bot's own Mind.ACTIVE_FORCE_ATTACK_EVENTS gate (from its server
-                // bot config) decides eligibility — we never flip it, only start the
-                // event for bots BSG authored to answer it.
-                try
+                if (_sainMode)
                 {
-                    var bc = Comfort.Common.Singleton<IBotGame>.Instance?.BotsController;
-                    var ev = bc?.EventsController?.ForceAttackEvent;
-                    if (ev == null)
-                        Plugin.Log.LogWarning($"[CrewLayer] no ForceAttackEvent controller — {bot.name} left passive");
-                    else if (ev.CanActivate(bot))
+                    // SAIN deliberately removes BSG's "Kill logic" and "Pursuit"
+                    // layers (native event indices 501/502). Activating that event
+                    // therefore cannot move a SAIN bot and produces invalid-layer
+                    // noise. Give the bot a Terminal deployment job instead. Rush 75
+                    // moves it toward contact, then IsActive yields to SAIN combat.
+                    ByProfile[bot.ProfileId] = new Rec
                     {
-                        ev.ExternalStart();
-                        ev.BotEventActive(bot);
-                        Plugin.Log.LogDebug($"[CrewLayer] {bot.name}: NATIVE FORCE ATTACK (event wave) role='{role}'");
-                    }
-                    else
-                        Plugin.Log.LogDebug($"[CrewLayer] {bot.name}: not force-attack eligible by BSG design — left to its own brain");
+                        Job = Job.Hunt,
+                        Zone = new Bounds(bot.Position, new Vector3(28f, 8f, 28f)),
+                        RushUntil = Time.time + EventWindow,
+                    };
+                    Plugin.Log.LogDebug($"[CrewLayer] {bot.name}: SAIN DEPLOYMENT order role='{role}' (Terminal travel -> SAIN combat)");
                 }
-                catch (Exception fe) { Plugin.Log.LogWarning($"[CrewLayer] force-attack activation failed for {bot.name}: {fe.Message}"); }
+                else
+                {
+                    QueueNativeForceAttack(bot, role);
+                }
             }
             catch (Exception e) { Plugin.Log.LogWarning($"[CrewLayer] assign failed: {e.Message}"); }
+        }
+
+        private static void QueueNativeForceAttack(BotOwner bot, string role)
+        {
+            var id = bot?.ProfileId;
+            if (string.IsNullOrEmpty(id) || PendingForceAttacks.ContainsKey(id)) return;
+            PendingForceAttacks[id] = new PendingForceAttack
+            {
+                Bot = bot,
+                Role = role,
+                QueuedAt = Time.realtimeSinceStartup,
+                NextTry = Time.realtimeSinceStartup,
+            };
+            if (!_forceAttackHost)
+            {
+                _forceAttackHost = new GameObject("Terminal_ForceAttackDispatcher");
+                _forceAttackHost.AddComponent<ForceAttackHost>();
+            }
+            Plugin.Log.LogDebug($"[CrewLayer] {bot.name}: native force-attack queued until brain initialization completes");
+        }
+
+        private static string ForceAttackReadiness(BotOwner bot)
+        {
+            try
+            {
+                if (!bot) return "bot destroyed";
+                if (!bot.GetPlayer) return "player missing";
+                if (bot.GetPlayer.HealthController == null || !bot.GetPlayer.HealthController.IsAlive) return "bot dead";
+                if (bot.Settings?.FileSettings?.Mind == null) return "settings missing";
+                if (bot.Brain == null) return "brain missing";
+                if (bot.Brain.BaseBrain == null) return "base brain missing";
+                if (bot.PriorityAxeTarget == null) return "pursuit controller missing";
+                if (bot.LeaveData == null) return "leave controller missing";
+                if (bot.BotState != EBotState.Active) return $"state={bot.BotState}";
+                return null;
+            }
+            catch (Exception e) { return "readiness threw " + e.GetType().Name; }
+        }
+
+        private static void PumpForceAttacks()
+        {
+            if (_sainMode || !TerminalGate.On || !Plugin.EventWavesPush.Value)
+            {
+                PendingForceAttacks.Clear();
+                return;
+            }
+            if (PendingForceAttacks.Count == 0) return;
+
+            float now = Time.realtimeSinceStartup;
+            var completed = new List<string>();
+            foreach (var pair in PendingForceAttacks)
+            {
+                var pending = pair.Value;
+                if (now < pending.NextTry) continue;
+                pending.NextTry = now + 0.25f;
+
+                string readiness = ForceAttackReadiness(pending.Bot);
+                if (readiness == "bot destroyed" || readiness == "player missing" || readiness == "bot dead")
+                {
+                    completed.Add(pair.Key);
+                    continue;
+                }
+
+                if (readiness == null)
+                {
+                    try
+                    {
+                        var ev = Singleton<IBotGame>.Instance?.BotsController?.EventsController?.ForceAttackEvent;
+                        if (ev == null)
+                        {
+                            readiness = "event controller missing";
+                        }
+                        else if (!ev.CanActivate(pending.Bot))
+                        {
+                            Plugin.Log.LogDebug($"[CrewLayer] {pending.Bot.name}: not force-attack eligible by BSG settings — left to its own brain");
+                            completed.Add(pair.Key);
+                            continue;
+                        }
+                        else
+                        {
+                            // BotEventActive is BSG's per-bot operation.  Do not call
+                            // ExternalStart here: Start() walks every BotOwner, including
+                            // any bot currently mid-creation, which recreates this race
+                            // and also turns a wave order into a raid-global order.
+                            ev.BotZonesLeaveController.NoZoneBlocks = true;
+                            ev.BotEventActive(pending.Bot);
+                            Plugin.Log.LogDebug($"[CrewLayer] {pending.Bot.name}: NATIVE FORCE ATTACK ready after {now - pending.QueuedAt:F1}s role='{pending.Role}'");
+                            completed.Add(pair.Key);
+                            continue;
+                        }
+                    }
+                    catch (Exception e)
+                    {
+                        pending.Attempts++;
+                        pending.LastError = e.ToString();
+                        readiness = "activation threw " + e.GetType().Name;
+                    }
+                }
+
+                if (now - pending.QueuedAt >= ForceAttackTimeout)
+                {
+                    string detail = string.IsNullOrEmpty(pending.LastError) ? readiness : pending.LastError;
+                    Plugin.Log.LogWarning($"[CrewLayer] gave up deferred force attack for {pending.Bot?.name ?? pair.Key} "
+                        + $"after {ForceAttackTimeout:F0}s ({readiness}, attempts={pending.Attempts}): {detail}");
+                    completed.Add(pair.Key);
+                }
+            }
+            foreach (var id in completed) PendingForceAttacks.Remove(id);
+        }
+
+        private sealed class ForceAttackHost : MonoBehaviour
+        {
+            private void Update()
+            {
+                if (!TerminalGate.On)
+                {
+                    Destroy(gameObject);
+                    return;
+                }
+                PumpForceAttacks();
+            }
+
+            private void OnDestroy()
+            {
+                if (_forceAttackHost == gameObject) _forceAttackHost = null;
+            }
         }
 
         // blackdiv placement check runs here, on the layer's own queries — the bot is
@@ -322,6 +475,9 @@ namespace Manimal.Terminal
         {
             ByProfile.Clear(); FirstSeen.Clear(); _eventAt = -1f; _bdHold = null; _bdHoldLooked = false;
             _armoryBounds = null; _armoryLooked = false; _armoryNavAnchor = null;
+            PendingForceAttacks.Clear();
+            if (_forceAttackHost) UnityEngine.Object.Destroy(_forceAttackHost);
+            _forceAttackHost = null;
             LastBlackDivRole = null;
             TerminalHangarCrew.ResetForRaid();
         }
@@ -396,6 +552,8 @@ namespace Manimal.Terminal
     // only on a visible enemy so combat takes over at contact
     internal class TerminalRushLayer : CustomLayer
     {
+        private bool _contactHandoffLogged;
+
         public TerminalRushLayer(BotOwner botOwner, int priority) : base(botOwner, priority) { }
 
         public override string GetName() => "TerminalCrewRush";
@@ -409,12 +567,25 @@ namespace Manimal.Terminal
             if (!p || p.HealthController == null || !p.HealthController.IsAlive) return false;
             try
             {
-                // sight ends the charge — but only CLOSE sight (2026-08-15: a visible
-                // scav 100m off through a fence held bots at spawn; a determined rush
-                // ignores distant targets and brawls whoever's actually in the way)
+                // Sight ends the charge only at real contact. SAIN's Customs combat
+                // is intentionally cautious; handing the bot over at the old 40m
+                // threshold made the entire incoming scav wave stop at first sight,
+                // occupy one clump of cover and wait for the player to push it. Keep
+                // the authored deployment moving to 18m under SAIN, then let SAIN own
+                // shooting/flanking. Vanilla retains the wider proven handoff.
                 var ge = BotOwner.Memory?.GoalEnemy;
+                float handoff = TerminalSainCompat.Detected ? 18f : 40f;
                 if (ge != null && ge.IsVisible
-                    && (ge.CurrPosition - BotOwner.Position).sqrMagnitude < 40f * 40f) return false;
+                    && (ge.CurrPosition - BotOwner.Position).sqrMagnitude < handoff * handoff)
+                {
+                    if (!_contactHandoffLogged)
+                    {
+                        _contactHandoffLogged = true;
+                        Plugin.Log.LogDebug($"[CrewLayer] {BotOwner.name}: contact at <{handoff:0}m — deployment -> "
+                            + (TerminalSainCompat.Detected ? "SAIN combat" : "native combat"));
+                    }
+                    return false;
+                }
             }
             catch { }
             return true;
@@ -718,13 +889,30 @@ namespace Manimal.Terminal
     {
         private float _next;
         private float _nextRushLog;
+        private readonly Vector3 _approachOffset;
 
-        public TerminalHuntLogic(BotOwner botOwner) : base(botOwner) { }
+        public TerminalHuntLogic(BotOwner botOwner) : base(botOwner)
+        {
+            // A shared exact player coordinate routed every member of a wave through
+            // the same final navmesh corner. Give each bot a stable point on a ring
+            // around the player so squads approach on separate lanes instead of
+            // huddling at one path endpoint. Stable per profile prevents lane jitter
+            // every time BigBrain re-enters this logic.
+            unchecked
+            {
+                uint seed = (uint)(botOwner?.ProfileId?.GetHashCode() ?? botOwner?.Id ?? 0);
+                float angle = (seed % 3600u) * (Mathf.Deg2Rad / 10f);
+                float radius = 5f + ((seed / 3600u) % 4u) * 1.5f;
+                _approachOffset = new Vector3(Mathf.Cos(angle) * radius, 0f, Mathf.Sin(angle) * radius);
+            }
+        }
 
         public override void Update(CustomLayer.ActionData data)
         {
             if (Time.time < _next) return;
-            _next = Time.time + 3f;
+            // Moving targets and a close assault need a fresher path than the old
+            // three-second cadence. This remains cheap at the ten-scav live cap.
+            _next = Time.time + (TerminalSainCompat.Detected ? 1.25f : 3f);
 
             // point-rush variant (armory siege): run the fixed anchor, and once close
             // enough hand over to the guard ring by closing the rush window
@@ -757,12 +945,18 @@ namespace Manimal.Terminal
             var target = Singleton<GameWorld>.Instance?.MainPlayer;
             if (!target || target.HealthController == null || !target.HealthController.IsAlive) return;
 
+            Vector3 destination = target.Position + _approachOffset;
+            // Keep the requested lane on the walkable surface. A failed sample falls
+            // back to the player point, preserving pursuit through unusual interiors.
+            if (NavMesh.SamplePosition(destination, out var laneHit, 3f, NavMesh.AllAreas))
+                destination = laneHit.position;
+
             float sq = (target.Position - BotOwner.Position).sqrMagnitude;
-            bool far = sq > 20f * 20f;
+            bool far = sq > 15f * 15f;
             BotOwner.Mover?.SetPose(1f);
-            BotOwner.Mover?.SetTargetMoveSpeed(far ? 1f : 0.7f);
+            BotOwner.Mover?.SetTargetMoveSpeed(far ? 1f : 0.85f);
             try { BotOwner.Sprint(far, true); } catch { }
-            BotOwner.Mover?.GoToPoint(target.Position, true, 4f);
+            BotOwner.Mover?.GoToPoint(destination, true, 2.5f);
         }
 
         public override void Stop()

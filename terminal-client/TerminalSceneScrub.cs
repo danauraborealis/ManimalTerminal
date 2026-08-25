@@ -320,17 +320,12 @@ namespace Manimal.Terminal
             return _todSidecar;
         }
 
-        // the extraction emits auto-property backing fields as '<Name>k__BackingField';
-        // accept either spelling so the same row fills both shapes
-        private static System.Reflection.FieldInfo TodField(Type t, string name)
-            => AccessTools.Field(t, name) ?? AccessTools.Field(t, $"<{name}>k__BackingField");
-
         private static int ApplyTodAuthoring(TOD_Sky sky)
         {
             var sc = TodSidecar();
             var comps = sc?["components"] as JObject;
             if (comps == null) return 0;
-            int applied = 0;
+            int applied = 0, missed = 0;
 
             void ApplyRows(string cls, Component target)
             {
@@ -344,48 +339,7 @@ namespace Manimal.Terminal
                         : prop.Name;
                     // the clock is ours — never restore the editor's 13:00
                     if (clean == "Cycle") continue;
-                    var fi = TodField(target.GetType(), clean);
-                    if (fi == null || !(prop.Value is JObject sub)) continue;
-                    try
-                    {
-                        var inst = fi.GetValue(target);
-                        if (inst == null)
-                        {
-                            if (fi.FieldType.GetConstructor(Type.EmptyTypes) == null) continue;
-                            inst = Activator.CreateInstance(fi.FieldType);
-                            fi.SetValue(target, inst);
-                        }
-                        int before = applied;
-                        foreach (var leaf in sub.Properties())
-                        {
-                            var lf = TodField(inst.GetType(), leaf.Name);
-                            if (lf == null) continue;
-                            if (lf.FieldType == typeof(float) && leaf.Value.Type == JTokenType.Float || leaf.Value.Type == JTokenType.Integer)
-                            {
-                                if (lf.FieldType == typeof(float)) { lf.SetValue(inst, leaf.Value.Value<float>()); applied++; }
-                                else if (lf.FieldType == typeof(int)) { lf.SetValue(inst, leaf.Value.Value<int>()); applied++; }
-                                else if (lf.FieldType == typeof(bool)) { lf.SetValue(inst, leaf.Value.Value<int>() != 0); applied++; }
-                            }
-                        }
-                        if (applied > before) fi.SetValue(target, inst);
-                    }
-                    catch { }
-                }
-                // scalar (non-object) fields sit at the row's top level too
-                foreach (var prop in row.Properties())
-                {
-                    if (prop.Value is JObject || prop.Value is JArray) continue;
-                    var clean = prop.Name.StartsWith("<") ? prop.Name.Substring(1, prop.Name.IndexOf('>') - 1) : prop.Name;
-                    var fi = TodField(target.GetType(), clean);
-                    if (fi == null) continue;
-                    try
-                    {
-                        if (fi.FieldType == typeof(float)) { fi.SetValue(target, prop.Value.Value<float>()); applied++; }
-                        else if (fi.FieldType == typeof(int)) { fi.SetValue(target, prop.Value.Value<int>()); applied++; }
-                        else if (fi.FieldType == typeof(bool)) { fi.SetValue(target, prop.Value.Value<int>() != 0); applied++; }
-                        else if (fi.FieldType.IsEnum) { fi.SetValue(target, Enum.ToObject(fi.FieldType, prop.Value.Value<int>())); applied++; }
-                    }
-                    catch { }
+                    ApplyTodMember(target, clean, prop.Value, ref applied, ref missed);
                 }
             }
 
@@ -398,10 +352,131 @@ namespace Manimal.Terminal
                     + $"lat={sky.World.Latitude:0.0} long={sky.World.Longitude:0.0} UTC={sky.World.UTC:0.00} "
                     + $"atmoBrightness={sky.Atmosphere.Brightness:0.000} "
                     + $"dayLenMin={(sky.GetComponent<TOD_Time>() != null ? sky.GetComponent<TOD_Time>().DayLengthInMinutes : -1f):0}"
-                    + "  <- a 0 day-length or a wrong UTC is what renders night as noon");
+                    + $" gradients/colors/curves included, {missed} member(s) missed"
+                    + "  <- the old shallow loader left the retail sky gradients at default black");
             }
             catch { }
             return applied;
+        }
+
+        // Full TOD value converter, ported from Icebreaker's proven retail-sky
+        // restore. The old Terminal loader descended only one level and accepted
+        // primitives, leaving Day/Night/Sun/Moon gradients at default black.
+        private static void ApplyTodMember(object target, string name, JToken token,
+            ref int applied, ref int missed)
+        {
+            const System.Reflection.BindingFlags flags = System.Reflection.BindingFlags.Public
+                | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+            var type = target.GetType();
+            var field = type.GetField(name, flags) ?? type.GetField($"<{name}>k__BackingField", flags);
+            var property = field == null ? type.GetProperty(name, flags) : null;
+            if (field == null && property == null) { missed++; return; }
+
+            var memberType = field != null ? field.FieldType : property.PropertyType;
+            object existing = null;
+            try { existing = field != null ? field.GetValue(target) : property.GetValue(target, null); }
+            catch { }
+
+            var converted = ConvertTodValue(token, memberType, existing, ref applied, ref missed);
+            if (converted == null) return;
+            try
+            {
+                if (field != null) field.SetValue(target, converted);
+                else if (property.CanWrite) property.SetValue(target, converted, null);
+                else { missed++; return; }
+                applied++;
+            }
+            catch { missed++; }
+        }
+
+        private static object ConvertTodValue(JToken token, Type memberType, object existing,
+            ref int applied, ref int missed)
+        {
+            try
+            {
+                if (memberType == typeof(float)) return token.Value<float>();
+                if (memberType == typeof(double)) return token.Value<double>();
+                if (memberType == typeof(int)) return token.Value<int>();
+                if (memberType == typeof(bool))
+                    return token.Type == JTokenType.Boolean ? token.Value<bool>() : token.Value<int>() != 0;
+                if (memberType.IsEnum) return Enum.ToObject(memberType, token.Value<int>());
+
+                var obj = token as JObject;
+                if (obj == null) { missed++; return null; }
+                float F(string key, float fallback = 0f) => obj.Value<float?>(key) ?? fallback;
+
+                if (memberType == typeof(Color))
+                    return new Color(F("r"), F("g"), F("b"), F("a", 1f));
+                if (memberType == typeof(Vector2)) return new Vector2(F("x"), F("y"));
+                if (memberType == typeof(Vector3)) return new Vector3(F("x"), F("y"), F("z"));
+                if (memberType == typeof(Vector4)) return new Vector4(F("x"), F("y"), F("z"), F("w"));
+                if (memberType == typeof(AnimationCurve))
+                {
+                    var rows = obj["m_Curve"] as JArray;
+                    if (rows == null) { missed++; return null; }
+                    var keys = new Keyframe[rows.Count];
+                    for (int i = 0; i < rows.Count; i++)
+                    {
+                        var key = rows[i] as JObject;
+                        if (key == null) continue;
+                        float KF(string n, float d = 0f) => key.Value<float?>(n) ?? d;
+                        keys[i] = new Keyframe(KF("time"), KF("value"), KF("inSlope"), KF("outSlope"),
+                            KF("inWeight", 1f / 3f), KF("outWeight", 1f / 3f));
+                        keys[i].weightedMode = (WeightedMode)(key.Value<int?>("weightedMode") ?? 0);
+                    }
+                    return new AnimationCurve(keys)
+                    {
+                        preWrapMode = (WrapMode)(obj.Value<int?>("m_PreInfinity") ?? (int)WrapMode.ClampForever),
+                        postWrapMode = (WrapMode)(obj.Value<int?>("m_PostInfinity") ?? (int)WrapMode.ClampForever),
+                    };
+                }
+                if (memberType == typeof(Gradient))
+                {
+                    int colorCount = Mathf.Clamp(obj.Value<int?>("m_NumColorKeys") ?? 2, 1, 8);
+                    int alphaCount = Mathf.Clamp(obj.Value<int?>("m_NumAlphaKeys") ?? 2, 1, 8);
+                    var colors = new GradientColorKey[colorCount];
+                    for (int i = 0; i < colorCount; i++)
+                    {
+                        var key = obj[$"key{i}"] as JObject;
+                        if (key == null) { missed++; return null; }
+                        colors[i] = new GradientColorKey(new Color(
+                            key.Value<float?>("r") ?? 0f, key.Value<float?>("g") ?? 0f,
+                            key.Value<float?>("b") ?? 0f),
+                            (obj.Value<int?>($"ctime{i}") ?? 0) / 65535f);
+                    }
+                    var alphas = new GradientAlphaKey[alphaCount];
+                    for (int i = 0; i < alphaCount; i++)
+                    {
+                        var key = obj[$"key{i}"] as JObject;
+                        if (key == null) { missed++; return null; }
+                        alphas[i] = new GradientAlphaKey(key.Value<float?>("a") ?? 1f,
+                            (obj.Value<int?>($"atime{i}") ?? 0) / 65535f);
+                    }
+                    var gradient = new Gradient();
+                    gradient.SetKeys(colors, alphas);
+                    return gradient;
+                }
+
+                var nested = existing;
+                if (nested == null && memberType.IsClass && !memberType.IsAbstract
+                    && memberType.GetConstructor(Type.EmptyTypes) != null)
+                    nested = Activator.CreateInstance(memberType);
+                if (nested != null && memberType.IsClass)
+                {
+                    foreach (var child in obj.Properties())
+                    {
+                        var childName = child.Name.StartsWith("<")
+                            ? child.Name.Substring(1, child.Name.IndexOf('>') - 1)
+                            : child.Name;
+                        ApplyTodMember(nested, childName, child.Value, ref applied, ref missed);
+                    }
+                    return existing == null ? nested : null;
+                }
+            }
+            catch { missed++; return null; }
+
+            missed++;
+            return null;
         }
 
         // the reverse-filled materials carry the BUNDLE's recompiled TOD shaders — the

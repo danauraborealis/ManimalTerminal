@@ -304,6 +304,7 @@ namespace Manimal.Terminal
             src.spatialBlend = 1f;
             src.maxDistance = maxDist;
             src.rolloffMode = AudioRolloffMode.Linear;
+            TerminalAudioRouting.Route(src, effects: true);
             if (delay > 0f) src.PlayDelayed(delay); else src.Play();
             UnityEngine.Object.Destroy(go, clip.length + delay + 0.5f);
         }
@@ -318,6 +319,7 @@ namespace Manimal.Terminal
             src.clip = clip;
             src.spatialBlend = 0f;
             src.volume = volume;
+            TerminalAudioRouting.Route(src, effects: true);
             src.Play();
             UnityEngine.Object.Destroy(go, clip.length + 0.5f);
         }
@@ -357,6 +359,7 @@ namespace Manimal.Terminal
         public string PanelText = "Planting charge {0:F1}";
         public string FoleyClip;
         public Action OnSuccess;
+        public Action OnCancel;
 
         private float _start;
         private bool _started, _ending, _handsLocked, _panelShown;
@@ -390,6 +393,7 @@ namespace Manimal.Terminal
                         _snd.spatialBlend = 1f;
                         _snd.maxDistance = 25f;
                         _snd.rolloffMode = AudioRolloffMode.Linear;
+                        TerminalAudioRouting.Route(_snd, effects: true);
                         _snd.Play();
                     }
                 }
@@ -413,7 +417,11 @@ namespace Manimal.Terminal
             if (_snd != null) _snd.Stop();
             try
             {
-                if (success && OnSuccess != null) OnSuccess();
+                if (success)
+                {
+                    if (OnSuccess != null) OnSuccess();
+                }
+                else if (OnCancel != null) OnCancel();
             }
             catch (Exception e) { Plugin.Log.LogWarning($"[Gates] hold completion threw: {e}"); }
             finally { Destroy(gameObject); }

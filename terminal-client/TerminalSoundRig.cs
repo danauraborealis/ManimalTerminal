@@ -172,10 +172,12 @@ namespace Manimal.Terminal
                 soundRoot.SetActive(wasActive);
             }
 
+            int mixerRouted = TerminalAudioRouting.RouteTree(soundRoot);
             SetupAlarmAndFirefight(dir);
             _initialized = true;
             Plugin.Log.LogInfo($"[SoundRig] up: {_restored.Count} live components, {_banks.Count} banks, "
-                             + $"{_clips.Count} clips, {_alarmSrcs.Count} sirens, firefight {(_firefight != null ? "armed" : "off")}");
+                             + $"{_clips.Count} clips, {_alarmSrcs.Count} sirens, firefight {(_firefight != null ? "armed" : "off")}, "
+                             + $"{mixerRouted} source(s) -> Tarkov AmbientOut mixer");
         }
 
         private static GameObject FindSoundRoot()
@@ -433,6 +435,7 @@ namespace Manimal.Terminal
         {
             var src = player.GetComponent<AudioSource>();
             if (src == null) return false;
+            TerminalAudioRouting.Route(src);
             var t = player.GetType();
             src.playOnAwake = false;
             src.mute = false;
@@ -779,12 +782,12 @@ namespace Manimal.Terminal
                     });
                 }
 
-                AudioMixerGroup mixer = null;
+                AudioMixerGroup mixer = TerminalAudioRouting.AmbientEffects();
                 foreach (var kv in byPath)
                     if (kv.Key.EndsWith("/ShootPlayer") && kv.Value.Count > 0)
                     {
                         var s = kv.Value[0].GetComponent<AudioSource>();
-                        if (s != null && s.outputAudioMixerGroup != null) { mixer = s.outputAudioMixerGroup; break; }
+                        if (mixer == null && s != null && s.outputAudioMixerGroup != null) { mixer = s.outputAudioMixerGroup; break; }
                     }
                 var root = new GameObject("Terminal_SoundRig_FirefightPool");
                 root.transform.SetParent(host.transform, false);

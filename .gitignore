@@ -8,6 +8,7 @@ obj/
 
 # Local agent/build scratch — generated SDK state, decompilations and one-off audits
 /.dotnet-home/
+/.uv-cache/
 /.tmp/
 
 # Distribution zips emitted by PackageModForDistribution targets

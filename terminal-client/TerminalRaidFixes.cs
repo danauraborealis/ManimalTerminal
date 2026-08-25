@@ -269,10 +269,125 @@ namespace Manimal.Terminal
         {
             RaidFirewall.WrapForeignPostfixes(AccessTools.Method(typeof(BotsController), "Init"));
             LateWaypointsPatch.Apply();
+            TerminalOrbitFirewall.Apply();
         }
 
         private static Exception Finalizer(Exception __exception)
             => RaidFirewall.Swallow(__exception, "BotsController.Init");
+    }
+
+    // TRUE ORBIT MAP FIREWALL. ORBIT registers its BigBrain layer globally during its
+    // delayed startup, before a raid/map exists. Blocking only OrbitInit therefore
+    // left that layer registered: every Terminal bot still constructed OrbitBrainLayer,
+    // which immediately dereferenced the manager we had deliberately prevented ORBIT
+    // from creating. Besides the NRE spam, that repeated failed construction could
+    // leave partially-built brain state behind and was a credible sawtooth contributor.
+    //
+    // Make ORBIT's own private role-exclusion check report "excluded" on Terminal.
+    // Its constructor then follows ORBIT's intended inert path (base constructed,
+    // _excluded=true, IsActive=false) instead of touching OrbitManager. We also gate
+    // every live ORBIT hook that can mutate or repeatedly inspect raid state. Hooks
+    // which are themselves Harmony prefixes return TRUE when bypassed so Tarkov's
+    // original method still runs. OrbitDispose is deliberately left alone: it is the
+    // cleanup net for stale state after a preceding ORBIT-enabled raid. All gates are
+    // map-scoped, so ORBIT remains completely unchanged everywhere except Terminal.
+    internal static class TerminalOrbitFirewall
+    {
+        private static bool _done;
+        private static bool _logged;
+        private static bool _layerLogged;
+
+        internal static void Apply()
+        {
+            if (_done) return;
+
+            var targets = new[]
+            {
+                ("Orbit.Patches.OrbitInitPatch", "Postfix"),
+                ("Orbit.Patches.OrbitTickPatch", "Postfix"),
+                ("Orbit.Patches.DoorCarverShrinkPatch", "Patch"),
+                ("Orbit.Patches.DoorUnlockTracePatch", "Patch"),
+                ("Orbit.Patches.SoftTeleportTracePatch", "Patch"),
+                ("Orbit.Patches.HardTeleportTracePatch", "Patch"),
+                ("Orbit.Patches.BotVaultingPatch", "Patch"),
+                ("Orbit.Patches.MovementContextHumanizePatch", "Patch"),
+                ("Orbit.Patches.ManualFixedUpdateSkipPatch", "PatchPrefix"),
+                ("Orbit.Patches.AirdropLandedPatch", "Postfix"),
+                ("Orbit.Patches.InventoryChangePatch", "Postfix"),
+                ("Orbit.Patches.CorpseRegistrationPatch", "Postfix"),
+                ("Orbit.Patches.RescueInterceptPatch", "Prefix"),
+                ("Orbit.Patches.AssaultEnemyFarBypassPatch", "Patch"),
+                ("Orbit.Patches.ExfilLayerBypassPatch", "Patch"),
+                ("Orbit.Patches.PtrlBirdEyeBypassPatch", "Patch"),
+            };
+            var methods = new List<MethodInfo>();
+            foreach (var spec in targets)
+            {
+                var type = AccessTools.TypeByName(spec.Item1);
+                var method = type != null ? AccessTools.Method(type, spec.Item2) : null;
+                if (method != null) methods.Add(method);
+            }
+            if (methods.Count == 0) return; // ORBIT is not installed
+
+            var layerType = AccessTools.TypeByName("Orbit.Brain.OrbitBrainLayer");
+            var exclusion = layerType != null
+                ? AccessTools.Method(layerType, "IsExcludedRole", new[] { typeof(BotOwner) })
+                : null;
+            if (exclusion == null)
+            {
+                // Do not partially arm and then duplicate-patch the hooks on a retry.
+                Plugin.Log.LogWarning("[OrbitFirewall] ORBIT hooks found but OrbitBrainLayer exclusion was not; firewall deferred until next BotsController.Init");
+                return;
+            }
+
+            var harmony = new Harmony("com.manimal.terminal.orbit-firewall");
+            var voidGate = new HarmonyMethod(AccessTools.Method(typeof(TerminalOrbitFirewall), nameof(VoidHookPrefix)));
+            var boolGate = new HarmonyMethod(AccessTools.Method(typeof(TerminalOrbitFirewall), nameof(BoolHookPrefix)));
+            foreach (var method in methods)
+                harmony.Patch(method, prefix: method.ReturnType == typeof(bool) ? boolGate : voidGate);
+            harmony.Patch(exclusion, prefix: new HarmonyMethod(
+                AccessTools.Method(typeof(TerminalOrbitFirewall), nameof(ForceExcludedPrefix))));
+
+            _done = true;
+            Plugin.Log.LogInfo($"[OrbitFirewall] armed layer exclusion + {methods.Count}/{targets.Length} Terminal-only ORBIT hook gates");
+        }
+
+        private static bool VoidHookPrefix()
+        {
+            if (!TerminalGate.On) return true;
+            LogRuntimeBlockOnce();
+            return false;
+        }
+
+        // These are prefixes around ORBIT's Harmony-prefix methods. Returning false
+        // skips ORBIT's hook body; __result=true tells Harmony to continue into the
+        // original EFT method. Defaulting this to false would freeze/suppress AI.
+        private static bool BoolHookPrefix(ref bool __result)
+        {
+            if (!TerminalGate.On) return true;
+            LogRuntimeBlockOnce();
+            __result = true;
+            return false;
+        }
+
+        private static bool ForceExcludedPrefix(ref bool __result)
+        {
+            if (!TerminalGate.On) return true;
+            __result = true;
+            if (!_layerLogged)
+            {
+                _layerLogged = true;
+                Plugin.Log.LogWarning("[OrbitFirewall] ORBIT brain layer made inert on Terminal before manager/agent construction");
+            }
+            return false;
+        }
+
+        private static void LogRuntimeBlockOnce()
+        {
+            if (_logged) return;
+            _logged = true;
+            Plugin.Log.LogWarning("[OrbitFirewall] ORBIT runtime disabled on Terminal — stage director and native bot movement retain ownership");
+        }
     }
 
     // GAME-START FIREWALL — same defense, second choke point: an exception in a

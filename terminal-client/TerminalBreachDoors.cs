@@ -177,6 +177,30 @@ namespace Manimal.Terminal
             if (found.Count < Candidates.Length)
                 Plugin.Log.LogInfo($"[BreachDoor] {found.Count}/{Candidates.Length} candidate doors present in scene");
 
+            // The rebuilt scene authored these grate doors with the correct
+            // door_grate_hit impact clip, but their independent BreachSound field
+            // fell back to door_kick_break1 (the wooden-door break).  Reuse the
+            // door's own grate impact for the breach: it is already bundled, routed
+            // through Tarkov's InteractiveObjects mixer, and is the correct material
+            // sound for this chain-fence prefab.  Repair every candidate, not merely
+            // this raid's random winner, so increasing BreachableDoors later cannot
+            // expose the bad fallback again.
+            int audioFixed = 0;
+            foreach (var interactive in found)
+            {
+                if (!(interactive is Door door) || door.HitClip == null) continue;
+                if (door.HitClip.name.IndexOf("grate", StringComparison.OrdinalIgnoreCase) < 0) continue;
+                if (door.BreachSound == door.HitClip) continue;
+
+                string oldName = door.BreachSound != null ? door.BreachSound.name : "<null>";
+                door.BreachSound = door.HitClip;
+                audioFixed++;
+                Plugin.Log.LogInfo($"[BreachDoor] grate breach audio repaired on id='{SafeId(door)}': "
+                    + $"{oldName} -> {door.BreachSound.name}");
+            }
+            if (audioFixed > 0)
+                Plugin.Log.LogWarning($"[BreachDoor] repaired chain-fence breach audio on {audioFixed} candidate door(s)");
+
             // partial Fisher-Yates so multiple picks are distinct
             int take = Mathf.Min(want, found.Count);
             for (int i = 0; i < take; i++)

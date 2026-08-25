@@ -32,12 +32,14 @@ namespace Manimal.Terminal
         private static JObject _sidecar;
         private static bool _sidecarTried;
         private static GameObject _marker; // liveness — dies with the raid scenes
+        private static bool _rainVisualReady;
 
         private static readonly Dictionary<long, Component> _comps = new Dictionary<long, Component>();
         private static readonly Dictionary<string, Transform> _pathIndex = new Dictionary<string, Transform>();
         private static readonly Dictionary<string, UnityEngine.Object> _assetCache = new Dictionary<string, UnityEngine.Object>();
         private static readonly Dictionary<string, UnityEngine.Object> _settingsCache = new Dictionary<string, UnityEngine.Object>();
         private static readonly List<string> _missingAssets = new List<string>();
+        private static Texture2D _terminalCloudMap;
 
         private static readonly HashSet<string> SkipClasses = new HashSet<string>
         {
@@ -64,7 +66,11 @@ namespace Manimal.Terminal
 
         internal static bool Staged => _marker;
 
-        internal static void ResetForRaid() => _marker = null;
+        internal static void ResetForRaid()
+        {
+            _marker = null;
+            _rainVisualReady = false;
+        }
 
         private static JObject Sidecar()
         {
@@ -256,6 +262,56 @@ namespace Manimal.Terminal
 
         private static int _probePasses;
 
+        // RainController.Awake subscribes to CameraClass.OnCameraChanged, but Terminal's
+        // reconstructed weather stack wakes before the raid camera exists. The one event
+        // which normally supplies its camera anchor is therefore missed forever. The old
+        // diagnostic repaired that only on its first 25-second probe, visibly switching
+        // rain on in the middle of the intro. Heal it as a startup prerequisite instead.
+        internal static bool TryEnsureRainVisualReady()
+        {
+            if (_rainVisualReady) return true;
+            if (!_marker) return false;
+            try
+            {
+                var rc = UnityEngine.Object.FindObjectOfType<RainController>();
+                if (!rc || !rc.enabled || !rc.gameObject.activeInHierarchy) return false;
+
+                var camera = CameraClass.Instance?.Camera;
+                if (!camera) return false;
+                var anchorField = AccessTools.Field(typeof(RainController), "transform_0");
+                var anchor = anchorField?.GetValue(rc) as Transform;
+                if (!anchor)
+                {
+                    // method_0 constructs the summer state, initializes RainFallDrops,
+                    // binds the camera, and renders the roof-depth texture. It can throw
+                    // later while looking for optional screen-droplet effects; the anchor
+                    // is assigned before that point, so retain it and use a direct-set
+                    // backstop exactly as the delayed diagnostic previously did.
+                    try { AccessTools.Method(typeof(RainController), "method_0")?.Invoke(rc, null); }
+                    catch { }
+                    anchor = anchorField?.GetValue(rc) as Transform;
+                    if (!anchor && anchorField != null)
+                    {
+                        anchorField.SetValue(rc, camera.transform);
+                        anchor = camera.transform;
+                    }
+                    if (anchor)
+                        Plugin.Log.LogInfo($"[Weather] rain visuals armed before playback on camera '{anchor.name}'");
+                }
+
+                bool stateBuilt = AccessTools.Field(typeof(RainController), "class668_0")?.GetValue(rc) != null;
+                bool fallReady = AccessTools.Field(typeof(RainController), "_rainFallDrops")?.GetValue(rc) != null;
+                bool depthReady = AccessTools.Field(typeof(RainController), "_depthPhotograper")?.GetValue(rc) != null;
+                _rainVisualReady = anchor && stateBuilt && fallReady && depthReady;
+                return _rainVisualReady;
+            }
+            catch (Exception e)
+            {
+                Plugin.Log.LogDebug($"[Weather] early rain visual hookup waiting: {e.Message}");
+                return false;
+            }
+        }
+
         internal static void TickProbe()
         {
             if (_probeAt < 0f || Time.time < _probeAt) return;
@@ -380,21 +436,18 @@ namespace Manimal.Terminal
                     }
                     else
                     {
-                        Plugin.Log.LogWarning("[Weather] RAIN AUDIO heal blocked: no populated Audio.AmbientSubsystem.Data.SeasonAmbientSoundDataSO loaded "
-                            + "— rain clips need a carrier pass (add the SO + clips to the bundle)");
+                        Plugin.Log.LogWarning(TerminalRainBed.Active
+                            ? "[Weather] RAIN AUDIO: season catalog is empty; shipped Terminal fallback bed is active"
+                            : "[Weather] RAIN AUDIO heal blocked: no populated Audio.AmbientSubsystem.Data.SeasonAmbientSoundDataSO loaded "
+                                + "and the Terminal fallback bed is not ready");
                         _rainAudioHealed = true; // nothing more to do this raid
                         return;
                     }
                 }
 
-                // mixer group: BetterAudio's mixer is global — prefer an ambient-ish group
-                UnityEngine.Audio.AudioMixerGroup mixGroup = null;
-                foreach (var g in Resources.FindObjectsOfTypeAll<UnityEngine.Audio.AudioMixerGroup>())
-                {
-                    if (!g) continue;
-                    if (g.name.IndexOf("Ambient", StringComparison.OrdinalIgnoreCase) >= 0) { mixGroup = g; break; }
-                    if (!mixGroup && g.name.IndexOf("Environment", StringComparison.OrdinalIgnoreCase) >= 0) mixGroup = g;
-                }
+                // Use Tarkov's explicit outdoor ambience bus. Name-scanning could pick
+                // the parent "Ambient" group and bypass the exposed AmbientOut fader.
+                UnityEngine.Audio.AudioMixerGroup mixGroup = TerminalAudioRouting.AmbientBed();
 
                 var fSrc = AccessTools.Field(typeof(Audio.AmbientSubsystem.PrecipitationAmbientBlender), "_precipitationSource");
                 var fMix = AccessTools.Field(typeof(Audio.AmbientSubsystem.PrecipitationAmbientBlender), "_precipitationMixSource");
@@ -444,6 +497,7 @@ namespace Manimal.Terminal
             src.loop = true;
             src.spatialBlend = 0f; // the precipitation bed is 2D ambience
             src.volume = 1f;
+            TerminalAudioRouting.Route(src);
             return src;
         }
 
@@ -554,24 +608,89 @@ namespace Manimal.Terminal
                     var so = ScriptableObject.CreateInstance(type);
                     so.name = name;
                     if (entry["fields"] is JObject f) FillFields(so, f);
-                    // a null cloud map NREs EVERY camera pre-render (icebreaker: 8500+/raid)
-                    // — substitute a uniform gray coverage map so clouds render *something*
-                    var layerA = AccessTools.Field(type, "LayerA")?.GetValue(so);
-                    if (layerA != null)
-                    {
-                        var texF = AccessTools.Field(layerA.GetType(), "CloudTexture");
-                        if (texF != null && texF.GetValue(layerA) == null)
-                        {
-                            texF.SetValue(layerA, Texture2D.grayTexture);
-                            Plugin.Log.LogWarning($"[Weather] '{name}' cloud map missing from bundle — gray fallback");
-                        }
-                    }
+                    // Terminal's old Mono typetree decoded this retail settings asset one
+                    // field out of alignment (Altitude became Rotation, Rotation became
+                    // Tint.r, etc.). Icebreaker's independently recovered copy is the same
+                    // CloudLayerSettings_main asset and provides the intact layout. Apply
+                    // those values explicitly and load the real lat/long cloud map shipped
+                    // in plugin-data. A flat gray fallback cannot form cloud shapes at all.
+                    if (name == "CloudLayerSettings_main") ApplyTerminalCloudSettings(type, so);
                     result = so;
                 }
             }
             if (result == null) _missingAssets.Add($"SettingsAsset '{name}'");
             _settingsCache[name] = result;
             return result;
+        }
+
+        private static void ApplyTerminalCloudSettings(Type type, ScriptableObject so)
+        {
+            void Set(object target, string field, object value)
+            {
+                var fi = AccessTools.Field(target.GetType(), field);
+                if (fi != null) fi.SetValue(target, value);
+            }
+
+            Set(so, "Opacity", 1f);
+            Set(so, "ShadowMultiplier", 1.09f);
+            Set(so, "ShadowTint", new Color(0.2264151f, 0.2264151f, 0.2264151f, 0f));
+            Set(so, "ShadowSize", 500f);
+            Set(so, "PlanetCenterRadius", new Vector4(0f, -6704000f, 0f, 6704000f));
+
+            var layerA = AccessTools.Field(type, "LayerA")?.GetValue(so);
+            if (layerA == null) return;
+            var cloudMap = LoadTerminalCloudMap();
+            Set(layerA, "CloudTexture", cloudMap ? cloudMap : Texture2D.grayTexture);
+            Set(layerA, "Altitude", 6000f);
+            Set(layerA, "Rotation", 191f);
+            Set(layerA, "Tint", Color.white);
+            Set(layerA, "Exposure", 2.1f);
+            Set(layerA, "ScrollOrientation", 180f);
+            Set(layerA, "MinScrollSpeed", 20f);
+            Set(layerA, "MaxScrollSpeed", 100f);
+            Set(layerA, "Lighting", true);
+            Set(layerA, "Thickness", 1f);
+            Set(layerA, "AmbientProbeDimmer", 0.675f);
+
+            Plugin.Log.LogWarning(cloudMap
+                ? $"[Weather] restored retail cloud layer with '{cloudMap.name}' ({cloudMap.width}x{cloudMap.height})"
+                : "[Weather] retail cloud PNG missing/unreadable — emergency gray fallback remains active");
+        }
+
+        private static Texture2D LoadTerminalCloudMap()
+        {
+            if (_terminalCloudMap) return _terminalCloudMap;
+
+            // Prefer an already-loaded native copy if another location/mod supplied it.
+            foreach (var tex in Resources.FindObjectsOfTypeAll<Texture2D>())
+                if (tex && tex.name == "CloudMapWoHorizonBorder2")
+                    return _terminalCloudMap = tex;
+
+            try
+            {
+                string path = System.IO.Path.Combine(
+                    System.IO.Path.GetDirectoryName(typeof(Plugin).Assembly.Location) ?? ".",
+                    "plugin-data", "weather", "CloudMapWoHorizonBorder2.png");
+                if (!System.IO.File.Exists(path)) return null;
+                var tex = new Texture2D(2, 2, TextureFormat.RGBA32, true, false)
+                {
+                    name = "CloudMapWoHorizonBorder2",
+                    wrapMode = TextureWrapMode.Repeat,
+                    filterMode = FilterMode.Trilinear,
+                    anisoLevel = 1,
+                };
+                if (!ImageConversion.LoadImage(tex, System.IO.File.ReadAllBytes(path), false))
+                {
+                    UnityEngine.Object.Destroy(tex);
+                    return null;
+                }
+                return _terminalCloudMap = tex;
+            }
+            catch (Exception e)
+            {
+                Plugin.Log.LogWarning($"[Weather] cloud PNG load failed: {e.Message}");
+                return null;
+            }
         }
 
         // ------------------------------------------------------------- generic filler

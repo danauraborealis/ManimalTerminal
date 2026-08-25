@@ -11,7 +11,9 @@ namespace Manimal.Terminal
     // "why arent we just setting the time and weather at start of raid using whatever
     // method time and weather changer uses"). they're right — it's two calls:
     //   time:    GameWorld.GameDateTime.Reset(target)
-    //   weather: WeatherController.Instance.WeatherDebug.isEnabled = true + the fields
+    //   weather: WeatherController.Instance.WeatherDebug.isEnabled = true + the fields,
+    //            held briefly for the rainy opening and then disabled so the server's
+    //            native WeatherCurve owns the rest of the raid
     //
     // WHY OUR TIME NEVER STUCK, despite Reset() reporting success every raid: TOD_Time
     // holds its OWN GameDateTime reference and RECOMPUTES the sky's cycle from it every
@@ -45,12 +47,28 @@ namespace Manimal.Terminal
             private float _deadline;
             private bool _skyWired;
             private bool _timeSet;
+            private bool _weatherSeeded;
+            private float _weatherReleaseAt;
+            private WeatherDebug _seededWeatherDebug;
 
             private void Start() => _deadline = Time.realtimeSinceStartup + 60f;
 
             private void Update()
             {
                 if (_done) { Destroy(gameObject); return; }
+
+                // WeatherDebug is an override selector, not a one-shot setter. Leaving
+                // it enabled permanently pins rain/clouds/fog for the whole raid. Once
+                // the opening has had time to establish the retail storm, turn it off
+                // and WeatherController immediately returns to its populated native
+                // WeatherCurve (the weather request was installed before OnGameStarted).
+                if (_weatherSeeded)
+                {
+                    if (!Plugin.ForceWeather.Value || Time.realtimeSinceStartup >= _weatherReleaseAt)
+                        ReleaseStartupWeather();
+                    return;
+                }
+
                 if (Time.realtimeSinceStartup < _next) return;
                 _next = Time.realtimeSinceStartup + 0.5f;
 
@@ -78,13 +96,19 @@ namespace Manimal.Terminal
                 // the host alive until it appears or the deadline passes. the old
                 // give-up-immediately is why "no WeatherController — weather left alone"
                 // was the last word on rain.
-                if (!SetWeather())
+                if (!SeedStartupWeather())
                 {
                     TerminalWeather.TryStage(); // nudge it along
                     return;
                 }
-                _done = true;
-                Destroy(gameObject);
+
+                if (!_weatherSeeded)
+                {
+                    // ForceWeather is off: clock work is complete and there is no
+                    // temporary weather override to supervise.
+                    _done = true;
+                    Destroy(gameObject);
+                }
             }
 
             // THE missing link: point TOD_Time at the same clock instance the raid uses,
@@ -147,9 +171,9 @@ namespace Manimal.Terminal
                 catch (Exception e) { Plugin.Log.LogWarning($"[TimeWeather] time set failed: {e.Message}"); }
             }
 
-            // and its weather sliders: flip WeatherDebug on and write the values. the
-            // controller then drives clouds/rain/fog/thunder from them for the raid.
-            private static bool SetWeather()
+            // Seed the opening with the weather sliders, but keep the host alive to
+            // release WeatherDebug after the configured startup window.
+            private bool SeedStartupWeather()
             {
                 try
                 {
@@ -165,14 +189,55 @@ namespace Manimal.Terminal
                     dbg.Fog = Plugin.WeatherFog.Value;
                     dbg.WindMagnitude = Plugin.WeatherWind.Value;
                     dbg.LightningThunderProbability = Plugin.WeatherThunder.Value;
-                    Plugin.Log.LogWarning($"[TimeWeather] weather forced — rain={dbg.Rain:0.00} clouds={dbg.CloudDensity:0.00} "
-                        + $"fog={dbg.Fog:0.000} wind={dbg.WindMagnitude:0.00} thunder={dbg.LightningThunderProbability:0.00}");
+                    _seededWeatherDebug = dbg;
+                    _weatherSeeded = true;
+                    float hold = Mathf.Clamp(Plugin.WeatherStartHoldSeconds.Value, 5f, 300f);
+                    _weatherReleaseAt = Time.realtimeSinceStartup + hold;
+                    Plugin.Log.LogWarning($"[TimeWeather] startup weather seeded for {hold:0}s — "
+                        + $"rain={dbg.Rain:0.00} clouds={dbg.CloudDensity:0.00} fog={dbg.Fog:0.000} "
+                        + $"wind={dbg.WindMagnitude:0.00} thunder={dbg.LightningThunderProbability:0.00}; "
+                        + "native weather will resume afterward");
                     return true;
                 }
                 catch (Exception e)
                 {
                     Plugin.Log.LogWarning($"[TimeWeather] weather set failed: {e.Message}");
                     return true; // don't spin on a throwing weather system
+                }
+            }
+
+            private void ReleaseStartupWeather()
+            {
+                try
+                {
+                    if (_seededWeatherDebug != null)
+                        _seededWeatherDebug.Enabled = false;
+
+                    var wc = WeatherController.Instance;
+                    if (wc)
+                    {
+                        var natural = wc.WeatherCurve;
+                        Plugin.Log.LogWarning("[TimeWeather] startup weather released — native weather curve resumed: "
+                            + $"rain={natural.Rain:0.00} clouds={natural.Cloudiness:0.00} fog={natural.Fog:0.000} "
+                            + $"wind={natural.Wind.magnitude:0.00} thunder={natural.LightningThunderProbability:0.00}");
+                    }
+                    else
+                    {
+                        Plugin.Log.LogWarning("[TimeWeather] startup weather released; WeatherController was already gone");
+                    }
+                }
+                catch (Exception e)
+                {
+                    // Always clear the selector even if a diagnostic property throws.
+                    if (_seededWeatherDebug != null) _seededWeatherDebug.Enabled = false;
+                    Plugin.Log.LogWarning($"[TimeWeather] startup weather release completed with a diagnostic error: {e.Message}");
+                }
+                finally
+                {
+                    _weatherSeeded = false;
+                    _seededWeatherDebug = null;
+                    _done = true;
+                    Destroy(gameObject);
                 }
             }
         }

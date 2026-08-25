@@ -112,6 +112,7 @@ namespace Manimal.Terminal
         internal static ConfigEntry<bool> IntroCutscene;
         internal static ConfigEntry<bool> IntroCutsceneSkippable;
         internal static ConfigEntry<bool> ForceWeather;
+        internal static ConfigEntry<float> WeatherStartHoldSeconds;
         internal static ConfigEntry<float> WeatherRain;
         internal static ConfigEntry<float> WeatherClouds;
         internal static ConfigEntry<float> WeatherFog;
@@ -142,7 +143,9 @@ namespace Manimal.Terminal
             t0 = System.Diagnostics.Stopwatch.GetTimestamp(); TerminalPumpStation.TryStage();     TerminalTickProfiler.Add("PumpStg",   System.Diagnostics.Stopwatch.GetTimestamp() - t0);
             t0 = System.Diagnostics.Stopwatch.GetTimestamp(); TerminalWater.TryStage();           TerminalTickProfiler.Add("Water",     System.Diagnostics.Stopwatch.GetTimestamp() - t0);
             t0 = System.Diagnostics.Stopwatch.GetTimestamp(); TerminalDryPlanes.TryStage();       TerminalTickProfiler.Add("DryPln",    System.Diagnostics.Stopwatch.GetTimestamp() - t0);
+            t0 = System.Diagnostics.Stopwatch.GetTimestamp(); TerminalShoreAudio.TryStage();      TerminalTickProfiler.Add("ShoreAud",  System.Diagnostics.Stopwatch.GetTimestamp() - t0);
             t0 = System.Diagnostics.Stopwatch.GetTimestamp(); TerminalRainAudio.TryStage();       TerminalTickProfiler.Add("RainAud",   System.Diagnostics.Stopwatch.GetTimestamp() - t0);
+            t0 = System.Diagnostics.Stopwatch.GetTimestamp(); TerminalWeather.TryEnsureRainVisualReady(); TerminalTickProfiler.Add("RainVis", System.Diagnostics.Stopwatch.GetTimestamp() - t0);
             t0 = System.Diagnostics.Stopwatch.GetTimestamp(); TerminalArtillery.Pump();           TerminalTickProfiler.Add("ArtyPump",  System.Diagnostics.Stopwatch.GetTimestamp() - t0);
             t0 = System.Diagnostics.Stopwatch.GetTimestamp(); TerminalShadowGuard.Tick();         TerminalTickProfiler.Add("ShadowGd",  System.Diagnostics.Stopwatch.GetTimestamp() - t0);
             TerminalPerfWatch.OursEnd();
@@ -155,6 +158,12 @@ namespace Manimal.Terminal
         {
             Log = Logger;
             HarmonyInstance = new Harmony(BuildInfo.ModGuid);
+
+            // Optional compatibility patch, installed by reflection: AI Limit is
+            // suppressed on Terminal only because this map owns activation through
+            // its stage director/recycler. No hard dependency and no off-map change.
+            TerminalAILimitFirewall.Install(HarmonyInstance);
+            TerminalSainCompat.Install(HarmonyInstance);
 
             // finalizer guard on Class308.LocalRaidStarted for the 2026-08-20
             // NRE at raid start — see TerminalCrashGuard.cs comments. runs
@@ -264,7 +273,7 @@ namespace Manimal.Terminal
             // the underlying system was ripped in the "remove stencilslop"
             // commit, PR #1 briefly re-added the config surface only
             AmbientSplines = Config.Bind("Terminal", "AmbientSplines", false,
-                new ConfigDescription("run the ambient spline emitter stack (sea/wind/rain movers). turn OFF for one raid as an A/B test for the periodic frame chop — onset correlates with ambient staging"));
+                new ConfigDescription("run the optional ambient spline emitter stack (wind/rain/moving-metal effects). Terminal's lightweight shoreline proximity emitters remain enabled so the sea is audible near the water"));
             SoundRigFirefight = Config.Bind("Terminal", "SoundRigFirefight", true,
                 new ConfigDescription("distant firefight ambience bursts. turn OFF for one raid as the other half of the frame-chop A/B"));
             CutsceneSubtitles = Config.Bind("Terminal", "CutsceneSubtitles", true,
@@ -294,7 +303,10 @@ namespace Manimal.Terminal
             WeatherStack = Config.Bind("Terminal", "WeatherStack", true,
                 new ConfigDescription("rebuild retail's weather components (WeatherController/RainController/RainFall/Splash/Wind/Clouds) — without these the map CANNOT render rain at all. turn off if weather misbehaves"));
             ForceWeather = Config.Bind("Terminal", "ForceWeather", true,
-                new ConfigDescription("set the raid's weather at start (retail terminal is a rainy night)"));
+                new ConfigDescription("seed Terminal with the rainy retail weather at raid start, then release it back to the native weather cycle"));
+            WeatherStartHoldSeconds = Config.Bind("Terminal", "WeatherStartHoldSeconds", 60f,
+                new ConfigDescription("seconds to hold the rainy startup weather before the native weather curve resumes",
+                    new AcceptableValueRange<float>(5f, 300f)));
             // defaults = the user's live 1.0 weather dump (2026-08-04: rain 1.0,
             // cloud 0.682) — the retail storm
             WeatherRain = Config.Bind("Terminal", "WeatherRain", 1.0f,
@@ -313,7 +325,7 @@ namespace Manimal.Terminal
             AmbientRetail = Config.Bind("Terminal", "AmbientRetail", true,
                 new ConfigDescription("rebuild retail's authored ambient layer (44 sound banks + 1375 players/points/splines with their real volumes) instead of the hand-tuned approximation"));
             SpatialAudio = Config.Bind("Terminal", "SpatialAudio", true,
-                new ConfigDescription("resurrect retail's spatial audio (104 rooms / 345 portals / occlusion bake) + indoor-outdoor environment layer. needs terminal_sound.audiobakedata in plugin-data/acoustics"));
+                new ConfigDescription("resurrect retail's verified spatial audio (76 rooms / 220 portals / occlusion bake) + indoor-outdoor environment layer. needs terminal_sound.audiobakedata in plugin-data/acoustics"));
             SoundProbeKey = Config.Bind("Terminal", "SoundProbeKey",
                 new BepInEx.Configuration.KeyboardShortcut(UnityEngine.KeyCode.F11),
                 new ConfigDescription("dump every audibly-playing source near the player to the log (the what-is-that-noise button)"));
@@ -328,8 +340,8 @@ namespace Manimal.Terminal
             MaxAliveScavs = Config.Bind("Population", "MaxAliveScavs", 10,
                 new ConfigDescription("maximum living ordinary scavs, enforced as a scav-only sub-ceiling in addition to MaxAliveBots. scav waves wait before profile generation above either ceiling. 0 = no separate scav limit",
                     new AcceptableValueRange<int>(0, 60)));
-            MaxAliveBots = Config.Bind("Population", "MaxAliveBots", 24,
-                new ConfigDescription("maximum living AI of every role on Terminal. waves wait before profile generation until the whole authored squad fits; faction recyclers can still fulfil a waiting wave without consuming new slots. 24 leaves room for authored faction encounters while avoiding the former 18-bot queue starvation. 0 = unlimited",
+            MaxAliveBots = Config.Bind("Population", "MaxAliveBots", 28,
+                new ConfigDescription("maximum living AI of every role on Terminal. waves wait before profile generation until the whole authored squad fits; faction recyclers can still fulfil a waiting wave without consuming new slots. 28 gives authored four-person faction squads breathing room while active corpse cleanup and recycling bound retained resources. 0 = unlimited",
                     new AcceptableValueRange<int>(0, 60)));
             MaxResidentScavs = Config.Bind("Population", "MaxResidentScavs", 32,
                 new ConfigDescription("maximum resident ordinary-scav resources: living scavs plus uncleaned scav corpses. retiring a corpse refunds capacity, while recycled survivors add no cost. prevents corpse/resource accumulation without permanently exhausting later-map spawns. 0 = unlimited",
@@ -341,21 +353,22 @@ namespace Manimal.Terminal
                 new ConfigDescription("DIAGNOSTIC Terminal-only botless mode. ON removes every authored bot row and blocks wave, boss/event, non-wave and hangar fallback spawn paths at runtime. map progression, triggers and cutscenes remain enabled; takes effect next raid"));
             ScavCorpseCleanup = Config.Bind("Population", "ScavCorpseCleanup", true,
                 new ConfigDescription("retire AI corpses through EFT's unregister/dispose/pool path. ordinary scavs use the short cleanup tier and are always processed before remote, older special-role corpses"));
-            ScavCorpseLifetime = Config.Bind("Population", "ScavCorpseLifetime", 300f,
-                new ConfigDescription("seconds an ordinary scav corpse remains lootable before it can be retired",
+            ScavCorpseLifetime = Config.Bind("Population", "ScavCorpseLifetime", 120f,
+                new ConfigDescription("seconds an ordinary scav corpse remains lootable before it can be retired. 120 starts cleanup before cannon-fodder bodies can build into the former five-minute backlog",
                     new AcceptableValueRange<float>(30f, 1800f)));
-            ScavCorpseCleanupDistance = Config.Bind("Population", "ScavCorpseCleanupDistance", 75f,
-                new ConfigDescription("minimum player distance from an eligible scav corpse. this also guarantees a body being searched cannot disappear",
+            ScavCorpseCleanupDistance = Config.Bind("Population", "ScavCorpseCleanupDistance", 50f,
+                new ConfigDescription("minimum distance from every human player to an eligible scav corpse. this guarantees a body being searched cannot disappear, including in co-op",
                     new AcceptableValueRange<float>(20f, 300f)));
-            SpecialCorpseLifetime = Config.Bind("Population", "SpecialCorpseLifetime", 600f,
+            SpecialCorpseLifetime = Config.Bind("Population", "SpecialCorpseLifetime", 300f,
                 new ConfigDescription("seconds a Black Division, RUAF, civilian, boss, follower, PMC or other non-scav AI corpse remains lootable before remote cleanup",
                     new AcceptableValueRange<float>(60f, 3600f)));
-            SpecialCorpseCleanupDistance = Config.Bind("Population", "SpecialCorpseCleanupDistance", 300f,
-                new ConfigDescription("minimum player distance for cleanup of any non-scav AI corpse",
+            SpecialCorpseCleanupDistance = Config.Bind("Population", "SpecialCorpseCleanupDistance", 150f,
+                new ConfigDescription("minimum distance from every human player for cleanup of any non-scav AI corpse",
                     new AcceptableValueRange<float>(75f, 600f)));
             ScavCorpseCleanupPerSweep = Config.Bind("Population", "ScavCorpseCleanupPerSweep", 2,
                 new ConfigDescription("maximum AI corpses retired in one 10-second sweep; eligible ordinary scavs are processed first and disposal work is spread across frames",
                     new AcceptableValueRange<int>(1, 12)));
+            MigrateCorpseCleanupDefaults();
             ScavCorpseCleanupKey = Config.Bind("Population", "ScavCorpseCleanupKey",
                 new BepInEx.Configuration.KeyboardShortcut(UnityEngine.KeyCode.F6),
                 new ConfigDescription("manually retire every currently distance-eligible AI corpse. age is ignored; scav and special-role distance protections still apply"));
@@ -365,15 +378,16 @@ namespace Manimal.Terminal
                 new ConfigDescription("fulfil later RUAF/VSRF waves with living idle RUAF soldiers from earlier progression tiers before generating new profiles; RUAF are never substituted into scav or other-faction waves"));
             BlackDivisionRecycler = Config.Bind("Population", "BlackDivisionRecycler", true,
                 new ConfigDescription("fulfil later Black Division waves with remote idle Black Division survivors from earlier progression tiers before generating new profiles; active/recent combatants and visible bots are never moved"));
-            ScavRecycleMinDistance = Config.Bind("Population", "ScavRecycleMinDistance", 75f,
-                new ConfigDescription("minimum player distance from a living scav, RUAF soldier or Black Division operator before it may be recycled out of its old zone",
+            ScavRecycleMinDistance = Config.Bind("Population", "ScavRecycleMinDistance", 50f,
+                new ConfigDescription("minimum player distance from a living scav, RUAF soldier or Black Division operator before it may be recycled out of its old zone. camera-visible and active/recent combatants remain protected",
                     new AcceptableValueRange<float>(50f, 300f)));
             ScavRecycleDestinationDistance = Config.Bind("Population", "ScavRecycleDestinationDistance", 40f,
                 new ConfigDescription("minimum player distance from a destination marker used by the scav recycler. lower than the source distance so progression zones can actually accept recycled scavs",
                     new AcceptableValueRange<float>(30f, 200f)));
-            ScavRecycleMinAge = Config.Bind("Population", "ScavRecycleMinAge", 45f,
-                new ConfigDescription("minimum seconds a living recyclable bot must have occupied its current assignment before it can be recycled forward",
+            ScavRecycleMinAge = Config.Bind("Population", "ScavRecycleMinAge", 20f,
+                new ConfigDescription("minimum seconds a living recyclable bot must have occupied its current assignment before it can be reused at another triggered encounter",
                     new AcceptableValueRange<float>(15f, 600f)));
+            MigrateRecyclerDefaults();
             TerminalBosses = Config.Bind("Terminal", "TerminalBosses", true,
                 new ConfigDescription("spawn the Terminal container-berth boss selected by BossRoll. diagnostic control: OFF removes all five Terminal-specific boss candidates while leaving T4, black division, scav waves, pump and map progression unchanged; takes effect next raid"));
             BreachableDoors = Config.Bind("Terminal", "BreachableDoors", 1,
@@ -476,6 +490,9 @@ namespace Manimal.Terminal
             Patch(typeof(TerminalSpawnGate.Patch_BypassNativeCapForAdmittedScavs));
             Patch(typeof(TerminalSpawnGate.Patch_FinalLifetimeCap));
             Patch(typeof(TerminalPopulationDirector.Patch_Attach));
+            Patch(typeof(TerminalPopulationDirector.Patch_DropDestroyedBotTasks));
+            Patch(typeof(TerminalPopulationDirector.Patch_DropDestroyedBleedingPlayers));
+            Patch(typeof(TerminalPopulationDirector.Patch_AuditCorpseIdentity));
             Patch(typeof(TerminalAudioFixes.Patch_SpatialAudioInitSkip));
             Patch(typeof(TerminalAudioFixes.Patch_InteractiveOcclusionUninit));
             Patch(typeof(TerminalAudioFixes.Patch_SourceOcclusionUninit));
@@ -575,6 +592,63 @@ namespace Manimal.Terminal
             };
 
             Log.LogInfo($"[Manimal-Terminal] {BuildInfo.Version} loaded");
+        }
+
+        private void MigrateCorpseCleanupDefaults()
+        {
+            // BepInEx preserves values already written to a user's cfg when a plugin
+            // changes its declared defaults. Move only the exact former defaults so
+            // existing test installs receive the safer retention policy; any value a
+            // user actually customized remains untouched.
+            var migrated = new System.Collections.Generic.List<string>();
+            if (ScavCorpseLifetime.Value == 300f)
+            {
+                ScavCorpseLifetime.Value = 120f;
+                migrated.Add("scavLifetime 300->120");
+            }
+            if (ScavCorpseCleanupDistance.Value == 75f)
+            {
+                ScavCorpseCleanupDistance.Value = 50f;
+                migrated.Add("scavDistance 75->50");
+            }
+            if (SpecialCorpseLifetime.Value == 600f)
+            {
+                SpecialCorpseLifetime.Value = 300f;
+                migrated.Add("specialLifetime 600->300");
+            }
+            if (SpecialCorpseCleanupDistance.Value == 300f)
+            {
+                SpecialCorpseCleanupDistance.Value = 150f;
+                migrated.Add("specialDistance 300->150");
+            }
+            if (migrated.Count == 0) return;
+            Config.Save();
+            Log.LogWarning($"[CorpseCleanup] migrated former default retention settings: {string.Join(", ", migrated)}");
+        }
+
+        private void MigrateRecyclerDefaults()
+        {
+            // As above, migrate only the exact former shipped values. A tester who
+            // deliberately tuned either setting keeps that value.
+            var migrated = new System.Collections.Generic.List<string>();
+            if (MaxAliveBots.Value == 24)
+            {
+                MaxAliveBots.Value = 28;
+                migrated.Add("maxAliveBots 24->28");
+            }
+            if (ScavRecycleMinDistance.Value == 75f)
+            {
+                ScavRecycleMinDistance.Value = 50f;
+                migrated.Add("sourceDistance 75->50");
+            }
+            if (ScavRecycleMinAge.Value == 45f)
+            {
+                ScavRecycleMinAge.Value = 20f;
+                migrated.Add("assignmentAge 45->20");
+            }
+            if (migrated.Count == 0) return;
+            Config.Save();
+            Log.LogWarning($"[Recycler] migrated former default eligibility settings: {string.Join(", ", migrated)}");
         }
 
         private void Patch(System.Type t)

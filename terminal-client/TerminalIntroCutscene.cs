@@ -133,33 +133,22 @@ namespace Manimal.Terminal
                 }
                 if (!dst) { Plugin.Log.LogDebug("[IntroCutscene] Actor_Top has no SkinnedMeshRenderer — packed top kept"); return; }
 
-                var boneByName = new Dictionary<string, Transform>();
-                foreach (var t in actorRoot.GetComponentsInChildren<Transform>(true))
-                    if (!boneByName.ContainsKey(t.name)) boneByName[t.name] = t;
-
                 var srcBones = src.bones;
-                var mapped = new Transform[srcBones.Length];
-                var missing = new List<string>();
-                for (int i = 0; i < srcBones.Length; i++)
+                if (!TerminalCutsceneClothing.TryBind(src, dst, actorRoot, "IntroCutscene",
+                    out var mapped, out var mappedRoot, out int auxiliaryBones, out string bindFailure))
                 {
-                    var n = srcBones[i] ? srcBones[i].name : null;
-                    if (n == null || !boneByName.TryGetValue(n, out mapped[i])) missing.Add(n ?? $"#{i}");
-                }
-                if (missing.Count > 0)
-                {
-                    Plugin.Log.LogWarning($"[IntroCutscene] top swap aborted — {missing.Count} bone(s) not on the actor rig "
-                        + $"({string.Join(", ", missing.GetRange(0, Math.Min(8, missing.Count)))}"
-                        + (missing.Count > 8 ? "...)" : ")") + " — skeleton mismatch, packed top kept");
+                    Plugin.Log.LogWarning($"[IntroCutscene] top swap aborted — {bindFailure}; packed top kept");
                     return;
                 }
 
                 dst.sharedMesh = src.sharedMesh;
                 dst.sharedMaterials = src.sharedMaterials;
                 dst.bones = mapped;
-                if (src.rootBone && boneByName.TryGetValue(src.rootBone.name, out var rb)) dst.rootBone = rb;
+                if (mappedRoot) dst.rootBone = mappedRoot;
                 dst.localBounds = src.localBounds;
+                dst.updateWhenOffscreen = true;
                 Plugin.Log.LogInfo($"[IntroCutscene] actor wears the player's top: '{src.sharedMesh.name}' "
-                    + $"({srcBones.Length} bones remapped, {src.sharedMaterials.Length} material(s))");
+                    + $"({srcBones.Length} bones remapped, {auxiliaryBones} clothing helper bone(s) carried, {src.sharedMaterials.Length} material(s))");
             }
             catch (Exception e) { Plugin.Log.LogWarning($"[IntroCutscene] top swap failed: {e.Message}"); }
         }
@@ -342,7 +331,7 @@ namespace Manimal.Terminal
                 float botsStableAt = Time.realtimeSinceStartup;
                 const float BotStableFor = 3f;
                 bool AmbientReady() => TerminalAcoustics.AmbientStaged;
-                bool WeatherReady() => TerminalWeather.Staged;
+                bool WeatherReady() => TerminalWeather.TryEnsureRainVisualReady();
                 bool SkyReady() { try { var s = UnityEngine.Object.FindObjectOfType<TOD_Sky>(); return s != null && s.Initialized; } catch { return false; } }
                 bool BotsReady()
                 {
