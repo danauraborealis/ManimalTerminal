@@ -211,11 +211,12 @@ namespace Manimal.Terminal
             _recoveredLoopClips.Clear();
             _ambientComponents = null;
             _clipCache = null;
+            _shoreAssetWaitLogged = false;
         }
 
         // The three sea clips live in retail sharedassets rather than the custom map
-        // bundle. They may finish loading before or after the ambient tree stages, so
-        // register them in FindClip's catalog and also repair already-created players.
+        // bundle. Register them in FindClip's catalog before the one-shot ambient-tree
+        // stage; the late repair remains as a defensive recovery path.
         internal static void RegisterRecoveredLoopClip(string clipName, AudioClip clip)
         {
             if (string.IsNullOrEmpty(clipName) || !clip) return;
@@ -242,13 +243,17 @@ namespace Manimal.Terminal
                 // cutscene's deliberate deactivation of the ambient root itself).
                 for (var t = player.transform; t != null && t.gameObject != _ambientRoot; t = t.parent)
                     if (!t.gameObject.activeSelf) t.gameObject.SetActive(true);
-                var src = player.GetComponent<AudioSource>() ?? player.gameObject.AddComponent<AudioSource>();
+                var nativePlayer = player as BaseAmbientSoundPlayer;
+                var src = nativePlayer != null
+                    ? nativePlayer.Source
+                    : player.GetComponent<AudioSource>() ?? player.gameObject.AddComponent<AudioSource>();
                 TerminalAudioRouting.Route(src);
-                src.clip = clip;
-                src.loop = true;
-                src.playOnAwake = false;
+                // A late clip bind can occur before the spline calculator has a
+                // listener. Never let Play() expose that temporary global source.
+                src.mute = true;
                 if (!_forcedLoopSources.Contains(src)) _forcedLoopSources.Add(src);
-                if (src.gameObject.activeInHierarchy && !src.isPlaying) src.Play();
+                if (nativePlayer != null && src.gameObject.activeInHierarchy && !src.isPlaying)
+                    nativePlayer.Play();
                 bound++;
             }
             Plugin.Log.LogInfo($"[ShoreAudio] '{clipName}' bound to {bound} authored shoreline player(s)");
@@ -289,6 +294,8 @@ namespace Manimal.Terminal
         }
 
         internal static bool AmbientStaged => _ambientRoot != null;
+        internal static Transform AmbientRootTransform => _ambientRoot ? _ambientRoot.transform : null;
+        private static bool _shoreAssetWaitLogged;
 
         // sea-silence forensics (user 2026-08-18: waves wired, still no ocean audio):
         // one-shot dump of the sea group's runtime state 30s after staging
@@ -322,6 +329,32 @@ namespace Manimal.Terminal
             catch (Exception e) { Plugin.Log.LogWarning($"[Ambient][sea] diag failed: {e.Message}"); }
         }
 
+        // The recovered clips can become ready before BetterAudio's mixer hierarchy.
+        // Route them here, but do NOT unmute them here. TerminalShoreAudio owns the
+        // final mute gate after projecting the listener onto the authored splines.
+        // This matters because both retail sea splines are closed loops: when their
+        // native calculator is only partly initialized it treats most of Terminal as
+        // "inside" and converts all six sources to unattenuated 2D audio.
+        internal static int EnsureNativeShoreRouting()
+        {
+            if (!_ambientRoot) return 0;
+            int found = 0, routed = 0;
+            foreach (var t in _ambientRoot.GetComponentsInChildren<Transform>(true))
+            {
+                if (!string.Equals(t.name, "AmbientSplineEmitterSeaGroup",
+                    StringComparison.OrdinalIgnoreCase)) continue;
+                foreach (var source in t.GetComponentsInChildren<AudioSource>(true))
+                {
+                    if (!source) continue;
+                    found++;
+                    bool ok = TerminalAudioRouting.Route(source);
+                    if (!ok) source.mute = true;
+                    if (ok) routed++;
+                }
+            }
+            return found > 0 && routed == found ? routed : 0;
+        }
+
         // the cutscenes carry their own mixed soundtrack — retail's ambient layer must
         // not play under them (2026-08-11: "i was hearing the ambient audio during the
         // cutscene"). the sound RIG silences its own groups by phase; this is the same
@@ -337,10 +370,8 @@ namespace Manimal.Terminal
         internal static void SetAmbientSilenced(bool silent)
         {
             _ambientSilenced = silent;
-            // The shoreline fallback owns direct AudioSources because retail's
-            // network spline movers never reposition in offline raids. Keep it on
-            // the same sticky cutscene mute state as the resurrected ambient tree.
-            TerminalShoreAudio.SetSilenced(silent);
+            // Shoreline playback now lives inside this native ambient root, so this
+            // one sticky scene gate also governs it during cutscenes.
             try
             {
                 if (_ambientRoot == null) return; // staging honors the flag later
@@ -354,7 +385,11 @@ namespace Manimal.Terminal
                     // authored one-shot/random players under their own governors.
                     foreach (var src in _forcedLoopSources)
                         if (src && src.gameObject.activeInHierarchy && src.clip && !src.isPlaying)
-                            src.Play();
+                        {
+                            var nativePlayer = src.GetComponent<BaseAmbientSoundPlayer>();
+                            if (nativePlayer != null) nativePlayer.Play();
+                            else src.Play();
+                        }
                 }
                 Plugin.Log.LogDebug($"[Ambient] retail layer {(silent ? "silenced for the cutscene" : "back up")}");
             }
@@ -430,6 +465,19 @@ namespace Manimal.Terminal
         public static bool TryStageAmbient()
         {
             if (_ambientRoot != null) return true;
+            // The retail sea clips come from sharedassets and are loaded from
+            // plugin-data asynchronously. AmbientAudioSystem is staged only once;
+            // doing that before the load completes permanently gives all six native
+            // shoreline players null clips for this raid.
+            if (!TerminalShoreAudio.AssetsReady)
+            {
+                if (!_shoreAssetWaitLogged)
+                {
+                    _shoreAssetWaitLogged = true;
+                    Plugin.Log.LogDebug("[Ambient] waiting for native shoreline clips before staging the retail ambient tree");
+                }
+                return false;
+            }
             var sc = Sidecar();
             var sound = sc?["scenes"]?["Terminal_Sound"] as JObject;
             if (sound == null) return false;
@@ -559,11 +607,15 @@ namespace Manimal.Terminal
                         + "2 authored shoreline proximity emitters retained");
                 }
 
-                // the system LAST: its Awake harvests the workers above via
-                // GetComponentsInChildren, so it must never wake into an empty tree
+                // The system must be created LAST: Awake snapshots all workers with
+                // GetComponentsInChildren. Replace any hollow bundle-era instance;
+                // an instance that woke before reconstruction permanently owns empty
+                // controller arrays and can never drive the native sea calculators.
                 var sysType = ResolveType("AmbientAudioSystem");
-                if (sysType != null && root.GetComponent(sysType) == null)
+                if (sysType != null)
                 {
+                    var staleSystem = root.GetComponent(sysType);
+                    if (staleSystem != null) UnityEngine.Object.DestroyImmediate(staleSystem);
                     var sys = root.AddComponent(sysType);
                     if (sysRow?["fields"] is JObject sf) { try { FillFields(sys, sf, null); } catch { } }
                 }
@@ -711,9 +763,9 @@ namespace Manimal.Terminal
         // (AmbientZoneEmitterSystem or a group parent) is inactive by design and
         // expects a runtime activator we don't have offline). walk every configured
         // soundPlayer on the wired group emitters, force-activate its GO + all
-        // parents up to the ambient root, then push the bound _loopClip onto the
-        // AudioSource and Play() — belt-and-braces so the wake stays reliable
-        // whether Awake runs cleanly or not.
+        // parents up to the ambient root, then start the native player. Calling
+        // AudioSource.Play directly bypasses the authored fader, audio-culling
+        // registration and player lifecycle, and was the source of global sea audio.
         private static int WakeGroupPlayers(Dictionary<long, Component> comps)
         {
             int woken = 0;
@@ -727,7 +779,6 @@ namespace Manimal.Terminal
                 System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic);
             var fCfgPlayer = cfgType != null ? AccessTools.Field(cfgType, "soundPlayer") : null;
             var fLoopClip = AccessTools.Field(loopType, "_loopClip");
-            var fVolume = AccessTools.Field(loopType, "_volume");
 
             var players = new HashSet<Component>();
             foreach (var kv in comps)
@@ -759,15 +810,15 @@ namespace Manimal.Terminal
                 // walk parents, activate anything inactive up to the ambient root
                 for (var t = player.transform; t != null && t.gameObject != _ambientRoot; t = t.parent)
                     if (!t.gameObject.activeSelf) t.gameObject.SetActive(true);
-                var src = player.gameObject.GetComponent<AudioSource>();
-                if (!src) src = player.gameObject.AddComponent<AudioSource>();
+                var nativePlayer = player as BaseAmbientSoundPlayer;
+                if (nativePlayer == null) continue;
+                var src = nativePlayer.Source;
                 TerminalAudioRouting.Route(src);
-                if (src.clip == null) src.clip = clip;
-                src.loop = true;
-                src.playOnAwake = false;
-                float v = fVolume != null ? (float)fVolume.GetValue(player) : 1f;
-                if (v > 0f) src.volume = v;
-                if (!src.isPlaying) src.Play();
+                // Wake the native player for culling/fader lifecycle, but keep it
+                // inaudible until TerminalShoreAudio has projected it onto the
+                // actual shoreline and verified the player is within range.
+                src.mute = true;
+                if (!src.isPlaying) nativePlayer.Play();
                 if (!_forcedLoopSources.Contains(src)) _forcedLoopSources.Add(src);
                 woken++;
             }

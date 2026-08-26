@@ -20,7 +20,10 @@ namespace Manimal.Terminal
                 }
             }
             catch { }
-            return FindGroup("AmbientOut", "Ambient");
+            // Do not fall back to an arbitrary group containing "Ambient". Some
+            // third-party mixers expose similarly named groups that are not children
+            // of Tarkov's AmbientOut bus and therefore ignore its volume slider.
+            return FindGroup("AmbientOut");
         }
 
         internal static AudioMixerGroup AmbientEffects()
@@ -36,7 +39,7 @@ namespace Manimal.Terminal
                 }
             }
             catch { }
-            return FindGroup("CommonAmbOutEffects", "AmbientOut", "Ambient");
+            return FindGroup("CommonAmbOutEffects", "AmbientOut");
         }
 
         private static AudioMixerGroup FindGroup(params string[] names)
@@ -45,10 +48,6 @@ namespace Manimal.Terminal
             foreach (string wanted in names)
                 foreach (var group in groups)
                     if (group && string.Equals(group.name, wanted, StringComparison.OrdinalIgnoreCase))
-                        return group;
-            foreach (string wanted in names)
-                foreach (var group in groups)
-                    if (group && group.name.IndexOf(wanted, StringComparison.OrdinalIgnoreCase) >= 0)
                         return group;
             return null;
         }
