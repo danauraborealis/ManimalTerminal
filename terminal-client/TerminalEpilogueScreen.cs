@@ -368,28 +368,9 @@ namespace Manimal.Terminal
                 _audio = gameObject.AddComponent<AudioSource>();
                 _audio.playOnAwake = false;
                 _audio.spatialBlend = 0f;
-                // route through the game's Master mixer group so the user's
-                // OVERALL volume slider scales our playback (Music channel is
-                // often lowered separately). fallback to Music if Master isn't
-                // exposed as a named group in this mixer setup
-                try
-                {
-                    var gs = Singleton<EFT.UI.GUISounds>.Instance;
-                    var mixer = gs != null ? gs.MasterMixer : null;
-                    if (mixer != null)
-                    {
-                        var groups = mixer.FindMatchingGroups("Master");
-                        if (groups != null && groups.Length > 0)
-                            _audio.outputAudioMixerGroup = groups[0];
-                        else
-                        {
-                            groups = mixer.FindMatchingGroups("Music");
-                            if (groups != null && groups.Length > 0)
-                                _audio.outputAudioMixerGroup = groups[0];
-                        }
-                    }
-                }
-                catch (Exception e) { Plugin.Log.LogWarning($"[Epilogue] music mixer wire failed: {e.Message}"); }
+                // Presentation audio follows overall volume, never Music.
+                if (!TerminalAudioRouting.RouteMaster(_audio))
+                    Plugin.Log.LogWarning("[Epilogue] Master mixer group unavailable; using Unity output");
 
                 var layoutGo = new GameObject("Layout");
                 layoutGo.transform.SetParent(transform, false);

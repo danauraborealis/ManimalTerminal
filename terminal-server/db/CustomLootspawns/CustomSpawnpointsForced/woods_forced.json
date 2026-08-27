@@ -1,0 +1,86 @@
+{
+  "woods": [
+    {
+      "locationId": "(-254.771 10.369 -32.96701)",
+      "probability": 1.0,
+      "template": {
+        "Id": "falling_skies_flight_recorder",
+        "IsContainer": false,
+        "useGravity": false,
+        "randomRotation": false,
+        "Position": {
+          "x": -254.771,
+          "y": 10.369,
+          "z": -32.96701
+        },
+        "Rotation": {
+          "x": 272.530731,
+          "y": 180.0,
+          "z": 180.0
+        },
+        "IsGroupPosition": false,
+        "GroupPositions": [],
+        "IsAlwaysSpawn": true,
+        "Root": "6a8f4d5e90206485fa1d2d85",
+        "Items": [
+          {
+            "_id": "6a8f4d5e90206485fa1d2d85",
+            "_tpl": "67bde22566ca1d79a202462f",
+            "upd": {
+              "StackObjectsCount": 1
+            }
+          }
+        ]
+      },
+      "itemDistribution": [
+        {
+          "composedKey": {
+            "key": "67bde22566ca1d79a202462f"
+          },
+          "relativeProbability": 1
+        }
+      ]
+    },
+    {
+      "locationId": "(-248.902954 12.005 -23.8609924)",
+      "probability": 1.0,
+      "template": {
+        "Id": "falling_skies_armored_case",
+        "IsContainer": false,
+        "useGravity": false,
+        "randomRotation": false,
+        "Position": {
+          "x": -248.902954,
+          "y": 12.005,
+          "z": -23.8609924
+        },
+        "Rotation": {
+          "x": 347.606354,
+          "y": 180.0,
+          "z": 180.0
+        },
+        "IsGroupPosition": false,
+        "GroupPositions": [],
+        "IsAlwaysSpawn": true,
+        "Root": "6a8f4d5e90206485fa1d2d87",
+        "Items": [
+          {
+            "_id": "6a8f4d5e90206485fa1d2d87",
+            "_tpl": "67bde59edb4b617a6c0d69f8",
+            "upd": {
+              "StackObjectsCount": 1
+            }
+          }
+        ]
+      },
+      "itemDistribution": [
+        {
+          "composedKey": {
+            "key": "67bde59edb4b617a6c0d69f8"
+          },
+          "relativeProbability": 1
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,52 @@
+[
+  {
+    "ZoneId": "falling_skies_crash_site",
+    "ZoneName": "falling_skies_crash_site",
+    "ZoneLocation": "woods",
+    "ZoneType": "visit",
+    "FlareType": "",
+    "Position": {
+      "X": "-253.84",
+      "Y": "12.2",
+      "Z": "-34.42",
+      "W": "0"
+    },
+    "Rotation": {
+      "X": "0",
+      "Y": "0",
+      "Z": "0",
+      "W": "1"
+    },
+    "Scale": {
+      "X": "40",
+      "Y": "18",
+      "Z": "40",
+      "W": "0"
+    }
+  },
+  {
+    "ZoneId": "falling_skies_fisherman_stash",
+    "ZoneName": "falling_skies_fisherman_stash",
+    "ZoneLocation": "shoreline",
+    "ZoneType": "placeitem",
+    "FlareType": "",
+    "Position": {
+      "X": "248.68",
+      "Y": "-62.032",
+      "Z": "438.453",
+      "W": "0"
+    },
+    "Rotation": {
+      "X": "0",
+      "Y": "0",
+      "Z": "0",
+      "W": "1"
+    },
+    "Scale": {
+      "X": "6",
+      "Y": "5",
+      "Z": "7",
+      "W": "0"
+    }
+  }
+]

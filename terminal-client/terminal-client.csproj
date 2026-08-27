@@ -46,6 +46,9 @@
     <Reference Include="UnityEngine.UIModule">
       <HintPath>$(SPTPath)\EscapeFromTarkov_Data\Managed\UnityEngine.UIModule.dll</HintPath>
     </Reference>
+    <Reference Include="UnityEngine.VideoModule">
+      <HintPath>$(SPTPath)\EscapeFromTarkov_Data\Managed\UnityEngine.VideoModule.dll</HintPath>
+    </Reference>
     <Reference Include="UnityEngine.ParticleSystemModule">
       <HintPath>$(SPTPath)\EscapeFromTarkov_Data\Managed\UnityEngine.ParticleSystemModule.dll</HintPath>
     </Reference>
@@ -182,6 +185,11 @@
     <MakeDir Directories="$(ModPackageDir)\plugin-data\acoustics" />
     <Copy SourceFiles="$(ProjectDir)plugin-data\acoustics\terminal_spatial_audio.json"
           DestinationFolder="$(ModPackageDir)\plugin-data\acoustics" />
+    <!-- Terminal's loading cinematic is a loose MP4 consumed by Unity VideoPlayer.
+         Keep it in incremental client zips as well as the full release. -->
+    <MakeDir Directories="$(ModPackageDir)\plugin-data\video" />
+    <Copy SourceFiles="$(ProjectDir)plugin-data\video\term_intro.mp4"
+          DestinationFolder="$(ModPackageDir)\plugin-data\video" />
     <ZipDirectory SourceDirectory="$(TempPackageDir)" DestinationFile="$(ProjectDir)$(ZipFileName)" Overwrite="true" />
     <RemoveDir Directories="$(TempPackageDir)" />
     <Message Text="--- dll-update zip at: $(ProjectDir)$(ZipFileName) ---" Importance="high" />

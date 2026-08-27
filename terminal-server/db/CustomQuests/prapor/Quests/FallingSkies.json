@@ -1,0 +1,728 @@
+{
+  "6a8f4d5e90206485fa1d2d5a": {
+    "QuestName": "Falling Skies - Part 1",
+    "_id": "6a8f4d5e90206485fa1d2d5a",
+    "traderId": "54cb50c76803fa8b248b4571",
+    "type": "Exploration",
+    "location": "5704e3c2d2720bac5b8b4567",
+    "image": "/files/quest/icon/Falling_Skies_Banner",
+    "acceptanceAndFinishingSource": "eft",
+    "arenaLocations": [],
+    "instantComplete": false,
+    "isKey": false,
+    "secretQuest": false,
+    "gameModes": [],
+    "progressSource": "eft",
+    "rankingModes": [],
+    "side": "Pmc",
+    "canShowNotificationsInGame": true,
+    "restartable": false,
+    "status": 0,
+    "description": "6a8f4d5e90206485fa1d2d5a description",
+    "startedMessageText": "6a8f4d5e90206485fa1d2d5a startedMessageText",
+    "successMessageText": "6a8f4d5e90206485fa1d2d5a successMessageText",
+    "failMessageText": "6a8f4d5e90206485fa1d2d5a failMessageText",
+    "acceptPlayerMessage": "",
+    "declinePlayerMessage": "",
+    "completePlayerMessage": "",
+    "changeQuestMessageText": "",
+    "name": "6a8f4d5e90206485fa1d2d5a name",
+    "note": "",
+    "conditions": {
+      "AvailableForFinish": [
+        {
+          "completeInSeconds": 0,
+          "conditionType": "CounterCreator",
+          "counter": {
+            "conditions": [
+              {
+                "conditionType": "VisitPlace",
+                "dynamicLocale": false,
+                "id": "6a8f4d5e90206485fa1d2d64",
+                "target": "falling_skies_crash_site",
+                "value": 1
+              }
+            ],
+            "id": "6a8f4d5e90206485fa1d2d63"
+          },
+          "doNotResetIfCounterCompleted": false,
+          "dynamicLocale": false,
+          "globalQuestCounterId": "",
+          "id": "6a8f4d5e90206485fa1d2d62",
+          "index": 0,
+          "isNecessary": false,
+          "isResetOnConditionFailed": false,
+          "oneSessionOnly": false,
+          "parentId": "",
+          "type": "Exploration",
+          "value": 1,
+          "visibilityConditions": []
+        }
+      ],
+      "AvailableForStart": [
+        {
+          "compareMethod": ">=",
+          "conditionType": "Level",
+          "dynamicLocale": false,
+          "globalQuestCounterId": "",
+          "id": "6a8f4d5e90206485fa1d2d61",
+          "index": 0,
+          "parentId": "",
+          "value": 1,
+          "visibilityConditions": []
+        }
+      ],
+      "Fail": []
+    },
+    "rewards": {
+      "Fail": [],
+      "Started": [],
+      "Success": [
+        {
+          "availableInGameEditions": [],
+          "id": "6a8f4d5e90206485fa1d2d7a",
+          "index": 0,
+          "type": "Experience",
+          "value": 2000,
+          "unknown": false,
+          "isHidden": false
+        }
+      ]
+    }
+  },
+  "6a8f4d5e90206485fa1d2d5b": {
+    "QuestName": "Falling Skies - Part 2",
+    "_id": "6a8f4d5e90206485fa1d2d5b",
+    "traderId": "54cb50c76803fa8b248b4571",
+    "type": "Exploration",
+    "location": "any",
+    "image": "/files/quest/icon/Falling_Skies_Banner",
+    "acceptanceAndFinishingSource": "eft",
+    "arenaLocations": [],
+    "instantComplete": false,
+    "isKey": false,
+    "secretQuest": false,
+    "gameModes": [],
+    "progressSource": "eft",
+    "rankingModes": [],
+    "side": "Pmc",
+    "canShowNotificationsInGame": true,
+    "restartable": false,
+    "status": 0,
+    "description": "6a8f4d5e90206485fa1d2d5b description",
+    "startedMessageText": "6a8f4d5e90206485fa1d2d5b startedMessageText",
+    "successMessageText": "6a8f4d5e90206485fa1d2d5b successMessageText",
+    "failMessageText": "6a8f4d5e90206485fa1d2d5b failMessageText",
+    "acceptPlayerMessage": "",
+    "declinePlayerMessage": "",
+    "completePlayerMessage": "",
+    "changeQuestMessageText": "",
+    "name": "6a8f4d5e90206485fa1d2d5b name",
+    "note": "",
+    "conditions": {
+      "AvailableForFinish": [
+        {
+          "compareMethod": ">=",
+          "conditionType": "TraderLoyalty",
+          "dynamicLocale": false,
+          "globalQuestCounterId": "",
+          "id": "6a8f4d5e90206485fa1d2d66",
+          "index": 0,
+          "parentId": "",
+          "target": "54cb50c76803fa8b248b4571",
+          "value": 2,
+          "visibilityConditions": []
+        }
+      ],
+      "AvailableForStart": [
+        {
+          "availableAfter": 0,
+          "conditionType": "Quest",
+          "dispersion": 0,
+          "dynamicLocale": false,
+          "globalQuestCounterId": "",
+          "id": "6a8f4d5e90206485fa1d2d65",
+          "index": 0,
+          "parentId": "",
+          "status": [4],
+          "target": "6a8f4d5e90206485fa1d2d5a",
+          "visibilityConditions": []
+        }
+      ],
+      "Fail": []
+    },
+    "rewards": {
+      "Fail": [],
+      "Started": [],
+      "Success": [
+        {
+          "availableInGameEditions": [],
+          "id": "6a8f4d5e90206485fa1d2d7b",
+          "index": 0,
+          "type": "Experience",
+          "value": 4000,
+          "unknown": false,
+          "isHidden": false
+        }
+      ]
+    }
+  },
+  "6a8f4d5e90206485fa1d2d5c": {
+    "QuestName": "Falling Skies - Part 3",
+    "_id": "6a8f4d5e90206485fa1d2d5c",
+    "traderId": "54cb50c76803fa8b248b4571",
+    "type": "PickUp",
+    "location": "5704e554d2720bac5b8b456e",
+    "image": "/files/quest/icon/Falling_Skies_Banner",
+    "acceptanceAndFinishingSource": "eft",
+    "arenaLocations": [],
+    "instantComplete": false,
+    "isKey": false,
+    "secretQuest": false,
+    "gameModes": [],
+    "progressSource": "eft",
+    "rankingModes": [],
+    "side": "Pmc",
+    "canShowNotificationsInGame": true,
+    "restartable": false,
+    "status": 0,
+    "description": "6a8f4d5e90206485fa1d2d5c description",
+    "startedMessageText": "6a8f4d5e90206485fa1d2d5c startedMessageText",
+    "successMessageText": "6a8f4d5e90206485fa1d2d5c successMessageText",
+    "failMessageText": "6a8f4d5e90206485fa1d2d5c failMessageText",
+    "acceptPlayerMessage": "",
+    "declinePlayerMessage": "",
+    "completePlayerMessage": "",
+    "changeQuestMessageText": "",
+    "name": "6a8f4d5e90206485fa1d2d5c name",
+    "note": "",
+    "conditions": {
+      "AvailableForFinish": [
+        {
+          "conditionType": "FindItem",
+          "countInRaid": false,
+          "dogtagLevel": 0,
+          "dynamicLocale": false,
+          "globalQuestCounterId": "",
+          "id": "6a8f4d5e90206485fa1d2d68",
+          "index": 0,
+          "isEncoded": false,
+          "maxDurability": 100,
+          "minDurability": 0,
+          "onlyFoundInRaid": false,
+          "parentId": "",
+          "target": ["67bde1dc5678472f2a0e6167"],
+          "value": 1,
+          "visibilityConditions": []
+        },
+        {
+          "conditionType": "HandoverItem",
+          "dogtagLevel": 0,
+          "dynamicLocale": false,
+          "globalQuestCounterId": "",
+          "id": "6a8f4d5e90206485fa1d2d69",
+          "index": 1,
+          "isEncoded": false,
+          "maxDurability": 100,
+          "minDurability": 0,
+          "onlyFoundInRaid": false,
+          "parentId": "",
+          "target": ["67bde1dc5678472f2a0e6167"],
+          "value": 1,
+          "visibilityConditions": [
+            {
+              "conditionType": "CompleteCondition",
+              "id": "6a8f4d5e90206485fa1d2d6a",
+              "target": "6a8f4d5e90206485fa1d2d68"
+            }
+          ]
+        }
+      ],
+      "AvailableForStart": [
+        {
+          "availableAfter": 0,
+          "conditionType": "Quest",
+          "dispersion": 0,
+          "dynamicLocale": false,
+          "globalQuestCounterId": "",
+          "id": "6a8f4d5e90206485fa1d2d67",
+          "index": 0,
+          "parentId": "",
+          "status": [4],
+          "target": "6a8f4d5e90206485fa1d2d5b",
+          "visibilityConditions": []
+        }
+      ],
+      "Fail": []
+    },
+    "rewards": {
+      "Fail": [],
+      "Started": [],
+      "Success": [
+        {
+          "availableInGameEditions": [],
+          "id": "6a8f4d5e90206485fa1d2d7c",
+          "index": 0,
+          "type": "Experience",
+          "value": 8000,
+          "unknown": false,
+          "isHidden": false
+        }
+      ]
+    }
+  },
+  "6a8f4d5e90206485fa1d2d5d": {
+    "QuestName": "Falling Skies - Part 4",
+    "_id": "6a8f4d5e90206485fa1d2d5d",
+    "traderId": "54cb50c76803fa8b248b4571",
+    "type": "PickUp",
+    "location": "any",
+    "image": "/files/quest/icon/Falling_Skies_Banner",
+    "acceptanceAndFinishingSource": "eft",
+    "arenaLocations": [],
+    "instantComplete": false,
+    "isKey": false,
+    "secretQuest": false,
+    "gameModes": [],
+    "progressSource": "eft",
+    "rankingModes": [],
+    "side": "Pmc",
+    "canShowNotificationsInGame": true,
+    "restartable": false,
+    "status": 0,
+    "description": "6a8f4d5e90206485fa1d2d5d description",
+    "startedMessageText": "6a8f4d5e90206485fa1d2d5d startedMessageText",
+    "successMessageText": "6a8f4d5e90206485fa1d2d5d successMessageText",
+    "failMessageText": "6a8f4d5e90206485fa1d2d5d failMessageText",
+    "acceptPlayerMessage": "",
+    "declinePlayerMessage": "",
+    "completePlayerMessage": "",
+    "changeQuestMessageText": "",
+    "name": "6a8f4d5e90206485fa1d2d5d name",
+    "note": "",
+    "conditions": {
+      "AvailableForFinish": [
+        {
+          "conditionType": "FindItem",
+          "countInRaid": false,
+          "dogtagLevel": 0,
+          "dynamicLocale": false,
+          "globalQuestCounterId": "",
+          "id": "6a8f4d5e90206485fa1d2d6c",
+          "index": 0,
+          "isEncoded": false,
+          "maxDurability": 100,
+          "minDurability": 0,
+          "onlyFoundInRaid": false,
+          "parentId": "",
+          "target": ["67bde22566ca1d79a202462f"],
+          "value": 1,
+          "visibilityConditions": []
+        },
+        {
+          "conditionType": "LeaveItemAtLocation",
+          "dogtagLevel": 0,
+          "dynamicLocale": false,
+          "globalQuestCounterId": "",
+          "id": "6a8f4d5e90206485fa1d2d6d",
+          "index": 1,
+          "isEncoded": false,
+          "maxDurability": 100,
+          "minDurability": 0,
+          "onlyFoundInRaid": false,
+          "parentId": "",
+          "plantTime": 20,
+          "target": ["67bde22566ca1d79a202462f"],
+          "value": 1,
+          "visibilityConditions": [],
+          "zoneId": "falling_skies_fisherman_stash"
+        }
+      ],
+      "AvailableForStart": [
+        {
+          "availableAfter": 0,
+          "conditionType": "Quest",
+          "dispersion": 0,
+          "dynamicLocale": false,
+          "globalQuestCounterId": "",
+          "id": "6a8f4d5e90206485fa1d2d6b",
+          "index": 0,
+          "parentId": "",
+          "status": [4],
+          "target": "6a8f4d5e90206485fa1d2d5c",
+          "visibilityConditions": []
+        }
+      ],
+      "Fail": []
+    },
+    "rewards": {
+      "Fail": [],
+      "Started": [],
+      "Success": [
+        {
+          "availableInGameEditions": [],
+          "id": "6a8f4d5e90206485fa1d2d7d",
+          "index": 0,
+          "type": "Experience",
+          "value": 12000,
+          "unknown": false,
+          "isHidden": false
+        }
+      ]
+    }
+  },
+  "6a8f4d5e90206485fa1d2d5e": {
+    "QuestName": "Falling Skies - Part 5",
+    "_id": "6a8f4d5e90206485fa1d2d5e",
+    "traderId": "54cb50c76803fa8b248b4571",
+    "type": "Completion",
+    "location": "any",
+    "image": "/files/quest/icon/Falling_Skies_Banner",
+    "acceptanceAndFinishingSource": "eft",
+    "arenaLocations": [],
+    "instantComplete": false,
+    "isKey": false,
+    "secretQuest": false,
+    "gameModes": [],
+    "progressSource": "eft",
+    "rankingModes": [],
+    "side": "Pmc",
+    "canShowNotificationsInGame": true,
+    "restartable": false,
+    "status": 0,
+    "description": "6a8f4d5e90206485fa1d2d5e description",
+    "startedMessageText": "6a8f4d5e90206485fa1d2d5e startedMessageText",
+    "successMessageText": "6a8f4d5e90206485fa1d2d5e successMessageText",
+    "failMessageText": "6a8f4d5e90206485fa1d2d5e failMessageText",
+    "acceptPlayerMessage": "",
+    "declinePlayerMessage": "",
+    "completePlayerMessage": "",
+    "changeQuestMessageText": "",
+    "name": "6a8f4d5e90206485fa1d2d5e name",
+    "note": "",
+    "conditions": {
+      "AvailableForFinish": [
+        {
+          "conditionType": "HandoverItem",
+          "dogtagLevel": 0,
+          "dynamicLocale": false,
+          "globalQuestCounterId": "",
+          "id": "6a8f4d5e90206485fa1d2d6f",
+          "index": 0,
+          "isEncoded": false,
+          "maxDurability": 100,
+          "minDurability": 0,
+          "onlyFoundInRaid": true,
+          "parentId": "",
+          "target": ["590a358486f77429692b2790"],
+          "value": 3,
+          "visibilityConditions": []
+        },
+        {
+          "conditionType": "HandoverItem",
+          "dogtagLevel": 0,
+          "dynamicLocale": false,
+          "globalQuestCounterId": "",
+          "id": "6a8f4d5e90206485fa1d2d70",
+          "index": 1,
+          "isEncoded": false,
+          "maxDurability": 100,
+          "minDurability": 0,
+          "onlyFoundInRaid": true,
+          "parentId": "",
+          "target": ["590a3b0486f7743954552bdb"],
+          "value": 5,
+          "visibilityConditions": []
+        },
+        {
+          "conditionType": "HandoverItem",
+          "dogtagLevel": 0,
+          "dynamicLocale": false,
+          "globalQuestCounterId": "",
+          "id": "6a8f4d5e90206485fa1d2d71",
+          "index": 2,
+          "isEncoded": false,
+          "maxDurability": 100,
+          "minDurability": 0,
+          "onlyFoundInRaid": true,
+          "parentId": "",
+          "target": ["590c2e1186f77425357b6124"],
+          "value": 2,
+          "visibilityConditions": []
+        }
+      ],
+      "AvailableForStart": [
+        {
+          "availableAfter": 0,
+          "conditionType": "Quest",
+          "dispersion": 0,
+          "dynamicLocale": false,
+          "globalQuestCounterId": "",
+          "id": "6a8f4d5e90206485fa1d2d6e",
+          "index": 0,
+          "parentId": "",
+          "status": [4],
+          "target": "6a8f4d5e90206485fa1d2d5d",
+          "visibilityConditions": []
+        }
+      ],
+      "Fail": []
+    },
+    "rewards": {
+      "Fail": [],
+      "Started": [],
+      "Success": [
+        {
+          "availableInGameEditions": [],
+          "id": "6a8f4d5e90206485fa1d2d7e",
+          "index": 0,
+          "type": "Experience",
+          "value": 18000,
+          "unknown": false,
+          "isHidden": false
+        }
+      ]
+    }
+  },
+  "6a8f4d5e90206485fa1d2d5f": {
+    "QuestName": "Falling Skies - Part 6",
+    "_id": "6a8f4d5e90206485fa1d2d5f",
+    "traderId": "54cb50c76803fa8b248b4571",
+    "type": "PickUp",
+    "location": "5704e554d2720bac5b8b456e",
+    "image": "/files/quest/icon/Falling_Skies_Banner",
+    "acceptanceAndFinishingSource": "eft",
+    "arenaLocations": [],
+    "instantComplete": false,
+    "isKey": false,
+    "secretQuest": false,
+    "gameModes": [],
+    "progressSource": "eft",
+    "rankingModes": [],
+    "side": "Pmc",
+    "canShowNotificationsInGame": true,
+    "restartable": false,
+    "status": 0,
+    "description": "6a8f4d5e90206485fa1d2d5f description",
+    "startedMessageText": "6a8f4d5e90206485fa1d2d5f startedMessageText",
+    "successMessageText": "6a8f4d5e90206485fa1d2d5f successMessageText",
+    "failMessageText": "6a8f4d5e90206485fa1d2d5f failMessageText",
+    "acceptPlayerMessage": "",
+    "declinePlayerMessage": "",
+    "completePlayerMessage": "",
+    "changeQuestMessageText": "",
+    "name": "6a8f4d5e90206485fa1d2d5f name",
+    "note": "",
+    "conditions": {
+      "AvailableForFinish": [
+        {
+          "conditionType": "FindItem",
+          "countInRaid": false,
+          "dogtagLevel": 0,
+          "dynamicLocale": false,
+          "globalQuestCounterId": "",
+          "id": "6a8f4d5e90206485fa1d2d73",
+          "index": 0,
+          "isEncoded": false,
+          "maxDurability": 100,
+          "minDurability": 0,
+          "onlyFoundInRaid": false,
+          "parentId": "",
+          "target": ["67bde548cf0cc29475092192"],
+          "value": 1,
+          "visibilityConditions": []
+        },
+        {
+          "conditionType": "HandoverItem",
+          "dogtagLevel": 0,
+          "dynamicLocale": false,
+          "globalQuestCounterId": "",
+          "id": "6a8f4d5e90206485fa1d2d74",
+          "index": 1,
+          "isEncoded": false,
+          "maxDurability": 100,
+          "minDurability": 0,
+          "onlyFoundInRaid": false,
+          "parentId": "",
+          "target": ["67bde548cf0cc29475092192"],
+          "value": 1,
+          "visibilityConditions": [
+            {
+              "conditionType": "CompleteCondition",
+              "id": "6a8f4d5e90206485fa1d2d75",
+              "target": "6a8f4d5e90206485fa1d2d73"
+            }
+          ]
+        }
+      ],
+      "AvailableForStart": [
+        {
+          "availableAfter": 0,
+          "conditionType": "Quest",
+          "dispersion": 0,
+          "dynamicLocale": false,
+          "globalQuestCounterId": "",
+          "id": "6a8f4d5e90206485fa1d2d72",
+          "index": 0,
+          "parentId": "",
+          "status": [4],
+          "target": "6a8f4d5e90206485fa1d2d5e",
+          "visibilityConditions": []
+        }
+      ],
+      "Fail": []
+    },
+    "rewards": {
+      "Fail": [],
+      "Started": [],
+      "Success": [
+        {
+          "availableInGameEditions": [],
+          "findInRaid": false,
+          "id": "6a8f4d5e90206485fa1d2d7f",
+          "index": 0,
+          "isEncoded": false,
+          "isHidden": false,
+          "items": [
+            {
+              "_id": "6a8f4d5e90206485fa1d2d80",
+              "_tpl": "5449016a4bdc2d6f028b456f",
+              "upd": {
+                "StackObjectsCount": 300000
+              }
+            }
+          ],
+          "target": "6a8f4d5e90206485fa1d2d80",
+          "type": "Item",
+          "unknown": false,
+          "value": 300000
+        }
+      ]
+    }
+  },
+  "6a8f4d5e90206485fa1d2d60": {
+    "QuestName": "Falling Skies - Part 7",
+    "_id": "6a8f4d5e90206485fa1d2d60",
+    "traderId": "54cb50c76803fa8b248b4571",
+    "type": "PickUp",
+    "location": "5704e3c2d2720bac5b8b4567",
+    "image": "/files/quest/icon/Falling_Skies_Banner",
+    "acceptanceAndFinishingSource": "eft",
+    "arenaLocations": [],
+    "instantComplete": false,
+    "isKey": false,
+    "secretQuest": false,
+    "gameModes": [],
+    "progressSource": "eft",
+    "rankingModes": [],
+    "side": "Pmc",
+    "canShowNotificationsInGame": true,
+    "restartable": false,
+    "status": 0,
+    "description": "6a8f4d5e90206485fa1d2d60 description",
+    "startedMessageText": "6a8f4d5e90206485fa1d2d60 startedMessageText",
+    "successMessageText": "6a8f4d5e90206485fa1d2d60 successMessageText",
+    "failMessageText": "6a8f4d5e90206485fa1d2d60 failMessageText",
+    "acceptPlayerMessage": "",
+    "declinePlayerMessage": "",
+    "completePlayerMessage": "",
+    "changeQuestMessageText": "",
+    "name": "6a8f4d5e90206485fa1d2d60 name",
+    "note": "",
+    "conditions": {
+      "AvailableForFinish": [
+        {
+          "conditionType": "FindItem",
+          "countInRaid": false,
+          "dogtagLevel": 0,
+          "dynamicLocale": false,
+          "globalQuestCounterId": "",
+          "id": "6a8f4d5e90206485fa1d2d77",
+          "index": 0,
+          "isEncoded": false,
+          "maxDurability": 100,
+          "minDurability": 0,
+          "onlyFoundInRaid": false,
+          "parentId": "",
+          "target": ["67bde59edb4b617a6c0d69f8"],
+          "value": 1,
+          "visibilityConditions": []
+        },
+        {
+          "conditionType": "HandoverItem",
+          "dogtagLevel": 0,
+          "dynamicLocale": false,
+          "globalQuestCounterId": "",
+          "id": "6a8f4d5e90206485fa1d2d78",
+          "index": 1,
+          "isEncoded": false,
+          "maxDurability": 100,
+          "minDurability": 0,
+          "onlyFoundInRaid": false,
+          "parentId": "",
+          "target": ["67bde59edb4b617a6c0d69f8"],
+          "value": 1,
+          "visibilityConditions": [
+            {
+              "conditionType": "CompleteCondition",
+              "id": "6a8f4d5e90206485fa1d2d79",
+              "target": "6a8f4d5e90206485fa1d2d77"
+            }
+          ]
+        }
+      ],
+      "AvailableForStart": [
+        {
+          "availableAfter": 0,
+          "conditionType": "Quest",
+          "dispersion": 0,
+          "dynamicLocale": false,
+          "globalQuestCounterId": "",
+          "id": "6a8f4d5e90206485fa1d2d76",
+          "index": 0,
+          "parentId": "",
+          "status": [4],
+          "target": "6a8f4d5e90206485fa1d2d5f",
+          "visibilityConditions": []
+        }
+      ],
+      "Fail": []
+    },
+    "rewards": {
+      "Fail": [],
+      "Started": [],
+      "Success": [
+        {
+          "availableInGameEditions": [],
+          "id": "6a8f4d5e90206485fa1d2d81",
+          "index": 0,
+          "type": "Experience",
+          "value": 80000,
+          "unknown": false,
+          "isHidden": false
+        },
+        {
+          "availableInGameEditions": [],
+          "findInRaid": false,
+          "id": "6a8f4d5e90206485fa1d2d82",
+          "index": 1,
+          "isEncoded": false,
+          "isHidden": false,
+          "items": [
+            {
+              "_id": "6a8f4d5e90206485fa1d2d83",
+              "_tpl": "5449016a4bdc2d6f028b456f",
+              "upd": {
+                "StackObjectsCount": 1500000
+              }
+            }
+          ],
+          "target": "6a8f4d5e90206485fa1d2d83",
+          "type": "Item",
+          "unknown": false,
+          "value": 1500000
+        }
+      ]
+    }
+  }
+}

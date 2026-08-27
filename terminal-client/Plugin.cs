@@ -111,6 +111,7 @@ namespace Manimal.Terminal
         internal static ConfigEntry<bool> EpilogueTestMode;
         internal static ConfigEntry<bool> IntroCutscene;
         internal static ConfigEntry<bool> IntroCutsceneSkippable;
+        internal static ConfigEntry<bool> LoadingCutscene;
         internal static ConfigEntry<bool> ForceWeather;
         internal static ConfigEntry<float> WeatherStartHoldSeconds;
         internal static ConfigEntry<float> WeatherRain;
@@ -294,6 +295,8 @@ namespace Manimal.Terminal
                 new ConfigDescription("play the arrival cutscene at raid start"));
             IntroCutsceneSkippable = Config.Bind("Terminal", "IntroCutsceneSkippable", true,
                 new ConfigDescription("SPACE skips the intro cutscene"));
+            LoadingCutscene = Config.Bind("Terminal", "LoadingCutscene", true,
+                new ConfigDescription("play Terminal's 26-second cinematic over the raid loading screen. presentation only: it never delays raid startup, and falls back to the normal Terminal/Sherpa/Emissary banners if unavailable"));
             EndingCutscene = Config.Bind("Terminal", "EndingCutscene", true,
                 new ConfigDescription("play the retail ending cutscene when extracting at the Zubr (needs the ending scene in the bundle — Author 21B + scene rebuild). SPACE skips; the raid ends Survived either way"));
             Epilogue = Config.Bind("Terminal", "Epilogue", true,
@@ -466,6 +469,8 @@ namespace Manimal.Terminal
             // PatchAll batch — attach per-class in isolated try/catch instead, so a
             // bad patch loses itself, not the map
             Patch(typeof(TerminalGate.Patch_CaptureLocationId));
+            Patch(typeof(TerminalLoadingVideo.Patch_PlayDuringTerminalLoad));
+            Patch(typeof(TerminalLoadingVideo.Patch_StopAtRaidStart));
             Patch(typeof(TerminalIntroCutscene.Patch_PlayAtRaidStart));
             Patch(typeof(TerminalAttackCutscene.Patch_ArmAttackTimer));
             Patch(typeof(TerminalShaderRebind.Patch_RebindAtRaidStart));

@@ -4585,7 +4585,35 @@
   "Id": "Terminal",
   "_Id": "5704e5a4d2720bb45b8b4567",
   "Loot": [],
-  "Banners": [],
+  "Banners": [
+    {
+      "id": "6901f52709598eae190be134",
+      "pic": {
+        "path": "banners/6901f4be499c695f6e03247c.png",
+        "rcid": "",
+        "file": "6901f4be499c695f6e03247c.png",
+        "type": "banners"
+      }
+    },
+    {
+      "id": "64c0acf85174e095610734a0",
+      "pic": {
+        "path": "banners/67e404c722d6081b78031de0.jpg",
+        "rcid": "",
+        "file": "67e404c722d6081b78031de0.jpg",
+        "type": "banners"
+      }
+    },
+    {
+      "id": "64c0ad6af99768b777048f4e",
+      "pic": {
+        "path": "banners/67e4047d22d6081b78031ddb.jpg",
+        "rcid": "",
+        "file": "67e4047d22d6081b78031ddb.jpg",
+        "type": "banners"
+      }
+    }
+  ],
   "BossLocationSpawn": [
     {
       "BossChance": 100.0,

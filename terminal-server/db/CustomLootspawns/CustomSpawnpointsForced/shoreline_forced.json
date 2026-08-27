@@ -1,0 +1,86 @@
+{
+  "shoreline": [
+    {
+      "locationId": "(336.641 -59.2537956 317.1171)",
+      "probability": 1.0,
+      "template": {
+        "Id": "falling_skies_g_wagon_drive",
+        "IsContainer": false,
+        "useGravity": false,
+        "randomRotation": false,
+        "Position": {
+          "x": 336.641,
+          "y": -59.2537956,
+          "z": 317.1171
+        },
+        "Rotation": {
+          "x": 275.579346,
+          "y": 179.999969,
+          "z": 229.678375
+        },
+        "IsGroupPosition": false,
+        "GroupPositions": [],
+        "IsAlwaysSpawn": true,
+        "Root": "6a8f4d5e90206485fa1d2d84",
+        "Items": [
+          {
+            "_id": "6a8f4d5e90206485fa1d2d84",
+            "_tpl": "67bde1dc5678472f2a0e6167",
+            "upd": {
+              "StackObjectsCount": 1
+            }
+          }
+        ]
+      },
+      "itemDistribution": [
+        {
+          "composedKey": {
+            "key": "67bde1dc5678472f2a0e6167"
+          },
+          "relativeProbability": 1
+        }
+      ]
+    },
+    {
+      "locationId": "(409.055176 -52.5936966 -39.7157)",
+      "probability": 1.0,
+      "template": {
+        "Id": "falling_skies_elektronik_drive",
+        "IsContainer": false,
+        "useGravity": false,
+        "randomRotation": false,
+        "Position": {
+          "x": 409.055176,
+          "y": -52.5936966,
+          "z": -39.7157
+        },
+        "Rotation": {
+          "x": 270.8994,
+          "y": 6.02470636,
+          "z": 180.000076
+        },
+        "IsGroupPosition": false,
+        "GroupPositions": [],
+        "IsAlwaysSpawn": true,
+        "Root": "6a8f4d5e90206485fa1d2d86",
+        "Items": [
+          {
+            "_id": "6a8f4d5e90206485fa1d2d86",
+            "_tpl": "67bde548cf0cc29475092192",
+            "upd": {
+              "StackObjectsCount": 1
+            }
+          }
+        ]
+      },
+      "itemDistribution": [
+        {
+          "composedKey": {
+            "key": "67bde548cf0cc29475092192"
+          },
+          "relativeProbability": 1
+        }
+      ]
+    }
+  ]
+}

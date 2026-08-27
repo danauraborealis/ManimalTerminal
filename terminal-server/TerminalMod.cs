@@ -6,6 +6,7 @@ using SPTarkov.Server.Core.Models.Eft.Common.Tables;
 using SPTarkov.Server.Core.Models.Spt.Config;
 using SPTarkov.Server.Core.Models.Spt.Mod;
 using SPTarkov.Server.Core.Models.Utils;
+using SPTarkov.Server.Core.Routers;
 using SPTarkov.Server.Core.Servers;
 using SPTarkov.Server.Core.Services;
 using SPTarkov.Server.Core.Utils;
@@ -61,9 +62,28 @@ public class TerminalMod(
     ConfigServer configServer,
     ICloner cloner,
     JsonUtil jsonUtil,
+    ImageRouter imageRouter,
     ISptLogger<TerminalMod> logger)
     : IOnLoad
 {
+    private const string TerminalBannerId = "6901f52709598eae190be134";
+
+    private const string TerminalBlurb =
+        "The southern port Terminal has been under Russian Armed Forces control since the beginning of the Tarkov conflict. "
+        + "After the city was sealed off, the terminal was fortified and became the primary evacuation point, sought by both "
+        + "civilian refugees and PMC units. According to unconfirmed reports, TerraGroup personnel were also evacuated through this port.";
+
+    // Retail has used several ids for Terminal across the location card, loading
+    // banner and related data. Supplying the same copy for every known id keeps the
+    // description intact across client builds instead of exposing a raw locale key.
+    private static readonly string[] TerminalLocaleIds =
+    {
+        "5704e5a4d2720bb45b8b4567",
+        "65cc8f81a9aac3e77d0cfd3e",
+        "6925a2c38bdebd9e2302692e",
+        TerminalBannerId,
+    };
+
     public async Task OnLoad()
     {
         var modDir = SysPath.GetDirectoryName(typeof(TerminalMod).Assembly.Location)!;
@@ -86,6 +106,51 @@ public class TerminalMod(
         terminal.Base = newBase;
         // scavs never cross: same lever labs uses; map screen greys it natively
         newBase.DisabledForScav = true;
+
+        // MAP CARD + LOADING BANNER COPY. The map-selection panel localizes the
+        // location's Mongo id, while the loading screen localizes the banner id.
+        // Retail uses the same Terminal blurb for both.
+        try
+        {
+            foreach (var kv in databaseService.GetLocales().Global)
+                kv.Value.AddTransformer(locale =>
+                {
+                    foreach (var id in TerminalLocaleIds)
+                    {
+                        locale[$"{id} Name"] = "Terminal";
+                        locale[$"{id} Description"] = TerminalBlurb;
+                    }
+                    return locale;
+                });
+
+            logger.Info("[Terminal] map card and loading-banner locale restored");
+        }
+        catch (Exception e)
+        {
+            logger.Warning($"[Terminal] map/banner locale setup failed: {e.Message}");
+        }
+
+        // The Sherpa and Emissary cards in the retail three-card rotation are stock
+        // SPT banners and already have image routes. Only Terminal's cover is owned
+        // by this mod and needs an explicit /files/banners route.
+        try
+        {
+            const string bannerFile = "6901f4be499c695f6e03247c.png";
+            var bannerPath = SysPath.Combine(modDir, "db", "banners", bannerFile);
+            if (System.IO.File.Exists(bannerPath))
+            {
+                imageRouter.AddRoute($"/files/banners/{SysPath.GetFileNameWithoutExtension(bannerFile)}", bannerPath);
+                logger.Info("[Terminal] custom loading-screen banner wired (plus stock Sherpa/Emissary rotation)");
+            }
+            else
+            {
+                logger.Warning($"[Terminal] custom loading-screen banner missing: {bannerPath}");
+            }
+        }
+        catch (Exception e)
+        {
+            logger.Warning($"[Terminal] loading-screen banner setup failed: {e.Message}");
+        }
 
         // the dormant stub ships base.json ONLY — no loot files — so raid-start loot
         // generation NREs on null LooseLoot/StaticLoot/StaticContainers. same guarded

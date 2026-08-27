@@ -1,4 +1,6 @@
 using System;
+using Comfort.Common;
+using EFT.UI;
 using UnityEngine;
 using UnityEngine.Audio;
 
@@ -50,6 +52,49 @@ namespace Manimal.Terminal
                     if (group && string.Equals(group.name, wanted, StringComparison.OrdinalIgnoreCase))
                         return group;
             return null;
+        }
+
+        // Presentation audio (cinematics, epilogues, etc.) follows Tarkov's
+        // overall volume only. Never silently fall back to Music: users commonly
+        // lower that slider while still expecting authored video audio to play.
+        internal static bool RouteMaster(AudioSource source)
+        {
+            if (!source) return false;
+
+            AudioMixerGroup group = null;
+            try
+            {
+                if (Singleton<GUISounds>.Instantiated)
+                {
+                    var mixer = Singleton<GUISounds>.Instance?.MasterMixer;
+                    var groups = mixer?.FindMatchingGroups("Master");
+                    if (groups != null && groups.Length > 0) group = groups[0];
+                }
+            }
+            catch { }
+
+            if (!group) group = FindGroup("Master");
+            if (!group) return false;
+            source.outputAudioMixerGroup = group;
+            return true;
+        }
+
+        internal static bool IsMusicSource(AudioSource source)
+        {
+            if (!source || !source.outputAudioMixerGroup) return false;
+            var assigned = source.outputAudioMixerGroup;
+            if (assigned.name.IndexOf("Music", StringComparison.OrdinalIgnoreCase) >= 0) return true;
+
+            try
+            {
+                if (!Singleton<GUISounds>.Instantiated) return false;
+                var groups = Singleton<GUISounds>.Instance?.MasterMixer?.FindMatchingGroups("Music");
+                if (groups == null) return false;
+                foreach (var group in groups)
+                    if (group == assigned) return true;
+            }
+            catch { }
+            return false;
         }
 
         internal static bool Route(AudioSource source, bool effects = false)
