@@ -48,10 +48,21 @@ namespace Manimal.Terminal
     		}
 
     		[HarmonyPrefix]
-    		private static bool Prefix()
-    		{
-    			return !TerminalGate.On && !TerminalLoaded.Check();
-    		}
+		private static bool Prefix(LampController __instance)
+		{
+			// This prefix includes LampController.ManualUpdate, a per-lamp hot path.
+			// The former off-map branch called TerminalLoaded.Check(), which scanned
+			// every loaded scene for every lamp every frame. Streets has thousands of
+			// lamp objects, turning an innocent map check into catastrophic overhead.
+			// Component scene ownership is authoritative during early load and O(1).
+			try
+			{
+				var sceneName = __instance != null ? __instance.gameObject.scene.name : null;
+				return string.IsNullOrEmpty(sceneName)
+					|| !sceneName.StartsWith("Terminal", StringComparison.OrdinalIgnoreCase);
+			}
+			catch { return !TerminalGate.On; }
+		}
     	}
 
     	[HarmonyPatch(typeof(GameWorld), "OnGameStarted")]

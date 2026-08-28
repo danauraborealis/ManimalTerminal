@@ -1,0 +1,332 @@
+[
+  {
+    "CanBeFirstDialogue": false,
+    "Id": "6a8f4d5e90206485fa1d2f00",
+    "MainVariable": "6a8f4d5e90206485fa1d2f00",
+    "Trader": "638f541a29ffd1183d187f57",
+    "SubTraders": [],
+    "Lines": [
+      {
+        "Actions": [{"saveScope": "Dialogue", "type": "SetVariable", "value": 1, "variableId": "6a8f4d5e90206485fa1d2f00", "id": "6a8f4d5e90206485fa1d2f10"}],
+        "AnimationData": {"animations": [], "lipSyncs": [], "media": {"image": null, "music": null, "sound": null}, "secondaryAnimations": [], "subtitles": [{"end": 5, "id": "6a8f4d5e90206485fa1d2f40", "start": 0}]},
+        "DialogSide": "Player", "IconType": "QuestionMark", "Id": "6a8f4d5e90206485fa1d2f01",
+        "Trigger": {"Conditions": [{"Conditions": [{"operator": "==", "type": "VariableValue", "value": 0, "variableId": "6a8f4d5e90206485fa1d2f00"}, {"QuestId": "6a8f4d5e90206485fa1d2e04", "Status": [1], "type": "QuestStatus"}], "type": "LogicalSubGroup"}], "type": "MainLogicalGroup"}
+      },
+      {
+        "Actions": [{"saveScope": "Dialogue", "type": "SetVariable", "value": 2, "variableId": "6a8f4d5e90206485fa1d2f00", "id": "6a8f4d5e90206485fa1d2f11"}],
+        "AnimationData": {"animations": [], "lipSyncs": [], "media": {"image": null, "music": null, "sound": null}, "secondaryAnimations": [], "subtitles": [{"end": 5, "id": "6a8f4d5e90206485fa1d2f41", "start": 0}]},
+        "DialogSide": "Npc", "IconType": "DialogBubble", "Id": "6a8f4d5e90206485fa1d2f02",
+        "Trigger": {"Conditions": [{"Conditions": [{"operator": "==", "type": "VariableValue", "value": 1, "variableId": "6a8f4d5e90206485fa1d2f00"}], "type": "LogicalSubGroup"}], "type": "MainLogicalGroup"}
+      },
+      {
+        "Actions": [{"saveScope": "Dialogue", "type": "SetVariable", "value": 3, "variableId": "6a8f4d5e90206485fa1d2f00", "id": "6a8f4d5e90206485fa1d2f12"}],
+        "AnimationData": {"animations": [], "lipSyncs": [], "media": {"image": null, "music": null, "sound": null}, "secondaryAnimations": [], "subtitles": [{"end": 5, "id": "6a8f4d5e90206485fa1d2f42", "start": 0}]},
+        "DialogSide": "Player", "IconType": "DialogBubble", "Id": "6a8f4d5e90206485fa1d2f03",
+        "Trigger": {"Conditions": [{"Conditions": [{"operator": "==", "type": "VariableValue", "value": 2, "variableId": "6a8f4d5e90206485fa1d2f00"}], "type": "LogicalSubGroup"}], "type": "MainLogicalGroup"}
+      },
+      {
+        "Actions": [{"saveScope": "Dialogue", "type": "SetVariable", "value": 15, "variableId": "6a8f4d5e90206485fa1d2f00", "id": "6a8f4d5e90206485fa1d2f13"}],
+        "AnimationData": {"animations": [], "lipSyncs": [], "media": {"image": null, "music": null, "sound": null}, "secondaryAnimations": [], "subtitles": [{"end": 5, "id": "6a8f4d5e90206485fa1d2f43", "start": 0}]},
+        "DialogSide": "Player", "IconType": "DialogBubble", "Id": "6a8f4d5e90206485fa1d2f04",
+        "Trigger": {"Conditions": [{"Conditions": [{"operator": "==", "type": "VariableValue", "value": 2, "variableId": "6a8f4d5e90206485fa1d2f00"}], "type": "LogicalSubGroup"}], "type": "MainLogicalGroup"}
+      },
+      {
+        "Actions": [{"saveScope": "Dialogue", "type": "SetVariable", "value": 4, "variableId": "6a8f4d5e90206485fa1d2f00", "id": "6a8f4d5e90206485fa1d2f14"}],
+        "AnimationData": {"animations": [], "lipSyncs": [], "media": {"image": null, "music": null, "sound": null}, "secondaryAnimations": [], "subtitles": [{"end": 7, "id": "6a8f4d5e90206485fa1d2f44", "start": 0}]},
+        "DialogSide": "Npc", "IconType": "DialogBubble", "Id": "6a8f4d5e90206485fa1d2f05",
+        "Trigger": {"Conditions": [{"Conditions": [{"operator": "==", "type": "VariableValue", "value": 3, "variableId": "6a8f4d5e90206485fa1d2f00"}], "type": "LogicalSubGroup"}], "type": "MainLogicalGroup"}
+      },
+      {
+        "Actions": [{"saveScope": "Dialogue", "type": "SetVariable", "value": 5, "variableId": "6a8f4d5e90206485fa1d2f00", "id": "6a8f4d5e90206485fa1d2f15"}],
+        "AnimationData": {"animations": [], "lipSyncs": [], "media": {"image": null, "music": null, "sound": null}, "secondaryAnimations": [], "subtitles": [{"end": 6, "id": "6a8f4d5e90206485fa1d2f45", "start": 0}]},
+        "DialogSide": "Player", "IconType": "DialogBubble", "Id": "6a8f4d5e90206485fa1d2f06",
+        "Trigger": {"Conditions": [{"Conditions": [{"operator": "==", "type": "VariableValue", "value": 4, "variableId": "6a8f4d5e90206485fa1d2f00"}], "type": "LogicalSubGroup"}], "type": "MainLogicalGroup"}
+      },
+      {
+        "Actions": [{"saveScope": "Dialogue", "type": "SetVariable", "value": 6, "variableId": "6a8f4d5e90206485fa1d2f00", "id": "6a8f4d5e90206485fa1d2f16"}],
+        "AnimationData": {"animations": [], "lipSyncs": [], "media": {"image": null, "music": null, "sound": null}, "secondaryAnimations": [], "subtitles": [{"end": 12, "id": "6a8f4d5e90206485fa1d2f46", "start": 0}]},
+        "DialogSide": "Npc", "IconType": "DialogBubble", "Id": "6a8f4d5e90206485fa1d2f07",
+        "Trigger": {"Conditions": [{"Conditions": [{"operator": "==", "type": "VariableValue", "value": 5, "variableId": "6a8f4d5e90206485fa1d2f00"}], "type": "LogicalSubGroup"}], "type": "MainLogicalGroup"}
+      },
+      {
+        "Actions": [{"saveScope": "Dialogue", "type": "SetVariable", "value": 6, "variableId": "6a8f4d5e90206485fa1d2f00", "id": "6a8f4d5e90206485fa1d2f2a"}],
+        "AnimationData": {"animations": [], "lipSyncs": [], "media": {"image": null, "music": null, "sound": null}, "secondaryAnimations": [], "subtitles": [{"end": 6, "id": "6a8f4d5e90206485fa1d2f86", "start": 0}]},
+        "DialogSide": "Npc", "IconType": "DialogBubble", "Id": "6a8f4d5e90206485fa1d2f37",
+        "Trigger": {"Conditions": [{"Conditions": [{"operator": "==", "type": "VariableValue", "value": 15, "variableId": "6a8f4d5e90206485fa1d2f00"}], "type": "LogicalSubGroup"}], "type": "MainLogicalGroup"}
+      },
+      {
+        "Actions": [{"saveScope": "Dialogue", "type": "SetVariable", "value": 7, "variableId": "6a8f4d5e90206485fa1d2f00", "id": "6a8f4d5e90206485fa1d2f17"}],
+        "AnimationData": {"animations": [], "lipSyncs": [], "media": {"image": null, "music": null, "sound": null}, "secondaryAnimations": [], "subtitles": [{"end": 5, "id": "6a8f4d5e90206485fa1d2f47", "start": 0}]},
+        "DialogSide": "Player", "IconType": "DialogBubble", "Id": "6a8f4d5e90206485fa1d2f08",
+        "Trigger": {"Conditions": [{"Conditions": [{"operator": "==", "type": "VariableValue", "value": 6, "variableId": "6a8f4d5e90206485fa1d2f00"}], "type": "LogicalSubGroup"}], "type": "MainLogicalGroup"}
+      },
+      {
+        "Actions": [{"saveScope": "Dialogue", "type": "SetVariable", "value": 8, "variableId": "6a8f4d5e90206485fa1d2f00", "id": "6a8f4d5e90206485fa1d2f18"}],
+        "AnimationData": {"animations": [], "lipSyncs": [], "media": {"image": null, "music": null, "sound": null}, "secondaryAnimations": [], "subtitles": [{"end": 5, "id": "6a8f4d5e90206485fa1d2f48", "start": 0}]},
+        "DialogSide": "Npc", "IconType": "DialogBubble", "Id": "6a8f4d5e90206485fa1d2f09",
+        "Trigger": {"Conditions": [{"Conditions": [{"operator": "==", "type": "VariableValue", "value": 7, "variableId": "6a8f4d5e90206485fa1d2f00"}], "type": "LogicalSubGroup"}], "type": "MainLogicalGroup"}
+      },
+      {
+        "Actions": [{"saveScope": "Dialogue", "type": "SetVariable", "value": 9, "variableId": "6a8f4d5e90206485fa1d2f00", "id": "6a8f4d5e90206485fa1d2f19"}],
+        "AnimationData": {"animations": [], "lipSyncs": [], "media": {"image": null, "music": null, "sound": null}, "secondaryAnimations": [], "subtitles": [{"end": 7, "id": "6a8f4d5e90206485fa1d2f49", "start": 0}]},
+        "DialogSide": "Npc", "IconType": "DialogBubble", "Id": "6a8f4d5e90206485fa1d2f0a",
+        "Trigger": {"Conditions": [{"Conditions": [{"operator": "==", "type": "VariableValue", "value": 8, "variableId": "6a8f4d5e90206485fa1d2f00"}], "type": "LogicalSubGroup"}], "type": "MainLogicalGroup"}
+      },
+      {
+        "Actions": [
+          {"needNotification": true, "questId": "6a8f4d5e90206485fa1d2e04", "type": "AcceptQuest", "id": "6a8f4d5e90206485fa1d2f1a"},
+          {"saveScope": "Dialogue", "type": "SetVariable", "value": 10, "variableId": "6a8f4d5e90206485fa1d2f00", "id": "6a8f4d5e90206485fa1d2f1b"}
+        ],
+        "AnimationData": {"animations": [], "lipSyncs": [], "media": {"image": null, "music": null, "sound": null}, "secondaryAnimations": [], "subtitles": [{"end": 5, "id": "6a8f4d5e90206485fa1d2f4a", "start": 0}]},
+        "DialogSide": "Player", "IconType": "IndexFinger", "Id": "6a8f4d5e90206485fa1d2f0b",
+        "Trigger": {"Conditions": [{"Conditions": [{"operator": "==", "type": "VariableValue", "value": 9, "variableId": "6a8f4d5e90206485fa1d2f00"}], "type": "LogicalSubGroup"}], "type": "MainLogicalGroup"}
+      },
+      {
+        "Actions": [{"saveScope": "Dialogue", "type": "SetVariable", "value": 11, "variableId": "6a8f4d5e90206485fa1d2f00", "id": "6a8f4d5e90206485fa1d2f1c"}],
+        "AnimationData": {"animations": [], "lipSyncs": [], "media": {"image": null, "music": null, "sound": null}, "secondaryAnimations": [], "subtitles": [{"end": 4, "id": "6a8f4d5e90206485fa1d2f4b", "start": 0}]},
+        "DialogSide": "Npc", "IconType": "DialogBubble", "Id": "6a8f4d5e90206485fa1d2f0c",
+        "Trigger": {"Conditions": [{"Conditions": [{"operator": "==", "type": "VariableValue", "value": 10, "variableId": "6a8f4d5e90206485fa1d2f00"}], "type": "LogicalSubGroup"}], "type": "MainLogicalGroup"}
+      },
+      {
+        "Actions": [{"saveScope": "Dialogue", "type": "SetVariable", "value": 12, "variableId": "6a8f4d5e90206485fa1d2f00", "id": "6a8f4d5e90206485fa1d2f1d"}],
+        "AnimationData": {"animations": [], "lipSyncs": [], "media": {"image": null, "music": null, "sound": null}, "secondaryAnimations": [], "subtitles": [{"end": 12, "id": "6a8f4d5e90206485fa1d2f4c", "start": 0}]},
+        "DialogSide": "Npc", "IconType": "DialogBubble", "Id": "6a8f4d5e90206485fa1d2f0d",
+        "Trigger": {"Conditions": [{"Conditions": [{"operator": "==", "type": "VariableValue", "value": 11, "variableId": "6a8f4d5e90206485fa1d2f00"}], "type": "LogicalSubGroup"}], "type": "MainLogicalGroup"}
+      },
+      {
+        "Actions": [{"saveScope": "Dialogue", "type": "SetVariable", "value": 13, "variableId": "6a8f4d5e90206485fa1d2f00", "id": "6a8f4d5e90206485fa1d2f1e"}],
+        "AnimationData": {"animations": [], "lipSyncs": [], "media": {"image": null, "music": null, "sound": null}, "secondaryAnimations": [], "subtitles": [{"end": 6, "id": "6a8f4d5e90206485fa1d2f4d", "start": 0}]},
+        "DialogSide": "Npc", "IconType": "DialogBubble", "Id": "6a8f4d5e90206485fa1d2f0e",
+        "Trigger": {"Conditions": [{"Conditions": [{"operator": "==", "type": "VariableValue", "value": 12, "variableId": "6a8f4d5e90206485fa1d2f00"}], "type": "LogicalSubGroup"}], "type": "MainLogicalGroup"}
+      },
+      {
+        "Actions": [{"saveScope": "Dialogue", "type": "SetVariable", "value": 20, "variableId": "6a8f4d5e90206485fa1d2f00", "id": "6a8f4d5e90206485fa1d2f1f"}],
+        "AnimationData": {"animations": [], "lipSyncs": [], "media": {"image": null, "music": null, "sound": null}, "secondaryAnimations": [], "subtitles": [{"end": 3, "id": "6a8f4d5e90206485fa1d2f4e", "start": 0}]},
+        "DialogSide": "Npc", "IconType": "DialogBubble", "Id": "6a8f4d5e90206485fa1d2f0f",
+        "Trigger": {"Conditions": [{"Conditions": [{"operator": "==", "type": "VariableValue", "value": 13, "variableId": "6a8f4d5e90206485fa1d2f00"}], "type": "LogicalSubGroup"}], "type": "MainLogicalGroup"}
+      },
+      {
+        "Actions": [
+          {"type": "HandoverItem", "questId": "6a8f4d5e90206485fa1d2e04", "conditionId": "6a8f4d5e90206485fa1d2e43", "partialHandover": false, "needNotification": false, "id": "6a8f4d5e90206485fa1d2f20"},
+          {"saveScope": "Dialogue", "type": "SetVariable", "value": 21, "variableId": "6a8f4d5e90206485fa1d2f00", "id": "6a8f4d5e90206485fa1d2f21"}
+        ],
+        "AnimationData": {"animations": [], "lipSyncs": [], "media": {"image": null, "music": null, "sound": null}, "secondaryAnimations": [], "subtitles": [{"end": 5, "id": "6a8f4d5e90206485fa1d2f4f", "start": 0}]},
+        "DialogSide": "Player", "IconType": "QuestIcon", "Id": "6a8f4d5e90206485fa1d2f30",
+        "Trigger": {"Conditions": [{"Conditions": [{"operator": "==", "type": "VariableValue", "value": 20, "variableId": "6a8f4d5e90206485fa1d2f00"}, {"type": "QuestConditionStatus", "QuestId": "6a8f4d5e90206485fa1d2e04", "ConditionId": "6a8f4d5e90206485fa1d2e43", "Status": false}, {"type": "HasItemForHandover", "questId": "6a8f4d5e90206485fa1d2e04", "conditionId": "6a8f4d5e90206485fa1d2e43", "partial": false}], "type": "LogicalSubGroup"}], "type": "MainLogicalGroup"}
+      },
+      {
+        "Actions": [{"needNotification": false, "type": "QuitAction", "id": "6a8f4d5e90206485fa1d2f22"}],
+        "AnimationData": {"animations": [], "lipSyncs": [], "media": {"image": null, "music": null, "sound": null}, "secondaryAnimations": [], "subtitles": [{"end": 3, "id": "6a8f4d5e90206485fa1d2f80", "start": 0}]},
+        "DialogSide": "Player", "IconType": "BackArrow", "Id": "6a8f4d5e90206485fa1d2f31",
+        "Trigger": {"Conditions": [{"Conditions": [{"operator": "==", "type": "VariableValue", "value": 20, "variableId": "6a8f4d5e90206485fa1d2f00"}], "type": "LogicalSubGroup"}], "type": "MainLogicalGroup"}
+      },
+      {
+        "Actions": [{"saveScope": "Dialogue", "type": "SetVariable", "value": 20, "variableId": "6a8f4d5e90206485fa1d2f00", "id": "6a8f4d5e90206485fa1d2f23"}],
+        "AnimationData": {"animations": [], "lipSyncs": [], "media": {"image": null, "music": null, "sound": null}, "secondaryAnimations": [], "subtitles": [{"end": 5, "id": "6a8f4d5e90206485fa1d2f81", "start": 0}]},
+        "DialogSide": "Npc", "IconType": "DialogBubble", "Id": "6a8f4d5e90206485fa1d2f32",
+        "Trigger": {"Conditions": [{"Conditions": [{"operator": "==", "type": "VariableValue", "value": 21, "variableId": "6a8f4d5e90206485fa1d2f00"}, {"type": "QuestConditionStatus", "QuestId": "6a8f4d5e90206485fa1d2e04", "ConditionId": "6a8f4d5e90206485fa1d2e43", "Status": false}], "type": "LogicalSubGroup"}], "type": "MainLogicalGroup"}
+      },
+      {
+        "Actions": [
+          {"needNotification": true, "questId": "6a8f4d5e90206485fa1d2e04", "type": "FinishQuest", "id": "6a8f4d5e90206485fa1d2f24"},
+          {"saveScope": "Dialogue", "type": "SetVariable", "value": 22, "variableId": "6a8f4d5e90206485fa1d2f00", "id": "6a8f4d5e90206485fa1d2f25"}
+        ],
+        "AnimationData": {"animations": [], "lipSyncs": [], "media": {"image": null, "music": null, "sound": null}, "secondaryAnimations": [], "subtitles": [{"end": 7, "id": "6a8f4d5e90206485fa1d2f82", "start": 0}]},
+        "DialogSide": "Npc", "IconType": "QuestIcon", "Id": "6a8f4d5e90206485fa1d2f33",
+        "Trigger": {"Conditions": [{"Conditions": [{"operator": "==", "type": "VariableValue", "value": 21, "variableId": "6a8f4d5e90206485fa1d2f00"}, {"type": "QuestConditionStatus", "QuestId": "6a8f4d5e90206485fa1d2e04", "ConditionId": "6a8f4d5e90206485fa1d2e43", "Status": true}], "type": "LogicalSubGroup"}], "type": "MainLogicalGroup"}
+      },
+      {
+        "Actions": [{"saveScope": "Dialogue", "type": "SetVariable", "value": 23, "variableId": "6a8f4d5e90206485fa1d2f00", "id": "6a8f4d5e90206485fa1d2f26"}],
+        "AnimationData": {"animations": [], "lipSyncs": [], "media": {"image": null, "music": null, "sound": null}, "secondaryAnimations": [], "subtitles": [{"end": 10, "id": "6a8f4d5e90206485fa1d2f83", "start": 0}]},
+        "DialogSide": "Npc", "IconType": "DialogBubble", "Id": "6a8f4d5e90206485fa1d2f34",
+        "Trigger": {"Conditions": [{"Conditions": [{"operator": "==", "type": "VariableValue", "value": 22, "variableId": "6a8f4d5e90206485fa1d2f00"}], "type": "LogicalSubGroup"}], "type": "MainLogicalGroup"}
+      },
+      {
+        "Actions": [{"saveScope": "Dialogue", "type": "SetVariable", "value": 24, "variableId": "6a8f4d5e90206485fa1d2f00", "id": "6a8f4d5e90206485fa1d2f2b"}],
+        "AnimationData": {"animations": [], "lipSyncs": [], "media": {"image": null, "music": null, "sound": null}, "secondaryAnimations": [], "subtitles": [{"end": 6, "id": "6a8f4d5e90206485fa1d2f87", "start": 0}]},
+        "DialogSide": "Npc", "IconType": "DialogBubble", "Id": "6a8f4d5e90206485fa1d2f38",
+        "Trigger": {"Conditions": [{"Conditions": [{"operator": "==", "type": "VariableValue", "value": 23, "variableId": "6a8f4d5e90206485fa1d2f00"}], "type": "LogicalSubGroup"}], "type": "MainLogicalGroup"}
+      },
+      {
+        "Actions": [{"saveScope": "Dialogue", "type": "SetVariable", "value": 25, "variableId": "6a8f4d5e90206485fa1d2f00", "id": "6a8f4d5e90206485fa1d2f2c"}],
+        "AnimationData": {"animations": [], "lipSyncs": [], "media": {"image": null, "music": null, "sound": null}, "secondaryAnimations": [], "subtitles": [{"end": 3, "id": "6a8f4d5e90206485fa1d2f88", "start": 0}]},
+        "DialogSide": "Npc", "IconType": "DialogBubble", "Id": "6a8f4d5e90206485fa1d2f39",
+        "Trigger": {"Conditions": [{"Conditions": [{"operator": "==", "type": "VariableValue", "value": 24, "variableId": "6a8f4d5e90206485fa1d2f00"}], "type": "LogicalSubGroup"}], "type": "MainLogicalGroup"}
+      },
+      {
+        "Actions": [
+          {"needNotification": true, "questId": "6a8f4d5e90206485fa1d2e05", "type": "AcceptQuest", "id": "6a8f4d5e90206485fa1d2f2d"},
+          {"saveScope": "Dialogue", "type": "SetVariable", "value": 26, "variableId": "6a8f4d5e90206485fa1d2f00", "id": "6a8f4d5e90206485fa1d2f2e"}
+        ],
+        "AnimationData": {"animations": [], "lipSyncs": [], "media": {"image": null, "music": null, "sound": null}, "secondaryAnimations": [], "subtitles": [{"end": 3, "id": "6a8f4d5e90206485fa1d2f89", "start": 0}]},
+        "DialogSide": "Player", "IconType": "IndexFinger", "Id": "6a8f4d5e90206485fa1d2f3a",
+        "Trigger": {"Conditions": [{"Conditions": [{"operator": "==", "type": "VariableValue", "value": 25, "variableId": "6a8f4d5e90206485fa1d2f00"}, {"QuestId": "6a8f4d5e90206485fa1d2e05", "Status": [1], "type": "QuestStatus"}], "type": "LogicalSubGroup"}], "type": "MainLogicalGroup"}
+      },
+      {
+        "Actions": [{"saveScope": "Dialogue", "type": "SetVariable", "value": 26, "variableId": "6a8f4d5e90206485fa1d2f00", "id": "6a8f4d5e90206485fa1d2f2f"}],
+        "AnimationData": {"animations": [], "lipSyncs": [], "media": {"image": null, "music": null, "sound": null}, "secondaryAnimations": [], "subtitles": [{"end": 3, "id": "6a8f4d5e90206485fa1d2f89", "start": 0}]},
+        "DialogSide": "Player", "IconType": "IndexFinger", "Id": "6a8f4d5e90206485fa1d2f3e",
+        "Trigger": {"Conditions": [{"Conditions": [{"operator": "==", "type": "VariableValue", "value": 25, "variableId": "6a8f4d5e90206485fa1d2f00"}, {"QuestId": "6a8f4d5e90206485fa1d2e05", "Status": ["Started"], "type": "QuestStatus"}], "type": "LogicalSubGroup"}], "type": "MainLogicalGroup"}
+      },
+      {
+        "Actions": [{"needNotification": true, "questId": "6a8f4d5e90206485fa1d2e05", "type": "AcceptQuest", "id": "6a8f4d5e90206485fa1d2f97"}],
+        "AnimationData": {"animations": [], "lipSyncs": [], "media": {"image": null, "music": null, "sound": null}, "secondaryAnimations": [], "subtitles": [{"end": 3, "id": "6a8f4d5e90206485fa1d2f8d", "start": 0}]},
+        "DialogSide": "Player", "IconType": "QuestIcon", "Id": "6a8f4d5e90206485fa1d2f98",
+        "Trigger": {"Conditions": [{"Conditions": [{"operator": "==", "type": "VariableValue", "value": 26, "variableId": "6a8f4d5e90206485fa1d2f00"}, {"QuestId": "6a8f4d5e90206485fa1d2e05", "Status": [1], "type": "QuestStatus"}], "type": "LogicalSubGroup"}], "type": "MainLogicalGroup"}
+      },
+      {
+        "Actions": [{"saveScope": "Dialogue", "type": "SetVariable", "value": 28, "variableId": "6a8f4d5e90206485fa1d2f00", "id": "6a8f4d5e90206485fa1d2f3f"}],
+        "AnimationData": {"animations": [], "lipSyncs": [], "media": {"image": null, "music": null, "sound": null}, "secondaryAnimations": [], "subtitles": [{"end": 4, "id": "6a8f4d5e90206485fa1d2f8b", "start": 0}]},
+        "DialogSide": "Npc", "IconType": "DialogBubble", "Id": "6a8f4d5e90206485fa1d2f3c",
+        "Trigger": {"Conditions": [{"Conditions": [{"operator": "==", "type": "VariableValue", "value": 26, "variableId": "6a8f4d5e90206485fa1d2f00"}, {"QuestId": "6a8f4d5e90206485fa1d2e05", "Status": ["Started"], "type": "QuestStatus"}], "type": "LogicalSubGroup"}], "type": "MainLogicalGroup"}
+      },
+      {
+        "Actions": [
+          {"needNotification": false, "type": "QuitAction", "id": "6a8f4d5e90206485fa1d2f90"},
+          {"saveScope": "Dialogue", "type": "SetVariable", "value": 99, "variableId": "6a8f4d5e90206485fa1d2f00", "id": "6a8f4d5e90206485fa1d2f91"}
+        ],
+        "AnimationData": {"animations": [], "lipSyncs": [], "media": {"image": null, "music": null, "sound": null}, "secondaryAnimations": [], "subtitles": [{"end": 3, "id": "6a8f4d5e90206485fa1d2f8c", "start": 0}]},
+        "DialogSide": "Player", "IconType": "BackArrow", "Id": "6a8f4d5e90206485fa1d2f3d",
+        "Trigger": {"Conditions": [{"Conditions": [{"operator": "==", "type": "VariableValue", "value": 28, "variableId": "6a8f4d5e90206485fa1d2f00"}], "type": "LogicalSubGroup"}], "type": "MainLogicalGroup"}
+      },
+      {
+        "Actions": [{"saveScope": "Dialogue", "type": "SetVariable", "value": 20, "variableId": "6a8f4d5e90206485fa1d2f00", "id": "6a8f4d5e90206485fa1d2f28"}],
+        "AnimationData": {"animations": [], "lipSyncs": [], "media": {"image": null, "music": null, "sound": null}, "secondaryAnimations": [], "subtitles": [{"end": 5, "id": "6a8f4d5e90206485fa1d2f84", "start": 0}]},
+        "DialogSide": "Player", "IconType": "QuestionMark", "Id": "6a8f4d5e90206485fa1d2f35",
+        "Trigger": {"Conditions": [{"Conditions": [{"operator": "==", "type": "VariableValue", "value": 0, "variableId": "6a8f4d5e90206485fa1d2f00"}, {"QuestId": "6a8f4d5e90206485fa1d2e04", "Status": ["Started", "AvailableForFinish"], "type": "QuestStatus"}], "type": "LogicalSubGroup"}], "type": "MainLogicalGroup"}
+      },
+      {
+        "Actions": [{"saveScope": "Dialogue", "type": "SetVariable", "value": 20, "variableId": "6a8f4d5e90206485fa1d2f00", "id": "6a8f4d5e90206485fa1d2f29"}],
+        "AnimationData": {"animations": [], "lipSyncs": [], "media": {"image": null, "music": null, "sound": null}, "secondaryAnimations": [], "subtitles": [{"end": 5, "id": "6a8f4d5e90206485fa1d2f85", "start": 0}]},
+        "DialogSide": "Player", "IconType": "QuestionMark", "Id": "6a8f4d5e90206485fa1d2f36",
+        "Trigger": {"Conditions": [{"Conditions": [{"operator": "==", "type": "VariableValue", "value": 99, "variableId": "6a8f4d5e90206485fa1d2f00"}, {"QuestId": "6a8f4d5e90206485fa1d2e04", "Status": ["Started", "AvailableForFinish"], "type": "QuestStatus"}], "type": "LogicalSubGroup"}], "type": "MainLogicalGroup"}
+      }
+    ],
+    "StartPoints": {"6a8f4d5e90206485fa1d2f01": 0, "6a8f4d5e90206485fa1d2f35": 0, "6a8f4d5e90206485fa1d2f36": 0, "6a8f4d5e90206485fa1d2f98": 0},
+    "localization": {"en": {
+      "6a8f4d5e90206485fa1d2f40": "I'm looking for something, and you can help me with this.",
+      "6a8f4d5e90206485fa1d2f41": "Interesting. Speak precisely. My time is valuable.",
+      "6a8f4d5e90206485fa1d2f42": "I'm looking for the TerraGroup case.",
+      "6a8f4d5e90206485fa1d2f43": "I need the case Prapor handed you.",
+      "6a8f4d5e90206485fa1d2f44": "And? You think I collect everything marked TerraGroup like that Ragman? You're mistaken.",
+      "6a8f4d5e90206485fa1d2f45": "The case I'm talking about was given to you by Prapor.",
+      "6a8f4d5e90206485fa1d2f46": "Next time, don't waste either your time or mine on pointless questions. Yes, I have the case. And this case is far too important to hand it over just like that.",
+      "6a8f4d5e90206485fa1d2f47": "Maybe we can make a deal?",
+      "6a8f4d5e90206485fa1d2f48": "Seems like you're starting to understand something.",
+      "6a8f4d5e90206485fa1d2f49": "Fine. I'll trade the case for your work. You'll have to prove yourself. Agreed?",
+      "6a8f4d5e90206485fa1d2f4a": "Like I have a choice.",
+      "6a8f4d5e90206485fa1d2f4b": "No one said you did.",
+      "6a8f4d5e90206485fa1d2f4c": "Listen carefully, I won't repeat twice: you need to find the blue folder documents in Tarkov. I don't want them freely available to anyone thinking they're smart enough to ask questions.",
+      "6a8f4d5e90206485fa1d2f4d": "Once you hand them to me, you'll get the next task.",
+      "6a8f4d5e90206485fa1d2f4e": "Now go.",
+      "6a8f4d5e90206485fa1d2f4f": "I have all the documents.",
+      "6a8f4d5e90206485fa1d2f80": "Leave",
+      "6a8f4d5e90206485fa1d2f81": "This is not all of them. Return when you have the rest.",
+      "6a8f4d5e90206485fa1d2f82": "Good, you'll hand them over when you leave.",
+      "6a8f4d5e90206485fa1d2f83": "Now listen for your task at the Interchange, you'll have to draw attention. You know how. After that, you eliminate all those who come.",
+      "6a8f4d5e90206485fa1d2f84": "I'm here about the blue folder documents.",
+      "6a8f4d5e90206485fa1d2f85": "I'm here about the blue folder documents.",
+      "6a8f4d5e90206485fa1d2f86": "Interesting. I took that case for a reason. It is important.",
+      "6a8f4d5e90206485fa1d2f87": "All this has to be done in one time slot, without breaks.",
+      "6a8f4d5e90206485fa1d2f88": "Clear?",
+      "6a8f4d5e90206485fa1d2f89": "Understood!",
+      "6a8f4d5e90206485fa1d2f8b": "Then go. Time doesn't wait.",
+      "6a8f4d5e90206485fa1d2f8c": "Leave",
+      "6a8f4d5e90206485fa1d2f8d": "Accept the Interchange task."
+    }}
+  },
+  {
+    "CanBeFirstDialogue": false,
+    "Id": "6a8f4d5e90206485fa1d2f50",
+    "MainVariable": "6a8f4d5e90206485fa1d2f50",
+    "Trader": "638f541a29ffd1183d187f57",
+    "SubTraders": [],
+    "Lines": [
+      {
+        "Actions": [
+          {"needNotification": true, "questId": "6a8f4d5e90206485fa1d2e05", "type": "AcceptQuest", "id": "6a8f4d5e90206485fa1d2f60"},
+          {"saveScope": "Dialogue", "type": "SetVariable", "value": 1, "variableId": "6a8f4d5e90206485fa1d2f50", "id": "6a8f4d5e90206485fa1d2f61"}
+        ],
+        "AnimationData": {"animations": [], "lipSyncs": [], "media": {"image": null, "music": null, "sound": null}, "secondaryAnimations": [], "subtitles": [{"end": 5, "id": "6a8f4d5e90206485fa1d2f70", "start": 0}]},
+        "DialogSide": "Player", "IconType": "QuestionMark", "Id": "6a8f4d5e90206485fa1d2f51",
+        "Trigger": {"Conditions": [{"Conditions": [{"operator": "==", "type": "VariableValue", "value": 0, "variableId": "6a8f4d5e90206485fa1d2f50"}, {"QuestId": "6a8f4d5e90206485fa1d2e04", "Status": [4], "type": "QuestStatus"}, {"QuestId": "6a8f4d5e90206485fa1d2e05", "Status": [1], "type": "QuestStatus"}], "type": "LogicalSubGroup"}], "type": "MainLogicalGroup"}
+      },
+      {
+        "Actions": [{"saveScope": "Dialogue", "type": "SetVariable", "value": 1, "variableId": "6a8f4d5e90206485fa1d2f50", "id": "6a8f4d5e90206485fa1d2f62"}],
+        "AnimationData": {"animations": [], "lipSyncs": [], "media": {"image": null, "music": null, "sound": null}, "secondaryAnimations": [], "subtitles": [{"end": 5, "id": "6a8f4d5e90206485fa1d2f71", "start": 0}]},
+        "DialogSide": "Player", "IconType": "QuestionMark", "Id": "6a8f4d5e90206485fa1d2f52",
+        "Trigger": {"Conditions": [{"Conditions": [{"operator": "==", "type": "VariableValue", "value": 0, "variableId": "6a8f4d5e90206485fa1d2f50"}, {"QuestId": "6a8f4d5e90206485fa1d2e05", "Status": ["Started"], "type": "QuestStatus"}], "type": "LogicalSubGroup"}], "type": "MainLogicalGroup"}
+      },
+      {
+        "Actions": [{"saveScope": "Dialogue", "type": "SetVariable", "value": 2, "variableId": "6a8f4d5e90206485fa1d2f50", "id": "6a8f4d5e90206485fa1d2f63"}],
+        "AnimationData": {"animations": [], "lipSyncs": [], "media": {"image": null, "music": null, "sound": null}, "secondaryAnimations": [], "subtitles": [{"end": 5, "id": "6a8f4d5e90206485fa1d2f72", "start": 0}]},
+        "DialogSide": "Player", "IconType": "QuestIcon", "Id": "6a8f4d5e90206485fa1d2f53",
+        "Trigger": {"Conditions": [{"Conditions": [{"operator": "==", "type": "VariableValue", "value": 0, "variableId": "6a8f4d5e90206485fa1d2f50"}, {"QuestId": "6a8f4d5e90206485fa1d2e05", "Status": ["AvailableForFinish"], "type": "QuestStatus"}], "type": "LogicalSubGroup"}], "type": "MainLogicalGroup"}
+      },
+      {
+        "Actions": [{"saveScope": "Dialogue", "type": "SetVariable", "value": 3, "variableId": "6a8f4d5e90206485fa1d2f50", "id": "6a8f4d5e90206485fa1d2f64"}],
+        "AnimationData": {"animations": [], "lipSyncs": [], "media": {"image": null, "music": null, "sound": null}, "secondaryAnimations": [], "subtitles": [{"end": 10, "id": "6a8f4d5e90206485fa1d2f73", "start": 0}]},
+        "DialogSide": "Npc", "IconType": "DialogBubble", "Id": "6a8f4d5e90206485fa1d2f54",
+        "Trigger": {"Conditions": [{"Conditions": [{"operator": "==", "type": "VariableValue", "value": 1, "variableId": "6a8f4d5e90206485fa1d2f50"}], "type": "LogicalSubGroup"}], "type": "MainLogicalGroup"}
+      },
+      {
+        "Actions": [
+          {"needNotification": false, "type": "QuitAction", "id": "6a8f4d5e90206485fa1d2f65"},
+          {"saveScope": "Dialogue", "type": "SetVariable", "value": 99, "variableId": "6a8f4d5e90206485fa1d2f50", "id": "6a8f4d5e90206485fa1d2f66"}
+        ],
+        "AnimationData": {"animations": [], "lipSyncs": [], "media": {"image": null, "music": null, "sound": null}, "secondaryAnimations": [], "subtitles": [{"end": 4, "id": "6a8f4d5e90206485fa1d2f74", "start": 0}]},
+        "DialogSide": "Player", "IconType": "BackArrow", "Id": "6a8f4d5e90206485fa1d2f55",
+        "Trigger": {"Conditions": [{"Conditions": [{"operator": "==", "type": "VariableValue", "value": 3, "variableId": "6a8f4d5e90206485fa1d2f50"}, {"QuestId": "6a8f4d5e90206485fa1d2e05", "Status": ["Started"], "type": "QuestStatus"}], "type": "LogicalSubGroup"}], "type": "MainLogicalGroup"}
+      },
+      {
+        "Actions": [{"saveScope": "Dialogue", "type": "SetVariable", "value": 3, "variableId": "6a8f4d5e90206485fa1d2f50", "id": "6a8f4d5e90206485fa1d2f67"}],
+        "AnimationData": {"animations": [], "lipSyncs": [], "media": {"image": null, "music": null, "sound": null}, "secondaryAnimations": [], "subtitles": [{"end": 8, "id": "6a8f4d5e90206485fa1d2f75", "start": 0}]},
+        "DialogSide": "Npc", "IconType": "QuestIcon", "Id": "6a8f4d5e90206485fa1d2f56",
+        "Trigger": {"Conditions": [{"Conditions": [{"operator": "==", "type": "VariableValue", "value": 2, "variableId": "6a8f4d5e90206485fa1d2f50"}], "type": "LogicalSubGroup"}], "type": "MainLogicalGroup"}
+      },
+      {
+        "Actions": [{"saveScope": "Dialogue", "type": "SetVariable", "value": 4, "variableId": "6a8f4d5e90206485fa1d2f50", "id": "6a8f4d5e90206485fa1d2f68"}],
+        "AnimationData": {"animations": [], "lipSyncs": [], "media": {"image": null, "music": null, "sound": null}, "secondaryAnimations": [], "subtitles": [{"end": 5, "id": "6a8f4d5e90206485fa1d2f76", "start": 0}]},
+        "DialogSide": "Player", "IconType": "DialogBubble", "Id": "6a8f4d5e90206485fa1d2f57",
+        "Trigger": {"Conditions": [{"Conditions": [{"operator": "==", "type": "VariableValue", "value": 3, "variableId": "6a8f4d5e90206485fa1d2f50"}, {"QuestId": "6a8f4d5e90206485fa1d2e05", "Status": ["AvailableForFinish"], "type": "QuestStatus"}], "type": "LogicalSubGroup"}], "type": "MainLogicalGroup"}
+      },
+      {
+        "Actions": [{"saveScope": "Dialogue", "type": "SetVariable", "value": 5, "variableId": "6a8f4d5e90206485fa1d2f50", "id": "6a8f4d5e90206485fa1d2f92"}],
+        "AnimationData": {"animations": [], "lipSyncs": [], "media": {"image": null, "music": null, "sound": null}, "secondaryAnimations": [], "subtitles": [{"end": 4, "id": "6a8f4d5e90206485fa1d2f77", "start": 0}]},
+        "DialogSide": "Npc", "IconType": "DialogBubble", "Id": "6a8f4d5e90206485fa1d2f58",
+        "Trigger": {"Conditions": [{"Conditions": [{"operator": "==", "type": "VariableValue", "value": 4, "variableId": "6a8f4d5e90206485fa1d2f50"}], "type": "LogicalSubGroup"}], "type": "MainLogicalGroup"}
+      },
+      {
+        "Actions": [
+          {"needNotification": true, "questId": "6a8f4d5e90206485fa1d2e05", "type": "FinishQuest", "id": "6a8f4d5e90206485fa1d2f93"},
+          {"saveScope": "Dialogue", "type": "SetVariable", "value": 6, "variableId": "6a8f4d5e90206485fa1d2f50", "id": "6a8f4d5e90206485fa1d2f94"}
+        ],
+        "AnimationData": {"animations": [], "lipSyncs": [], "media": {"image": null, "music": null, "sound": null}, "secondaryAnimations": [], "subtitles": [{"end": 6, "id": "6a8f4d5e90206485fa1d2f78", "start": 0}]},
+        "DialogSide": "Npc", "IconType": "QuestIcon", "Id": "6a8f4d5e90206485fa1d2f59",
+        "Trigger": {"Conditions": [{"Conditions": [{"operator": "==", "type": "VariableValue", "value": 5, "variableId": "6a8f4d5e90206485fa1d2f50"}], "type": "LogicalSubGroup"}], "type": "MainLogicalGroup"}
+      },
+      {
+        "Actions": [
+          {"needNotification": false, "type": "QuitAction", "id": "6a8f4d5e90206485fa1d2f95"},
+          {"saveScope": "Dialogue", "type": "SetVariable", "value": 99, "variableId": "6a8f4d5e90206485fa1d2f50", "id": "6a8f4d5e90206485fa1d2f96"}
+        ],
+        "AnimationData": {"animations": [], "lipSyncs": [], "media": {"image": null, "music": null, "sound": null}, "secondaryAnimations": [], "subtitles": [{"end": 3, "id": "6a8f4d5e90206485fa1d2f79", "start": 0}]},
+        "DialogSide": "Player", "IconType": "BackArrow", "Id": "6a8f4d5e90206485fa1d2f5a",
+        "Trigger": {"Conditions": [{"Conditions": [{"operator": "==", "type": "VariableValue", "value": 6, "variableId": "6a8f4d5e90206485fa1d2f50"}], "type": "LogicalSubGroup"}], "type": "MainLogicalGroup"}
+      }
+    ],
+    "StartPoints": {"6a8f4d5e90206485fa1d2f51": 0, "6a8f4d5e90206485fa1d2f52": 0, "6a8f4d5e90206485fa1d2f53": 0},
+    "localization": {"en": {
+      "6a8f4d5e90206485fa1d2f70": "You said there was one final condition for the armored case.",
+      "6a8f4d5e90206485fa1d2f71": "Remind me what you want done at ULTRA.",
+      "6a8f4d5e90206485fa1d2f72": "The tasks are complete.",
+      "6a8f4d5e90206485fa1d2f73": "Go to ULTRA's main entrance. Launch a yellow signal flare, then eliminate fifteen targets on Interchange before leaving the raid alive. The message must be unmistakable.",
+      "6a8f4d5e90206485fa1d2f74": "Understood. I will return when it is done.",
+      "6a8f4d5e90206485fa1d2f75": "Yes, I know. You handled everything.",
+      "6a8f4d5e90206485fa1d2f76": "I need the case. Right now.",
+      "6a8f4d5e90206485fa1d2f77": "Here's your reward.",
+      "6a8f4d5e90206485fa1d2f78": "This time, do not give it to anyone. Use it yourself.",
+      "6a8f4d5e90206485fa1d2f79": "Leave"
+    }}
+  }
+]

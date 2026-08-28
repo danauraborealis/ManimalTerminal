@@ -267,6 +267,7 @@ namespace Manimal.Terminal
     {
         private static void Prefix()
         {
+            if (!TerminalGate.On) return;
             RaidFirewall.WrapForeignPostfixes(AccessTools.Method(typeof(BotsController), "Init"));
             LateWaypointsPatch.Apply();
             TerminalOrbitFirewall.Apply();

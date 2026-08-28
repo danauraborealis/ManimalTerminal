@@ -14,14 +14,17 @@ namespace Manimal.Terminal
         private static readonly object Sync = new object();
         private static Harmony _harmony;
         private static FieldInfo _foundLocation;
+        private static bool _detected;
         private static bool _installed;
         private static object _lastAppliedInstance;
 
         // Registration-time compatibility decisions must work even if SAIN's
         // private location parser changes and the optional patch cannot install.
-        // BepInEx has loaded plugin assemblies before Awake, so the type itself is
-        // the reliable signal that SAIN owns this client's combat layers.
-        internal static bool Detected => _installed || AccessTools.TypeByName(LocationTypeName) != null;
+        // TryInstall owns the expensive reflection probe and records both outcomes.
+        // Detected is read from BigBrain's per-bot hot paths, so it must never scan
+        // every loaded assembly when SAIN is absent. TryInstall runs once in Awake
+        // and gets one late-load retry when Terminal raid construction begins.
+        internal static bool Detected => _detected;
 
         internal static void Install(Harmony harmony)
         {
@@ -37,6 +40,7 @@ namespace Manimal.Terminal
                 if (_installed) return;
                 var locationType = AccessTools.TypeByName(LocationTypeName);
                 if (locationType == null) return; // optional mod absent/not loaded yet
+                _detected = true;
 
                 try
                 {

@@ -56,6 +56,16 @@ namespace Manimal.Terminal
             Plugin.Log.LogInfo("[Render] all-camera profiler armed (per-frame camera count + total submit time)");
         }
 
+        internal static void Disable()
+        {
+            if (!_subscribed) return;
+            Camera.onPreRender -= OnPreRender;
+            Camera.onPostRender -= OnPostRender;
+            _subscribed = false;
+            _sw.Reset();
+            Plugin.Log.LogDebug("[Render] all-camera profiler disarmed off Terminal");
+        }
+
         internal static void ResetForRaid()
         {
             LastRenderMs = AvgRenderMs = PeakRenderMs = 0;

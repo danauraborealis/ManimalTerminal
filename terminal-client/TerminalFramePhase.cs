@@ -38,19 +38,33 @@ namespace Manimal.Terminal
         internal static double PeakUpd, PeakLate, PeakPostLate, PeakCull, PeakRend, PeakTail;
 
         private static bool _spawned;
+        private static GameObject _host;
 
         internal static void EnsureSpawned()
         {
             if (_spawned) return;
             _spawned = true;
-            var go = new GameObject("Manimal_TerminalFramePhase");
-            Object.DontDestroyOnLoad(go);
-            go.AddComponent<EarlyProbe>();
-            go.AddComponent<LateProbe>();
+            _host = new GameObject("Manimal_TerminalFramePhase");
+            Object.DontDestroyOnLoad(_host);
+            _host.AddComponent<EarlyProbe>();
+            _host.AddComponent<LateProbe>();
             Camera.onPreCull += OnPreCull;
             Camera.onPreRender += OnPreRender;
             Camera.onPostRender += OnPostRender;
             Plugin.Log.LogInfo("[Phase] frame-phase profiler armed (upd/late/cull/rend/tail breakdown)");
+        }
+
+        internal static void Disable()
+        {
+            if (!_spawned) return;
+            Camera.onPreCull -= OnPreCull;
+            Camera.onPreRender -= OnPreRender;
+            Camera.onPostRender -= OnPostRender;
+            if (_host != null) Object.Destroy(_host);
+            _host = null;
+            _spawned = false;
+            _havePrevPost = false;
+            Plugin.Log.LogDebug("[Phase] frame-phase profiler disarmed off Terminal");
         }
 
         internal static void ResetForRaid()
@@ -149,15 +163,15 @@ namespace Manimal.Terminal
         [DefaultExecutionOrder(-32000)]
         internal class EarlyProbe : MonoBehaviour
         {
-            private void Update() => MarkUpdateStart();
+            private void Update() { if (TerminalGate.On) MarkUpdateStart(); }
         }
 
         // +32000 puts these after every other script's Update / LateUpdate
         [DefaultExecutionOrder(32000)]
         internal class LateProbe : MonoBehaviour
         {
-            private void Update() => MarkUpdateEnd();
-            private void LateUpdate() => MarkLateEnd();
+            private void Update() { if (TerminalGate.On) MarkUpdateEnd(); }
+            private void LateUpdate() { if (TerminalGate.On) MarkLateEnd(); }
         }
     }
 }

@@ -1,0 +1,118 @@
+{
+  "6a8f4d5e90206485fa1d2e01": {
+    "QuestName": "The Ticket - Part 1", "_id": "6a8f4d5e90206485fa1d2e01", "traderId": "54cb50c76803fa8b248b4571", "type": "PickUp", "location": "any", "image": "/files/quest/icon/The_Ticket_Banner",
+    "acceptanceAndFinishingSource": "eft", "arenaLocations": [], "instantComplete": false, "isKey": false, "secretQuest": false, "gameModes": [], "progressSource": "eft", "rankingModes": [], "side": "Pmc", "canShowNotificationsInGame": true, "restartable": false, "status": 0,
+    "description": "6a8f4d5e90206485fa1d2e01 description", "startedMessageText": "6a8f4d5e90206485fa1d2e01 startedMessageText", "successMessageText": "6a8f4d5e90206485fa1d2e01 successMessageText", "failMessageText": "6a8f4d5e90206485fa1d2e01 failMessageText", "acceptPlayerMessage": "", "declinePlayerMessage": "", "completePlayerMessage": "", "changeQuestMessageText": "", "name": "6a8f4d5e90206485fa1d2e01 name", "note": "",
+    "conditions": {
+      "AvailableForStart": [
+        {"availableAfter": 0, "conditionType": "Quest", "dispersion": 0, "dynamicLocale": false, "globalQuestCounterId": "", "id": "6a8f4d5e90206485fa1d2e10", "index": 0, "parentId": "", "status": [4], "target": "6a8f4d5e90206485fa1d2d60", "visibilityConditions": []},
+        {"compareMethod": ">=", "conditionType": "TraderLoyalty", "dynamicLocale": false, "globalQuestCounterId": "", "id": "6a8f4d5e90206485fa1d2e1d", "index": 1, "parentId": "", "target": "54cb50c76803fa8b248b4571", "value": 3, "visibilityConditions": []}
+      ],
+      "AvailableForFinish": [
+        {"conditionType": "FindItem", "countInRaid": false, "dogtagLevel": 0, "dynamicLocale": false, "globalQuestCounterId": "", "id": "6a8f4d5e90206485fa1d2e13", "index": 0, "isEncoded": false, "maxDurability": 100, "minDurability": 0, "onlyFoundInRaid": false, "parentId": "", "target": ["67c034f0e7a5da1e070f6de8"], "value": 1, "visibilityConditions": []},
+        {"conditionType": "FindItem", "countInRaid": false, "dogtagLevel": 0, "dynamicLocale": false, "globalQuestCounterId": "", "id": "6a8f4d5e90206485fa1d2e14", "index": 1, "isEncoded": false, "maxDurability": 100, "minDurability": 0, "onlyFoundInRaid": false, "parentId": "", "target": ["67c035140610e91bea05699a"], "value": 1, "visibilityConditions": []},
+        {"conditionType": "FindItem", "countInRaid": false, "dogtagLevel": 0, "dynamicLocale": false, "globalQuestCounterId": "", "id": "6a8f4d5e90206485fa1d2e15", "index": 2, "isEncoded": false, "maxDurability": 100, "minDurability": 0, "onlyFoundInRaid": false, "parentId": "", "target": ["67c0351e354fca26a0008038"], "value": 1, "visibilityConditions": []},
+        {"conditionType": "FindItem", "countInRaid": false, "dogtagLevel": 0, "dynamicLocale": false, "globalQuestCounterId": "", "id": "6a8f4d5e90206485fa1d2e16", "index": 3, "isEncoded": false, "maxDurability": 100, "minDurability": 0, "onlyFoundInRaid": false, "parentId": "", "target": ["67c0352dd98287be7b0923d6"], "value": 1, "visibilityConditions": []},
+        {"conditionType": "FindItem", "countInRaid": false, "dogtagLevel": 0, "dynamicLocale": false, "globalQuestCounterId": "", "id": "6a8f4d5e90206485fa1d2e11", "index": 4, "isEncoded": false, "maxDurability": 100, "minDurability": 0, "onlyFoundInRaid": false, "parentId": "", "target": ["67c0497068e50a07b10d2576"], "value": 1, "visibilityConditions": []},
+        {"conditionType": "HandoverItem", "dogtagLevel": 0, "dynamicLocale": false, "globalQuestCounterId": "", "id": "6a8f4d5e90206485fa1d2e12", "index": 5, "isEncoded": false, "maxDurability": 100, "minDurability": 0, "onlyFoundInRaid": false, "parentId": "", "target": ["67c0497068e50a07b10d2576"], "value": 1, "visibilityConditions": [{"conditionType": "CompleteCondition", "id": "6a8f4d5e90206485fa1d2e1c", "target": "6a8f4d5e90206485fa1d2e11"}]}
+      ],
+      "Fail": []
+    },
+    "rewards": {
+      "Fail": [],
+      "Started": [],
+      "Success": [{"availableInGameEditions": [], "id": "6a8f4d5e90206485fa1d2e1b", "index": 0, "type": "Experience", "value": 75000, "unknown": false, "isHidden": false}]
+    }
+  },
+  "6a8f4d5e90206485fa1d2e02": {
+    "QuestName": "The Ticket - Part 2", "_id": "6a8f4d5e90206485fa1d2e02", "traderId": "54cb50c76803fa8b248b4571", "type": "Elimination", "location": "5714dc692459777137212e12", "image": "/files/quest/icon/The_Ticket_Banner",
+    "acceptanceAndFinishingSource": "eft", "arenaLocations": [], "instantComplete": false, "isKey": false, "secretQuest": false, "gameModes": [], "progressSource": "eft", "rankingModes": [], "side": "Pmc", "canShowNotificationsInGame": true, "restartable": false, "status": 0,
+    "description": "6a8f4d5e90206485fa1d2e02 description", "startedMessageText": "6a8f4d5e90206485fa1d2e02 startedMessageText", "successMessageText": "6a8f4d5e90206485fa1d2e02 successMessageText", "failMessageText": "6a8f4d5e90206485fa1d2e02 failMessageText", "acceptPlayerMessage": "", "declinePlayerMessage": "", "completePlayerMessage": "", "changeQuestMessageText": "", "name": "6a8f4d5e90206485fa1d2e02 name", "note": "",
+    "conditions": {
+      "AvailableForStart": [{"availableAfter": 0, "conditionType": "Quest", "dispersion": 0, "dynamicLocale": false, "globalQuestCounterId": "", "id": "6a8f4d5e90206485fa1d2e20", "index": 0, "parentId": "", "status": [4], "target": "6a8f4d5e90206485fa1d2e01", "visibilityConditions": []}],
+      "AvailableForFinish": [{"completeInSeconds": 0, "conditionType": "CounterCreator", "counter": {"conditions": [{"bodyPart": [], "compareMethod": ">=", "conditionType": "Kills", "daytime": {"from": 0, "to": 0}, "distance": {"compareMethod": ">=", "value": 0}, "dynamicLocale": false, "enemyEquipmentExclusive": [], "enemyEquipmentInclusive": [], "enemyHealthEffects": [], "id": "6a8f4d5e90206485fa1d2e23", "resetOnSessionEnd": false, "savageRole": [], "target": "Any", "value": 1, "weapon": [], "weaponCaliber": [], "weaponModsExclusive": [], "weaponModsInclusive": []}, {"conditionType": "Location", "dynamicLocale": false, "id": "6a8f4d5e90206485fa1d2e24", "target": ["TarkovStreets"]}], "id": "6a8f4d5e90206485fa1d2e22"}, "doNotResetIfCounterCompleted": false, "dynamicLocale": false, "globalQuestCounterId": "", "id": "6a8f4d5e90206485fa1d2e21", "index": 0, "isNecessary": false, "isResetOnConditionFailed": false, "oneSessionOnly": false, "parentId": "", "type": "Elimination", "value": 50, "visibilityConditions": []}],
+      "Fail": []
+    },
+    "rewards": {"Fail": [], "Started": [], "Success": [{"availableInGameEditions": [], "id": "6a8f4d5e90206485fa1d2e25", "index": 0, "type": "Experience", "value": 150000, "unknown": false, "isHidden": false}]}
+  },
+  "6a8f4d5e90206485fa1d2e03": {
+    "QuestName": "The Ticket - Part 3", "_id": "6a8f4d5e90206485fa1d2e03", "traderId": "54cb50c76803fa8b248b4571", "type": "Elimination", "location": "any", "image": "/files/quest/icon/The_Ticket_Banner",
+    "acceptanceAndFinishingSource": "eft", "arenaLocations": [], "instantComplete": false, "isKey": false, "secretQuest": false, "gameModes": [], "progressSource": "eft", "rankingModes": [], "side": "Pmc", "canShowNotificationsInGame": true, "restartable": false, "status": 0,
+    "description": "6a8f4d5e90206485fa1d2e03 description", "startedMessageText": "6a8f4d5e90206485fa1d2e03 startedMessageText", "successMessageText": "6a8f4d5e90206485fa1d2e03 successMessageText", "failMessageText": "6a8f4d5e90206485fa1d2e03 failMessageText", "acceptPlayerMessage": "", "declinePlayerMessage": "", "completePlayerMessage": "", "changeQuestMessageText": "", "name": "6a8f4d5e90206485fa1d2e03 name", "note": "",
+    "conditions": {
+      "AvailableForStart": [{"availableAfter": 0, "conditionType": "Quest", "dispersion": 0, "dynamicLocale": false, "globalQuestCounterId": "", "id": "6a8f4d5e90206485fa1d2e30", "index": 0, "parentId": "", "status": [4], "target": "6a8f4d5e90206485fa1d2e02", "visibilityConditions": []}],
+      "AvailableForFinish": [
+        {"completeInSeconds": 0, "conditionType": "CounterCreator", "counter": {"conditions": [{"bodyPart": [], "compareMethod": ">=", "conditionType": "Kills", "daytime": {"from": 0, "to": 0}, "distance": {"compareMethod": ">=", "value": 0}, "dynamicLocale": false, "enemyEquipmentExclusive": [], "enemyEquipmentInclusive": [], "enemyHealthEffects": [], "id": "6a8f4d5e90206485fa1d2e33", "resetOnSessionEnd": false, "savageRole": [], "target": "AnyPmc", "value": 1, "weapon": [], "weaponCaliber": [], "weaponModsExclusive": [], "weaponModsInclusive": []}], "id": "6a8f4d5e90206485fa1d2e32"}, "doNotResetIfCounterCompleted": false, "dynamicLocale": false, "globalQuestCounterId": "", "id": "6a8f4d5e90206485fa1d2e31", "index": 0, "isNecessary": false, "isResetOnConditionFailed": false, "oneSessionOnly": true, "parentId": "", "type": "Elimination", "value": 4, "visibilityConditions": []},
+        {"completeInSeconds": 0, "conditionType": "CounterCreator", "counter": {"conditions": [{"conditionType": "ExitStatus", "dynamicLocale": false, "id": "6a8f4d5e90206485fa1d2e36", "status": ["Survived"]}], "id": "6a8f4d5e90206485fa1d2e35"}, "doNotResetIfCounterCompleted": false, "dynamicLocale": false, "globalQuestCounterId": "", "id": "6a8f4d5e90206485fa1d2e34", "index": 1, "isNecessary": false, "isResetOnConditionFailed": false, "oneSessionOnly": true, "parentId": "", "type": "Completion", "value": 1, "visibilityConditions": [{"conditionType": "CompleteCondition", "id": "6a8f4d5e90206485fa1d2e37", "target": "6a8f4d5e90206485fa1d2e31"}]}
+      ],
+      "Fail": []
+    },
+    "rewards": {"Fail": [], "Started": [], "Success": [{"availableInGameEditions": [], "id": "6a8f4d5e90206485fa1d2e38", "index": 0, "type": "Experience", "value": 250000, "unknown": false, "isHidden": false}]}
+  },
+  "6a8f4d5e90206485fa1d2e04": {
+    "QuestName": "The Ticket - Part 4", "_id": "6a8f4d5e90206485fa1d2e04", "traderId": "638f541a29ffd1183d187f57", "type": "PickUp", "location": "any", "image": "/files/quest/icon/The_Ticket_Banner", "dialogueId": "6a8f4d5e90206485fa1d2f00",
+    "acceptanceAndFinishingSource": "eft", "arenaLocations": [], "instantComplete": false, "isKey": false, "secretQuest": false, "gameModes": [], "progressSource": "eft", "rankingModes": [], "side": "Pmc", "canShowNotificationsInGame": true, "restartable": false, "status": 0,
+    "description": "6a8f4d5e90206485fa1d2e04 description", "startedMessageText": "6a8f4d5e90206485fa1d2e04 startedMessageText", "successMessageText": "6a8f4d5e90206485fa1d2e04 successMessageText", "failMessageText": "6a8f4d5e90206485fa1d2e04 failMessageText", "acceptPlayerMessage": "", "declinePlayerMessage": "", "completePlayerMessage": "", "changeQuestMessageText": "", "name": "6a8f4d5e90206485fa1d2e04 name", "note": "",
+    "conditions": {
+      "AvailableForStart": [
+        {"availableAfter": 0, "conditionType": "Quest", "dispersion": 0, "dynamicLocale": false, "globalQuestCounterId": "", "id": "6a8f4d5e90206485fa1d2e40", "index": 0, "parentId": "", "status": [4], "target": "6a8f4d5e90206485fa1d2e03", "visibilityConditions": []},
+        {"availableAfter": 0, "conditionType": "Quest", "dispersion": 0, "dynamicLocale": false, "globalQuestCounterId": "", "id": "6a8f4d5e90206485fa1d2e41", "index": 1, "parentId": "", "status": [4], "target": "625d700cc48e6c62a440fab5", "visibilityConditions": []}
+      ],
+      "AvailableForFinish": [
+        {"conditionType": "FindItem", "countInRaid": false, "dogtagLevel": 0, "dynamicLocale": false, "globalQuestCounterId": "", "id": "6a8f4d5e90206485fa1d2e42", "index": 0, "isEncoded": false, "maxDurability": 100, "minDurability": 0, "onlyFoundInRaid": false, "parentId": "", "target": ["6389c8c5dbfd5e4b95197e6b"], "value": 3, "visibilityConditions": []},
+        {"conditionType": "HandoverItem", "dogtagLevel": 0, "dynamicLocale": false, "globalQuestCounterId": "", "id": "6a8f4d5e90206485fa1d2e43", "index": 1, "isEncoded": false, "maxDurability": 100, "minDurability": 0, "onlyFoundInRaid": false, "parentId": "", "target": ["6389c8c5dbfd5e4b95197e6b"], "value": 3, "visibilityConditions": [{"conditionType": "CompleteCondition", "id": "6a8f4d5e90206485fa1d2e44", "target": "6a8f4d5e90206485fa1d2e42"}]}
+      ],
+      "Fail": []
+    },
+    "rewards": {"Fail": [], "Started": [], "Success": [{"availableInGameEditions": [], "id": "6a8f4d5e90206485fa1d2e45", "index": 0, "type": "Experience", "value": 150000, "unknown": false, "isHidden": false}]}
+  },
+  "6a8f4d5e90206485fa1d2e05": {
+    "QuestName": "The Ticket - Part 5", "_id": "6a8f4d5e90206485fa1d2e05", "traderId": "638f541a29ffd1183d187f57", "type": "Elimination", "location": "5714dbc024597771384a510d", "image": "/files/quest/icon/The_Ticket_Banner", "dialogueId": "6a8f4d5e90206485fa1d2f50",
+    "acceptanceAndFinishingSource": "eft", "arenaLocations": [], "instantComplete": false, "isKey": false, "secretQuest": false, "gameModes": [], "progressSource": "eft", "rankingModes": [], "side": "Pmc", "canShowNotificationsInGame": true, "restartable": false, "status": 0,
+    "description": "6a8f4d5e90206485fa1d2e05 description", "startedMessageText": "6a8f4d5e90206485fa1d2e05 startedMessageText", "successMessageText": "6a8f4d5e90206485fa1d2e05 successMessageText", "failMessageText": "6a8f4d5e90206485fa1d2e05 failMessageText", "acceptPlayerMessage": "", "declinePlayerMessage": "", "completePlayerMessage": "", "changeQuestMessageText": "", "name": "6a8f4d5e90206485fa1d2e05 name", "note": "",
+    "conditions": {
+      "AvailableForStart": [
+        {"availableAfter": 0, "conditionType": "Quest", "dispersion": 0, "dynamicLocale": false, "globalQuestCounterId": "", "id": "6a8f4d5e90206485fa1d2e4f", "index": 0, "parentId": "", "status": [4], "target": "6a8f4d5e90206485fa1d2e03", "visibilityConditions": []},
+        {"availableAfter": 0, "conditionType": "Quest", "dispersion": 0, "dynamicLocale": false, "globalQuestCounterId": "", "id": "6a8f4d5e90206485fa1d2e50", "index": 1, "parentId": "", "status": [4], "target": "625d700cc48e6c62a440fab5", "visibilityConditions": []}
+      ],
+      "AvailableForFinish": [
+        {"completeInSeconds": 0, "conditionType": "CounterCreator", "counter": {"conditions": [{"conditionType": "LaunchFlare", "dynamicLocale": false, "id": "6a8f4d5e90206485fa1d2e53", "target": "ticket_ultra_main_entrance_flare"}], "id": "6a8f4d5e90206485fa1d2e52"}, "doNotResetIfCounterCompleted": false, "dynamicLocale": false, "globalQuestCounterId": "", "id": "6a8f4d5e90206485fa1d2e51", "index": 0, "isNecessary": false, "isResetOnConditionFailed": false, "oneSessionOnly": true, "parentId": "", "type": "Completion", "value": 1, "visibilityConditions": []},
+        {"completeInSeconds": 0, "conditionType": "CounterCreator", "counter": {"conditions": [{"bodyPart": [], "compareMethod": ">=", "conditionType": "Kills", "daytime": {"from": 0, "to": 0}, "distance": {"compareMethod": ">=", "value": 0}, "dynamicLocale": false, "enemyEquipmentExclusive": [], "enemyEquipmentInclusive": [], "enemyHealthEffects": [], "id": "6a8f4d5e90206485fa1d2e56", "resetOnSessionEnd": false, "savageRole": [], "target": "Any", "value": 1, "weapon": [], "weaponCaliber": [], "weaponModsExclusive": [], "weaponModsInclusive": []}, {"conditionType": "Location", "dynamicLocale": false, "id": "6a8f4d5e90206485fa1d2e57", "target": ["Interchange"]}], "id": "6a8f4d5e90206485fa1d2e55"}, "doNotResetIfCounterCompleted": false, "dynamicLocale": false, "globalQuestCounterId": "", "id": "6a8f4d5e90206485fa1d2e54", "index": 1, "isNecessary": false, "isResetOnConditionFailed": false, "oneSessionOnly": true, "parentId": "", "type": "Elimination", "value": 15, "visibilityConditions": [{"conditionType": "CompleteCondition", "id": "6a8f4d5e90206485fa1d2e58", "target": "6a8f4d5e90206485fa1d2e51"}]},
+        {"completeInSeconds": 0, "conditionType": "CounterCreator", "counter": {"conditions": [{"conditionType": "ExitStatus", "dynamicLocale": false, "id": "6a8f4d5e90206485fa1d2e5b", "status": ["Survived"]}, {"conditionType": "Location", "dynamicLocale": false, "id": "6a8f4d5e90206485fa1d2e5c", "target": ["Interchange"]}], "id": "6a8f4d5e90206485fa1d2e5a"}, "doNotResetIfCounterCompleted": false, "dynamicLocale": false, "globalQuestCounterId": "", "id": "6a8f4d5e90206485fa1d2e59", "index": 2, "isNecessary": false, "isResetOnConditionFailed": false, "oneSessionOnly": true, "parentId": "", "type": "Completion", "value": 1, "visibilityConditions": [{"conditionType": "CompleteCondition", "id": "6a8f4d5e90206485fa1d2e5d", "target": "6a8f4d5e90206485fa1d2e54"}]}
+      ],
+      "Fail": []
+    },
+    "rewards": {"Fail": [], "Started": [], "Success": [
+      {"availableInGameEditions": [], "findInRaid": false, "id": "6a8f4d5e90206485fa1d2e5e", "index": 0, "isEncoded": false, "isHidden": false, "items": [{"_id": "6a8f4d5e90206485fa1d2e5f", "_tpl": "67bde59edb4b617a6c0d69f8", "upd": {"StackObjectsCount": 1}}], "target": "6a8f4d5e90206485fa1d2e5f", "type": "Item", "unknown": false, "value": 1},
+      {"availableInGameEditions": [], "id": "6a8f4d5e90206485fa1d2e60", "index": 1, "type": "Experience", "value": 300000, "unknown": false, "isHidden": false}
+    ]}
+  },
+  "6a8f4d5e90206485fa1d2e06": {
+    "QuestName": "The Ticket - Part 6", "_id": "6a8f4d5e90206485fa1d2e06", "traderId": "5a7c2eca46aef81a7ca2145d", "type": "PickUp", "location": "any", "image": "/files/quest/icon/The_Ticket_Banner",
+    "acceptanceAndFinishingSource": "eft", "arenaLocations": [], "instantComplete": false, "isKey": false, "secretQuest": false, "gameModes": [], "progressSource": "eft", "rankingModes": [], "side": "Pmc", "canShowNotificationsInGame": true, "restartable": false, "status": 0,
+    "description": "6a8f4d5e90206485fa1d2e06 description", "startedMessageText": "6a8f4d5e90206485fa1d2e06 startedMessageText", "successMessageText": "6a8f4d5e90206485fa1d2e06 successMessageText", "failMessageText": "6a8f4d5e90206485fa1d2e06 failMessageText", "acceptPlayerMessage": "", "declinePlayerMessage": "", "completePlayerMessage": "", "changeQuestMessageText": "", "name": "6a8f4d5e90206485fa1d2e06 name", "note": "",
+    "conditions": {
+      "AvailableForStart": [{"availableAfter": 0, "conditionType": "Quest", "dispersion": 0, "dynamicLocale": false, "globalQuestCounterId": "", "id": "6a8f4d5e90206485fa1d2e65", "index": 0, "parentId": "", "status": [4], "target": "6a8f4d5e90206485fa1d2e05", "visibilityConditions": []}],
+      "AvailableForFinish": [{"conditionType": "FindItem", "countInRaid": false, "dogtagLevel": 0, "dynamicLocale": false, "globalQuestCounterId": "", "id": "6a8f4d5e90206485fa1d2e61", "index": 0, "isEncoded": false, "maxDurability": 100, "minDurability": 0, "onlyFoundInRaid": false, "parentId": "", "target": ["67bdea3ecf0cc29475092196"], "value": 1, "visibilityConditions": []}],
+      "Fail": []
+    },
+    "rewards": {"Fail": [], "Started": [], "Success": [
+      {"availableInGameEditions": [], "id": "6a8f4d5e90206485fa1d2e64", "index": 0, "type": "Experience", "value": 100000, "unknown": false, "isHidden": false},
+      {"availableInGameEditions": [], "id": "6a8f4d5e90206485fa1d2e66", "index": 1, "items": [{"_id": "6a8f4d5e90206485fa1d2e67", "_tpl": "68fa8e253666e2fd5b00a626", "upd": {"StackObjectsCount": 1}}], "loyaltyLevel": 1, "target": "6a8f4d5e90206485fa1d2e67", "traderId": 10, "type": "ProductionScheme", "unknown": false}
+    ]}
+  },
+  "6a8f4d5e90206485fa1d2e0a": {
+    "QuestName": "The Ticket - Part 7", "_id": "6a8f4d5e90206485fa1d2e0a", "traderId": "54cb50c76803fa8b248b4571", "type": "PickUp", "location": "any", "image": "/files/quest/icon/The_Ticket_Banner",
+    "acceptanceAndFinishingSource": "eft", "arenaLocations": [], "instantComplete": false, "isKey": false, "secretQuest": false, "gameModes": [], "progressSource": "eft", "rankingModes": [], "side": "Pmc", "canShowNotificationsInGame": true, "restartable": false, "status": 0,
+    "description": "6a8f4d5e90206485fa1d2e0a description", "startedMessageText": "6a8f4d5e90206485fa1d2e0a startedMessageText", "successMessageText": "6a8f4d5e90206485fa1d2e0a successMessageText", "failMessageText": "6a8f4d5e90206485fa1d2e0a failMessageText", "acceptPlayerMessage": "", "declinePlayerMessage": "", "completePlayerMessage": "", "changeQuestMessageText": "", "name": "6a8f4d5e90206485fa1d2e0a name", "note": "",
+    "conditions": {
+      "AvailableForStart": [{"availableAfter": 0, "conditionType": "Quest", "dispersion": 0, "dynamicLocale": false, "globalQuestCounterId": "", "id": "6a8f4d5e90206485fa1d2ea0", "index": 0, "parentId": "", "status": [4], "target": "6a8f4d5e90206485fa1d2e06", "visibilityConditions": []}],
+      "AvailableForFinish": [{"conditionType": "FindItem", "countInRaid": false, "dogtagLevel": 0, "dynamicLocale": false, "globalQuestCounterId": "", "id": "6a8f4d5e90206485fa1d2ea5", "index": 0, "isEncoded": false, "maxDurability": 100, "minDurability": 0, "onlyFoundInRaid": false, "parentId": "", "target": ["67bdea8667098e658f064695"], "value": 1, "visibilityConditions": []}, {"conditionType": "HandoverItem", "dogtagLevel": 0, "dynamicLocale": false, "globalQuestCounterId": "", "id": "6a8f4d5e90206485fa1d2ea6", "index": 1, "isEncoded": false, "maxDurability": 100, "minDurability": 0, "onlyFoundInRaid": false, "parentId": "", "target": ["67bdea8667098e658f064695"], "value": 1, "visibilityConditions": [{"conditionType": "CompleteCondition", "id": "6a8f4d5e90206485fa1d2ea7", "target": "6a8f4d5e90206485fa1d2ea5"}]}, {"conditionType": "HandoverItem", "dogtagLevel": 0, "dynamicLocale": false, "globalQuestCounterId": "", "id": "6a8f4d5e90206485fa1d2ea1", "index": 2, "isEncoded": false, "maxDurability": 100, "minDurability": 0, "onlyFoundInRaid": false, "parentId": "", "target": ["5449016a4bdc2d6f028b456f"], "value": 300000000, "visibilityConditions": []}],
+      "Fail": []
+    },
+    "rewards": {"Fail": [], "Started": [], "Success": [
+      {"availableInGameEditions": [], "findInRaid": false, "id": "6a8f4d5e90206485fa1d2ea2", "index": 0, "isEncoded": false, "isHidden": false, "items": [{"_id": "6a8f4d5e90206485fa1d2ea3", "_tpl": "68f213f8ea61d1803707cf7a", "upd": {"StackObjectsCount": 1}}], "target": "6a8f4d5e90206485fa1d2ea3", "type": "Item", "unknown": false, "value": 1},
+      {"availableInGameEditions": [], "id": "6a8f4d5e90206485fa1d2ea4", "index": 1, "type": "Experience", "value": 500000, "unknown": false, "isHidden": false}
+    ]}
+  }
+}

@@ -34,6 +34,12 @@ public class TerminalSelfContained(
     ICloner cloner,
     SaveServer saveServer) : IOnLoad
 {
+    // Prapor's terminal-soldiers letter is configured as Terminal's native
+    // AccessKey. The game consumes it when the accepted PMC raid begins. It is
+    // intentionally excluded from the self-contained snapshot, so the normal
+    // end-of-raid restore cannot resurrect the spent entry pass.
+    private const string TerminalEntryNoteTpl = "68f213f8ea61d1803707cf7a";
+
     // hoisted: primary-ctor captures aren't reachable from the static patch bodies
     private readonly ISptLogger<TerminalSelfContained> _log = logger;
     private readonly ProfileHelper _profiles = profileHelper;
@@ -99,17 +105,44 @@ public class TerminalSelfContained(
 
             var pmc = self._profiles.GetFullProfile(sessionId)?.CharacterData?.PmcData;
             if (pmc?.Inventory is null) return;
+            var snapshotInventory = self._cloner.Clone(pmc.Inventory)!;
+            RemoveTemplateAndChildren(snapshotInventory, TerminalEntryNoteTpl);
             _snapshots[key] = new Snapshot
             {
-                Inventory = self._cloner.Clone(pmc.Inventory)!,
+                Inventory = snapshotInventory,
                 Insured = self._cloner.Clone(pmc.InsuredItems),
             };
-            self._log.Info($"[Terminal] gear snapshot taken ({pmc.Inventory.Items?.Count ?? 0} inventory item(s)) — this raid never happened");
+            self._log.Info($"[Terminal] gear snapshot taken ({pmc.Inventory.Items?.Count ?? 0} inventory item(s)); entry note excluded — this raid never happened");
         }
         catch (Exception e)
         {
             _instance?._log.Warning($"[Terminal] gear snapshot failed: {e.Message}");
         }
+    }
+
+    private static void RemoveTemplateAndChildren(BotBaseInventory inventory, string templateId)
+    {
+        if (inventory.Items is null) return;
+
+        var removedIds = inventory.Items
+            .Where(item => string.Equals(item.Template, templateId, StringComparison.OrdinalIgnoreCase))
+            .Select(item => item.Id)
+            .ToHashSet();
+
+        // Keep the inventory structurally valid if the access item ever gains
+        // attachments/contents in a later retail data update.
+        while (true)
+        {
+            var childIds = inventory.Items
+                .Where(item => item.ParentId is not null && removedIds.Contains(item.ParentId))
+                .Select(item => item.Id)
+                .Where(id => !removedIds.Contains(id))
+                .ToList();
+            if (childIds.Count == 0) break;
+            foreach (var childId in childIds) removedIds.Add(childId);
+        }
+
+        inventory.Items.RemoveAll(item => removedIds.Contains(item.Id));
     }
 
     public static bool InsurancePrefix(string locationName)

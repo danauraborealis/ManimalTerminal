@@ -15,19 +15,39 @@ namespace Manimal.Terminal
         // set by Patch_CaptureLocationId below at raid creation, before GameWorld
         internal static string PendingLocationId;
 
+        // TerminalGate.On sits in hot Harmony/BigBrain paths. Resolve the singleton
+        // at most once per Unity frame; every later query is a plain cached bool.
+        private static int _cachedFrame = -1;
+        private static bool _cachedOn;
+
         internal static bool On
         {
             get
             {
+                int frame;
+                try { frame = UnityEngine.Time.frameCount; }
+                catch { frame = -1; }
+                if (frame >= 0 && frame == _cachedFrame) return _cachedOn;
+
+                bool on = false;
                 try
                 {
                     var w = Singleton<GameWorld>.Instance;
                     if (w != null && !string.IsNullOrEmpty(w.LocationId))
-                        return string.Equals(w.LocationId, LocationId, StringComparison.OrdinalIgnoreCase);
+                        on = string.Equals(w.LocationId, LocationId, StringComparison.OrdinalIgnoreCase);
+                    else
+                        on = !string.IsNullOrEmpty(PendingLocationId)
+                            && string.Equals(PendingLocationId, LocationId, StringComparison.OrdinalIgnoreCase);
                 }
-                catch { }
-                return !string.IsNullOrEmpty(PendingLocationId)
-                    && string.Equals(PendingLocationId, LocationId, StringComparison.OrdinalIgnoreCase);
+                catch
+                {
+                    on = !string.IsNullOrEmpty(PendingLocationId)
+                        && string.Equals(PendingLocationId, LocationId, StringComparison.OrdinalIgnoreCase);
+                }
+
+                _cachedFrame = frame;
+                _cachedOn = on;
+                return on;
             }
         }
 
@@ -40,14 +60,26 @@ namespace Manimal.Terminal
             {
                 bool previousWasTerminal = string.Equals(PendingLocationId, LocationId, StringComparison.OrdinalIgnoreCase);
                 PendingLocationId = location?.Id;
+                _cachedFrame = -1;
+                bool enteringTerminal = string.Equals(PendingLocationId, LocationId, StringComparison.OrdinalIgnoreCase);
+
+                if (!enteringTerminal)
+                {
+                    // Diagnostics alter global Unity callbacks/player-loop state.
+                    // Tear them down before a vanilla map begins construction.
+                    TerminalRenderProfiler.Disable();
+                    TerminalFramePhase.Disable();
+                    TerminalLoopProbe.Restore();
+                }
                 // All BepInEx plugins are loaded by raid creation. This second chance
                 // arms the optional AI Limit hook even when it loaded after us.
-                if (string.Equals(PendingLocationId, LocationId, StringComparison.OrdinalIgnoreCase))
+                if (enteringTerminal)
                 {
                     TerminalAILimitFirewall.TryInstall();
                     TerminalSainCompat.TryInstall();
+                    TerminalCrewJobs.Register();
                 }
-                if (previousWasTerminal || string.Equals(PendingLocationId, LocationId, StringComparison.OrdinalIgnoreCase))
+                if (previousWasTerminal || enteringTerminal)
                     TerminalExternalBotCleanup.ResetForRaid();
                 TerminalIntroCutscene.ResetForNewRaid();
                 TerminalAttackCutscene.ResetForNewRaid();

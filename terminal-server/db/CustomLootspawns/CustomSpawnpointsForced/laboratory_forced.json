@@ -1,0 +1,134 @@
+{
+  "laboratory": [
+    {
+      "locationId": "(-261.8431 4.95210028 -328.7608)",
+      "probability": 1.0,
+      "template": {
+        "Id": "ticket_tg_finance_evidence",
+        "IsContainer": false,
+        "useGravity": false,
+        "randomRotation": false,
+        "Position": { "x": -261.8431, "y": 4.95210028, "z": -328.7608 },
+        "Rotation": { "x": 0.0, "y": 94.61735, "z": 0.0 },
+        "IsGroupPosition": true,
+        "GroupPositions": [
+          { "Name": "groupPoint[0]", "Position": { "x": -261.8431, "y": 4.95210028, "z": -328.7608 }, "Rotation": { "x": 0.0, "y": 94.61735, "z": 0.0 }, "Weight": 1 },
+          { "Name": "groupPoint[1]", "Position": { "x": -161.341, "y": 4.7957, "z": -349.151 }, "Rotation": { "x": 0.0, "y": 90.8433456, "z": 0.0 }, "Weight": 1 },
+          { "Name": "groupPoint[2]", "Position": { "x": -126.169, "y": 5.010415, "z": -287.311523 }, "Rotation": { "x": 0.0, "y": 0.0, "z": 0.0 }, "Weight": 1 }
+        ],
+        "IsAlwaysSpawn": true,
+        "Root": "6a8f4d5e90206485fa1d2c01",
+        "Items": [
+          { "_id": "6a8f4d5e90206485fa1d2c01", "_tpl": "67c034f0e7a5da1e070f6de8", "upd": { "StackObjectsCount": 1 } }
+        ]
+      },
+      "itemDistribution": [
+        { "composedKey": { "key": "67c034f0e7a5da1e070f6de8" }, "relativeProbability": 1 }
+      ]
+    },
+    {
+      "locationId": "(-118.666 0.87 -445.149)",
+      "probability": 1.0,
+      "template": {
+        "Id": "ticket_tgl_development_evidence",
+        "IsContainer": false,
+        "useGravity": false,
+        "randomRotation": false,
+        "Position": { "x": -118.666, "y": 0.87, "z": -445.149 },
+        "Rotation": { "x": 0.0, "y": 0.0, "z": 0.0 },
+        "IsGroupPosition": true,
+        "GroupPositions": [
+          { "Name": "groupPoint[0]", "Position": { "x": -118.666, "y": 0.87, "z": -445.149 }, "Rotation": { "x": 0.0, "y": 0.0, "z": 0.0 }, "Weight": 1 },
+          { "Name": "groupPoint[1]", "Position": { "x": -172.375244, "y": 4.1369, "z": -342.415 }, "Rotation": { "x": 0.0, "y": 0.0, "z": 0.0 }, "Weight": 1 },
+          { "Name": "groupPoint[2]", "Position": { "x": -207.58, "y": 1.7456, "z": -304.7809 }, "Rotation": { "x": 0.0, "y": 0.0, "z": 0.0 }, "Weight": 1 }
+        ],
+        "IsAlwaysSpawn": true,
+        "Root": "6a8f4d5e90206485fa1d2c02",
+        "Items": [
+          { "_id": "6a8f4d5e90206485fa1d2c02", "_tpl": "67c035140610e91bea05699a", "upd": { "StackObjectsCount": 1 } }
+        ]
+      },
+      "itemDistribution": [
+        { "composedKey": { "key": "67c035140610e91bea05699a" }, "relativeProbability": 1 }
+      ]
+    },
+    {
+      "locationId": "(-185.833 1.0212 -367.414)",
+      "probability": 1.0,
+      "template": {
+        "Id": "ticket_tg_staff_evidence",
+        "IsContainer": false,
+        "useGravity": false,
+        "randomRotation": false,
+        "Position": { "x": -185.833, "y": 1.0212, "z": -367.414 },
+        "Rotation": { "x": 0.0, "y": 0.0, "z": 0.0 },
+        "IsGroupPosition": true,
+        "GroupPositions": [
+          { "Name": "groupPoint[0]", "Position": { "x": -185.833, "y": 1.0212, "z": -367.414 }, "Rotation": { "x": 0.0, "y": 0.0, "z": 0.0 }, "Weight": 1 },
+          { "Name": "groupPoint[1]", "Position": { "x": -242.37439, "y": 5.0081, "z": -379.682 }, "Rotation": { "x": 0.0, "y": 271.937622, "z": 0.0 }, "Weight": 1 },
+          { "Name": "groupPoint[2]", "Position": { "x": -252.278717, "y": 4.63, "z": -363.519 }, "Rotation": { "x": 0.0, "y": 86.2497253, "z": 0.0 }, "Weight": 1 }
+        ],
+        "IsAlwaysSpawn": true,
+        "Root": "6a8f4d5e90206485fa1d2c03",
+        "Items": [
+          { "_id": "6a8f4d5e90206485fa1d2c03", "_tpl": "67c0351e354fca26a0008038", "upd": { "StackObjectsCount": 1 } }
+        ]
+      },
+      "itemDistribution": [
+        { "composedKey": { "key": "67c0351e354fca26a0008038" }, "relativeProbability": 1 }
+      ]
+    },
+    {
+      "locationId": "(-148.9506 4.935 -406.759)",
+      "probability": 1.0,
+      "template": {
+        "Id": "ticket_tgl_reports_evidence",
+        "IsContainer": false,
+        "useGravity": false,
+        "randomRotation": false,
+        "Position": { "x": -148.9506, "y": 4.935, "z": -406.759 },
+        "Rotation": { "x": 0.0, "y": 101.7657, "z": 0.0 },
+        "IsGroupPosition": true,
+        "GroupPositions": [
+          { "Name": "groupPoint[0]", "Position": { "x": -148.9506, "y": 4.935, "z": -406.759 }, "Rotation": { "x": 0.0, "y": 101.7657, "z": 0.0 }, "Weight": 1 },
+          { "Name": "groupPoint[1]", "Position": { "x": -139.9459, "y": 5.067, "z": -392.672 }, "Rotation": { "x": 28.7610531, "y": 0.0, "z": 0.0 }, "Weight": 1 },
+          { "Name": "groupPoint[2]", "Position": { "x": -252.077, "y": 4.95, "z": -321.661 }, "Rotation": { "x": 0.0, "y": 0.0, "z": 0.0 }, "Weight": 1 }
+        ],
+        "IsAlwaysSpawn": true,
+        "Root": "6a8f4d5e90206485fa1d2c04",
+        "Items": [
+          { "_id": "6a8f4d5e90206485fa1d2c04", "_tpl": "67c0352dd98287be7b0923d6", "upd": { "StackObjectsCount": 1 } }
+        ]
+      },
+      "itemDistribution": [
+        { "composedKey": { "key": "67c0352dd98287be7b0923d6" }, "relativeProbability": 1 }
+      ]
+    },
+    {
+      "locationId": "(-231.465 4.8372 -340.676)",
+      "probability": 1.0,
+      "template": {
+        "Id": "ticket_experimental_signal_jammer",
+        "IsContainer": false,
+        "useGravity": false,
+        "randomRotation": false,
+        "Position": { "x": -231.465, "y": 4.8372, "z": -340.676 },
+        "Rotation": { "x": 0.0, "y": 0.0, "z": 0.0 },
+        "IsGroupPosition": true,
+        "GroupPositions": [
+          { "Name": "groupPoint[0]", "Position": { "x": -231.465, "y": 4.8372, "z": -340.676 }, "Rotation": { "x": 0.0, "y": 0.0, "z": 0.0 }, "Weight": 1 },
+          { "Name": "groupPoint[1]", "Position": { "x": -213.429123, "y": 1.141, "z": -305.785156 }, "Rotation": { "x": 90.0, "y": 22.6429176, "z": 0.0 }, "Weight": 1 },
+          { "Name": "groupPoint[2]", "Position": { "x": -101.158, "y": 0.942, "z": -430.9481 }, "Rotation": { "x": 0.0, "y": 0.0, "z": 0.0 }, "Weight": 1 }
+        ],
+        "IsAlwaysSpawn": true,
+        "Root": "6a8f4d5e90206485fa1d2c05",
+        "Items": [
+          { "_id": "6a8f4d5e90206485fa1d2c05", "_tpl": "67bdea3ecf0cc29475092196", "upd": { "StackObjectsCount": 1, "SpawnedInSession": true } }
+        ]
+      },
+      "itemDistribution": [
+        { "composedKey": { "key": "67bdea3ecf0cc29475092196" }, "relativeProbability": 1 }
+      ]
+    }
+  ]
+}

@@ -135,6 +135,12 @@ namespace Manimal.Terminal
 
         private void Update()
         {
+            // HARD OFF-MAP FIREWALL. This component exists for the lifetime of the
+            // client, but none of Terminal's staging or diagnostic clocks belong in
+            // vanilla-map frames. In particular, Streets magnifies even tiny global
+            // hooks because it has an enormous object/lamp population.
+            if (!TerminalGate.On) return;
+
             TerminalPerfWatch.OursBegin();
             long t0;
             t0 = System.Diagnostics.Stopwatch.GetTimestamp(); TerminalGatesExplosion.TryStage(); TerminalTickProfiler.Add("GatesExpl", System.Diagnostics.Stopwatch.GetTimestamp() - t0);
@@ -422,7 +428,10 @@ namespace Manimal.Terminal
                 new ConfigDescription("retail VSRFDefence port: when ruaf lose sight of their enemy mid-fight they collapse onto cover near their boss (30m tether) and take heal breaks, instead of scattering or blind-pursuing. visible-enemy combat is untouched"));
             EventWavesPush = Config.Bind("Terminal", "EventWavesPush", true,
                 new ConfigDescription("tier-event waves storm the players (bigbrain hunt layer) instead of passively patrolling their zone"));
-            TerminalCrewJobs.Register();
+            // Terminal's BigBrain layers are registered lazily from TerminalGate
+            // when a Terminal raid is actually selected. Registering them here made
+            // every Assault/PMC bot on vanilla maps construct and query three inert
+            // Terminal layers even when the player never loaded Terminal.
             UnityEngine.SceneManagement.SceneManager.sceneLoaded += TerminalAcoustics.OnSceneLoaded;
             RetailAIBake = Config.Bind("Terminal", "RetailAIBake", true,
                 new ConfigDescription("fill the AI holders with the retail bake (covers/voxels/patrols/mines) at raid start — off = empty holders, bots stand around"));

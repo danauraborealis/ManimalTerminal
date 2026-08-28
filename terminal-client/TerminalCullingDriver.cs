@@ -63,6 +63,13 @@ namespace Manimal.Terminal
             [HarmonyPostfix]
             private static void Postfix(Camera camera)
             {
+                if (!TerminalGate.On)
+                {
+                    CameraRef = null;
+                    TerminalRenderProfiler.Disable();
+                    TerminalFramePhase.Disable();
+                    return;
+                }
                 if (Instance == null)
                 {
                     var go = new GameObject("Manimal_TerminalCullingDriver");

@@ -1,0 +1,32 @@
+{
+  "PRAPOR": {
+    "items": [
+      {
+        "_id": "6a8f4d5e90206485fa1d2ec9",
+        "_tpl": "68f213f8ea61d1803707cf7a",
+        "parentId": "hideout",
+        "slotId": "hideout",
+        "location": null,
+        "upd": {
+          "UnlimitedCount": false,
+          "StackObjectsCount": 2,
+          "BuyRestrictionMax": 2,
+          "BuyRestrictionCurrent": 0
+        }
+      }
+    ],
+    "barter_scheme": {
+      "6a8f4d5e90206485fa1d2ec9": [
+        [
+          {
+            "count": 5000000,
+            "_tpl": "5449016a4bdc2d6f028b456f"
+          }
+        ]
+      ]
+    },
+    "loyal_level_items": {
+      "6a8f4d5e90206485fa1d2ec9": 1
+    }
+  }
+}
