@@ -42,6 +42,19 @@ namespace Manimal.Terminal
         // set once by Restore(), bail paths included.
         internal static float FinishedAt = -1f;
 
+        internal static void PlayCoop(bool skip)
+        {
+            if (_playedThisRaid) return;
+            _playedThisRaid = true;
+            if (skip || !TerminalCoop.LocalHuman || !Plugin.IntroCutscene.Value || !Available)
+            {
+                FinishedAt = Time.realtimeSinceStartup;
+                if (TerminalCoop.LocalHuman) TerminalCoop.Request(TerminalEvent.IntroDone);
+                return;
+            }
+            new GameObject("Terminal_IntroCutscene").AddComponent<TerminalIntroCutscene>();
+        }
+
         internal static void ResetForNewRaid()
         {
             _playedThisRaid = false;
@@ -65,6 +78,7 @@ namespace Manimal.Terminal
             [HarmonyPostfix]
             private static void Postfix()
             {
+                if (TerminalCoop.Active) return; // addon starts every peer from one raid event
                 if (!TerminalGate.On || _playedThisRaid) return;
                 if (!Plugin.IntroCutscene.Value)
                 {
@@ -201,10 +215,10 @@ namespace Manimal.Terminal
             try { TerminalVolumetricLights.Restore(); }
             catch (Exception e) { Plugin.Log.LogWarning($"[IntroCutscene] volumetric pass failed: {e.Message}"); }
 
-            // hold the native culler + force lights on for the duration: wide shots
-            // cull from the PLAYER's stale position otherwise (dark map, wedged
-            // lights — the dark-stern bug). Restore() releases and it re-culls.
-            try { TerminalLights.CutsceneShowAll(); }
+            // Track a bounded light bubble around the animated camera. The native
+            // culler otherwise follows the player's body, but enabling every map
+            // light at once makes the cutscene GPU-bound.
+            try { TerminalLights.CutsceneBeginLightTracking(); }
             catch (Exception e) { Plugin.Log.LogWarning($"[IntroCutscene] culler hold failed: {e.Message}"); }
 
             // director sits at the scene root ("TimeLineDirector") — search all roots,
@@ -229,7 +243,7 @@ namespace Manimal.Terminal
             var lst = _rigCam.GetComponent<AudioListener>();
             if (lst != null) lst.enabled = false;
 
-            _realCam = CameraClass.Instance?.Camera;
+            _realCam = EFT.CameraControl.CameraManager.Instance?.Camera;
             if (_realCam == null) _realCam = Camera.main;
             if (_realCam == null) { Bail("no main camera"); yield break; }
 
@@ -382,6 +396,8 @@ namespace Manimal.Terminal
             _director.timeUpdateMode = DirectorUpdateMode.DSPClock;
             TerminalAcoustics.SetAmbientSilenced(true); // the timeline owns these seconds
             _director.Play();
+            if (TerminalCoop.Active && TerminalCoop.IntroStarted >= 0)
+                _director.time = Math.Min(_director.duration - 0.05, Math.Max(0, TerminalCoop.Now - TerminalCoop.IntroStarted));
             TerminalSubtitles.Show("intro_nocase", _director);
             Plugin.Log.LogInfo($"[IntroCutscene] playing '{_director.playableAsset.name}' " +
                                $"({_director.duration:0.0}s, unskippable)");
@@ -451,6 +467,7 @@ namespace Manimal.Terminal
             if (cam != _realCam || _rigCam == null) return;
             var t = _rigCam.transform;
             cam.transform.SetPositionAndRotation(t.position, t.rotation);
+			TerminalLights.TrackCutsceneCamera(t.position);
 
             // RATE CLAMP REVERTED 2026-08-11 (user: "the fov thing got made worse, i saw
             // the zoom MORE frequently"). smoothing turned a one-frame flicker into a
@@ -487,6 +504,7 @@ namespace Manimal.Terminal
             _restored = true;
             TerminalSubtitles.Hide();
             if (FinishedAt < 0f) FinishedAt = Time.realtimeSinceStartup;
+            if (TerminalCoop.Active) TerminalCoop.Request(TerminalEvent.IntroDone);
             if (_driving) { Camera.onPreCull -= DriveCamera; _driving = false; }
             _lastFov = -1f;
             try { TerminalAcoustics.SetAmbientSilenced(false); } catch { }

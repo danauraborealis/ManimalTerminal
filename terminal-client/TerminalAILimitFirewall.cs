@@ -81,7 +81,7 @@ namespace Manimal.Terminal
 
                 var spawner = Singleton<IBotGame>.Instantiated
                     ? Singleton<IBotGame>.Instance.BotsController?.BotSpawner : null;
-                var bots = spawner?.Bots?.BotOwners;
+                var bots = spawner?._bots?.BotOwners;
                 if (bots != null)
                 {
                     foreach (var bot in bots)
@@ -96,7 +96,7 @@ namespace Manimal.Terminal
                             if (standBy != null)
                             {
                                 standBy.Activate();
-                                standBy.NextCheckTime = Time.time + 10f;
+                                standBy._nextCheckTime = Time.time + 10f;
                             }
                             if (!player.gameObject.activeSelf) player.gameObject.SetActive(true);
                             bot.BotState = EBotState.Active;

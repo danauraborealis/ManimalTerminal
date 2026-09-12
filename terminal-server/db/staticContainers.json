@@ -31,7 +31,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.63,
    "template": {
     "Id": "Lootable_00001",
     "IsContainer": true,
@@ -60,7 +60,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.79,
    "template": {
     "Id": "Lootable_00002",
     "IsContainer": true,
@@ -118,7 +118,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.76,
    "template": {
     "Id": "Lootable_00000",
     "IsContainer": true,
@@ -466,7 +466,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.7,
    "template": {
     "Id": "container_Terminal_Anton_Petrov_TEMP_00001",
     "IsContainer": true,
@@ -611,7 +611,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.68,
    "template": {
     "Id": "container_Terminal_Design_Stuff_00119",
     "IsContainer": true,
@@ -698,7 +698,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.67,
    "template": {
     "Id": "Lootable_00072",
     "IsContainer": true,
@@ -785,7 +785,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.75,
    "template": {
     "Id": "container_Terminal_Design_Stuff_00030",
     "IsContainer": true,
@@ -814,7 +814,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.75,
    "template": {
     "Id": "container_Terminal_Natalia_Volkova_TEMP_00007",
     "IsContainer": true,
@@ -843,7 +843,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.8,
    "template": {
     "Id": "container_Terminal_Design_Stuff_00117",
     "IsContainer": true,
@@ -872,7 +872,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.79,
    "template": {
     "Id": "container_Terminal_Design_Stuff_00041",
     "IsContainer": true,
@@ -901,7 +901,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.73,
    "template": {
     "Id": "container_Terminal_Natalia_Volkova_TEMP_00002",
     "IsContainer": true,
@@ -930,7 +930,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.73,
    "template": {
     "Id": "container_Test_for_export_00000",
     "IsContainer": true,
@@ -959,7 +959,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.76,
    "template": {
     "Id": "container_Terminal_Design_Stuff_00076",
     "IsContainer": true,
@@ -988,7 +988,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.79,
    "template": {
     "Id": "container_Terminal_Design_Stuff_00096",
     "IsContainer": true,
@@ -1017,7 +1017,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.7,
    "template": {
     "Id": "container_Terminal_Natalia_Volkova_TEMP_00003",
     "IsContainer": true,
@@ -1046,7 +1046,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.73,
    "template": {
     "Id": "container_Terminal_Design_Stuff_00102",
     "IsContainer": true,
@@ -1075,7 +1075,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.72,
    "template": {
     "Id": "container_Terminal_Design_Stuff_00075",
     "IsContainer": true,
@@ -1104,7 +1104,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.72,
    "template": {
     "Id": "container_Terminal_Design_Stuff_00060",
     "IsContainer": true,
@@ -1133,7 +1133,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.73,
    "template": {
     "Id": "container_Terminal_Design_Stuff_00125",
     "IsContainer": true,
@@ -1220,7 +1220,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.7,
    "template": {
     "Id": "container_Terminal_Design_Stuff_00114",
     "IsContainer": true,
@@ -1249,7 +1249,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.77,
    "template": {
     "Id": "container_Terminal_Natalia_Volkova_TEMP_00008",
     "IsContainer": true,
@@ -1278,7 +1278,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.73,
    "template": {
     "Id": "container_Terminal_Design_Stuff_00113",
     "IsContainer": true,
@@ -1336,7 +1336,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.74,
    "template": {
     "Id": "container_Terminal_Area_05_Administration_Indoor_00001",
     "IsContainer": true,
@@ -1446,7 +1446,7 @@
     "Items": [
      {
       "_id": "c9dbc9583e4fb21eb97fe593",
-      "_tpl": "6582e6d7b14c3f72eb071420"
+      "_tpl": "6851450d30cad62593003fa8"
      }
     ]
    }
@@ -1475,7 +1475,7 @@
     "Items": [
      {
       "_id": "13a81cd30639d341df68c9f1",
-      "_tpl": "6582e6d7b14c3f72eb071420"
+      "_tpl": "6851450d30cad62593003fa8"
      }
     ]
    }
@@ -1504,7 +1504,7 @@
     "Items": [
      {
       "_id": "5390d06445faca0c573e3e24",
-      "_tpl": "6582e6d7b14c3f72eb071420"
+      "_tpl": "6851450d30cad62593003fa8"
      }
     ]
    }
@@ -1533,7 +1533,7 @@
     "Items": [
      {
       "_id": "83baf23f2431ddb8ead2eecc",
-      "_tpl": "6582e6d7b14c3f72eb071420"
+      "_tpl": "6851450d30cad62593003fa8"
      }
     ]
    }
@@ -1562,7 +1562,7 @@
     "Items": [
      {
       "_id": "e9b63d9c033cf7b5c0c8d258",
-      "_tpl": "6582e6d7b14c3f72eb071420"
+      "_tpl": "6851450d30cad62593003fa8"
      }
     ]
    }
@@ -1591,7 +1591,7 @@
     "Items": [
      {
       "_id": "0366bf732c9395373b743f65",
-      "_tpl": "6582e6d7b14c3f72eb071420"
+      "_tpl": "6851450d30cad62593003fa8"
      }
     ]
    }
@@ -1620,7 +1620,7 @@
     "Items": [
      {
       "_id": "c05ad150fe4e8cbd2981e5d1",
-      "_tpl": "6582e6d7b14c3f72eb071420"
+      "_tpl": "6851450d30cad62593003fa8"
      }
     ]
    }
@@ -1649,7 +1649,7 @@
     "Items": [
      {
       "_id": "df632cab1bc592795227afc6",
-      "_tpl": "6582e6d7b14c3f72eb071420"
+      "_tpl": "6851450d30cad62593003fa8"
      }
     ]
    }
@@ -1678,7 +1678,7 @@
     "Items": [
      {
       "_id": "2b4703544bcb892947a4816d",
-      "_tpl": "6582e6d7b14c3f72eb071420"
+      "_tpl": "6851450d30cad62593003fa8"
      }
     ]
    }
@@ -1707,7 +1707,7 @@
     "Items": [
      {
       "_id": "d091b1c7541d62010c1024d1",
-      "_tpl": "6582e6d7b14c3f72eb071420"
+      "_tpl": "6851450d30cad62593003fa8"
      }
     ]
    }
@@ -1736,7 +1736,7 @@
     "Items": [
      {
       "_id": "38df2566758a02f3cfeafe1f",
-      "_tpl": "6582e6d7b14c3f72eb071420"
+      "_tpl": "6851450d30cad62593003fa8"
      }
     ]
    }
@@ -1765,7 +1765,7 @@
     "Items": [
      {
       "_id": "b000ab4cb84b1ffcb0829ad5",
-      "_tpl": "6582e6d7b14c3f72eb071420"
+      "_tpl": "6851450d30cad62593003fa8"
      }
     ]
    }
@@ -1794,7 +1794,7 @@
     "Items": [
      {
       "_id": "ae3f323afc161593f49045cd",
-      "_tpl": "6582e6d7b14c3f72eb071420"
+      "_tpl": "6851450d30cad62593003fa8"
      }
     ]
    }
@@ -1823,7 +1823,7 @@
     "Items": [
      {
       "_id": "3ba3e5d4f44880f12427c87a",
-      "_tpl": "6582e6d7b14c3f72eb071420"
+      "_tpl": "6851450d30cad62593003fa8"
      }
     ]
    }
@@ -1852,7 +1852,7 @@
     "Items": [
      {
       "_id": "f18caf81c6158fe690c11c99",
-      "_tpl": "6582e6d7b14c3f72eb071420"
+      "_tpl": "6851450d30cad62593003fa8"
      }
     ]
    }
@@ -1881,7 +1881,7 @@
     "Items": [
      {
       "_id": "3082c239d806ce242231b8cf",
-      "_tpl": "6582e6d7b14c3f72eb071420"
+      "_tpl": "6851450d30cad62593003fa8"
      }
     ]
    }
@@ -1910,7 +1910,7 @@
     "Items": [
      {
       "_id": "7076fabeb495eff487295da0",
-      "_tpl": "6582e6d7b14c3f72eb071420"
+      "_tpl": "6851450d30cad62593003fa8"
      }
     ]
    }
@@ -1939,13 +1939,13 @@
     "Items": [
      {
       "_id": "3b8679bcabfc285226ef05d1",
-      "_tpl": "6582e6d7b14c3f72eb071420"
+      "_tpl": "6851450d30cad62593003fa8"
      }
     ]
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.69,
    "template": {
     "Id": "container_ProfileEditor_00003",
     "IsContainer": true,
@@ -2032,7 +2032,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.8,
    "template": {
     "Id": "container_Terminal_Design_Stuff_00027",
     "IsContainer": true,
@@ -2119,7 +2119,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.68,
    "template": {
     "Id": "container_Terminal_Design_Stuff_00052",
     "IsContainer": true,
@@ -2148,7 +2148,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.79,
    "template": {
     "Id": "container_Terminal_Design_Stuff_00024",
     "IsContainer": true,
@@ -2177,7 +2177,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.82,
    "template": {
     "Id": "container_Terminal_Design_Stuff_00038",
     "IsContainer": true,
@@ -2258,7 +2258,7 @@
     "Items": [
      {
       "_id": "931b7ed47ebecf28185ab5f8",
-      "_tpl": "6582e6d7b14c3f72eb071420"
+      "_tpl": "6851450d30cad62593003fa8"
      }
     ]
    }
@@ -2287,7 +2287,7 @@
     "Items": [
      {
       "_id": "fe41f20af7e05a4700eeefad",
-      "_tpl": "6582e6d7b14c3f72eb071420"
+      "_tpl": "6851450d30cad62593003fa8"
      }
     ]
    }
@@ -2316,7 +2316,7 @@
     "Items": [
      {
       "_id": "ed8af4b1c18282d53bd88689",
-      "_tpl": "6582e6d7b14c3f72eb071420"
+      "_tpl": "6851450d30cad62593003fa8"
      }
     ]
    }
@@ -2345,7 +2345,7 @@
     "Items": [
      {
       "_id": "f940c4410e2c4063a559fae7",
-      "_tpl": "6582e6d7b14c3f72eb071420"
+      "_tpl": "6851450d30cad62593003fa8"
      }
     ]
    }
@@ -2374,7 +2374,7 @@
     "Items": [
      {
       "_id": "31bf75f3a52be58a3aaf6b05",
-      "_tpl": "6582e6d7b14c3f72eb071420"
+      "_tpl": "6851450d30cad62593003fa8"
      }
     ]
    }
@@ -2403,7 +2403,7 @@
     "Items": [
      {
       "_id": "1b23c0594bbe147bd145ea91",
-      "_tpl": "6582e6d7b14c3f72eb071420"
+      "_tpl": "6851450d30cad62593003fa8"
      }
     ]
    }
@@ -2432,7 +2432,7 @@
     "Items": [
      {
       "_id": "0c01eb0ab79d3ff7a4c4198c",
-      "_tpl": "6582e6d7b14c3f72eb071420"
+      "_tpl": "6851450d30cad62593003fa8"
      }
     ]
    }
@@ -2461,7 +2461,7 @@
     "Items": [
      {
       "_id": "51bc77d9ea437311550202b6",
-      "_tpl": "6582e6d7b14c3f72eb071420"
+      "_tpl": "6851450d30cad62593003fa8"
      }
     ]
    }
@@ -2490,7 +2490,7 @@
     "Items": [
      {
       "_id": "b0298a0df225b143f12edc93",
-      "_tpl": "6582e6d7b14c3f72eb071420"
+      "_tpl": "6851450d30cad62593003fa8"
      }
     ]
    }
@@ -2583,7 +2583,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.77,
    "template": {
     "Id": "container_Terminal_Natalia_Volkova_TEMP_00001",
     "IsContainer": true,
@@ -2612,7 +2612,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.81,
    "template": {
     "Id": "container_Terminal_Design_Stuff_00107",
     "IsContainer": true,
@@ -2641,7 +2641,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.79,
    "template": {
     "Id": "container_Terminal_Design_Stuff_00039",
     "IsContainer": true,
@@ -2670,7 +2670,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.71,
    "template": {
     "Id": "container_Terminal_Design_Stuff_00093",
     "IsContainer": true,
@@ -2699,7 +2699,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.73,
    "template": {
     "Id": "container_Terminal_Design_Stuff_00118",
     "IsContainer": true,
@@ -2728,7 +2728,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.71,
    "template": {
     "Id": "container_Terminal_Design_Stuff_00128",
     "IsContainer": true,
@@ -2757,7 +2757,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.78,
    "template": {
     "Id": "container_Terminal_Design_Stuff_00097",
     "IsContainer": true,
@@ -2786,7 +2786,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.79,
    "template": {
     "Id": "container_Terminal_Design_Stuff_00115",
     "IsContainer": true,
@@ -2815,7 +2815,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.75,
    "template": {
     "Id": "container_Terminal_Design_Stuff_00127",
     "IsContainer": true,
@@ -2844,7 +2844,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.77,
    "template": {
     "Id": "container_Terminal_Design_Stuff_00092",
     "IsContainer": true,
@@ -2873,7 +2873,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.83,
    "template": {
     "Id": "container_Terminal_Design_Stuff_00025",
     "IsContainer": true,
@@ -2902,7 +2902,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.73,
    "template": {
     "Id": "container_Terminal_Igor_Kulakov_TEMP_00003",
     "IsContainer": true,
@@ -2931,7 +2931,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.77,
    "template": {
     "Id": "container_Terminal_Design_Stuff_00095",
     "IsContainer": true,
@@ -2960,7 +2960,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.74,
    "template": {
     "Id": "container_Terminal_Design_Stuff_00120",
     "IsContainer": true,
@@ -2989,7 +2989,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.87,
    "template": {
     "Id": "container_Terminal_Igor_Kulakov_TEMP_00004",
     "IsContainer": true,
@@ -3018,7 +3018,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.64,
    "template": {
     "Id": "container_Terminal_Design_Stuff_00132",
     "IsContainer": true,
@@ -3244,7 +3244,7 @@
     "Items": [
      {
       "_id": "3f4a6b2eb6307995ce17e983",
-      "_tpl": "578f8782245977354405a1e3"
+      "_tpl": "691226272a5ee538f10d2f11"
      }
     ]
    }
@@ -3273,7 +3273,7 @@
     "Items": [
      {
       "_id": "4f83e3faf1cbf03f81cf03af",
-      "_tpl": "6582e6d7b14c3f72eb071420"
+      "_tpl": "6851450d30cad62593003fa8"
      }
     ]
    }
@@ -3302,7 +3302,7 @@
     "Items": [
      {
       "_id": "f7673f093ac0af1db0830fb1",
-      "_tpl": "6582e6d7b14c3f72eb071420"
+      "_tpl": "69122598e5b8725fb10f6a93"
      }
     ]
    }
@@ -3331,7 +3331,7 @@
     "Items": [
      {
       "_id": "ba629220d77a027240d402b9",
-      "_tpl": "6582e6d7b14c3f72eb071420"
+      "_tpl": "6851450d30cad62593003fa8"
      }
     ]
    }
@@ -3360,7 +3360,7 @@
     "Items": [
      {
       "_id": "cb022d5c5cd741f09d03698d",
-      "_tpl": "6582e6d7b14c3f72eb071420"
+      "_tpl": "6851450d30cad62593003fa8"
      }
     ]
    }
@@ -3389,7 +3389,7 @@
     "Items": [
      {
       "_id": "2ef79b4192ce25bba24ddb4b",
-      "_tpl": "6582e6d7b14c3f72eb071420"
+      "_tpl": "6851450d30cad62593003fa8"
      }
     ]
    }
@@ -3418,7 +3418,7 @@
     "Items": [
      {
       "_id": "5dd8aae55c5edefb5fc9c6e6",
-      "_tpl": "6582e6d7b14c3f72eb071420"
+      "_tpl": "6851450d30cad62593003fa8"
      }
     ]
    }
@@ -3447,7 +3447,7 @@
     "Items": [
      {
       "_id": "f840de9eae9e46997184e100",
-      "_tpl": "6582e6d7b14c3f72eb071420"
+      "_tpl": "6851450d30cad62593003fa8"
      }
     ]
    }
@@ -3476,7 +3476,7 @@
     "Items": [
      {
       "_id": "2ac4fc9454309857ab4eecc2",
-      "_tpl": "6582e6d7b14c3f72eb071420"
+      "_tpl": "6851450d30cad62593003fa8"
      }
     ]
    }
@@ -3975,7 +3975,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.79,
    "template": {
     "Id": "container_Terminal_Design_Stuff_00104",
     "IsContainer": true,
@@ -4004,7 +4004,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.73,
    "template": {
     "Id": "container_Terminal_Design_Stuff_00126",
     "IsContainer": true,
@@ -4033,7 +4033,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.79,
    "template": {
     "Id": "container_Terminal_Design_Stuff_00054",
     "IsContainer": true,
@@ -4062,7 +4062,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.69,
    "template": {
     "Id": "container_Terminal_Natalia_Volkova_TEMP_00006",
     "IsContainer": true,
@@ -4091,7 +4091,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.76,
    "template": {
     "Id": "container_Terminal_Design_Stuff_00034",
     "IsContainer": true,
@@ -4120,7 +4120,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.76,
    "template": {
     "Id": "container_Terminal_Design_Stuff_00040",
     "IsContainer": true,
@@ -4149,7 +4149,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.77,
    "template": {
     "Id": "container_Terminal_Design_Stuff_00084",
     "IsContainer": true,
@@ -4178,7 +4178,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.72,
    "template": {
     "Id": "container_Terminal_Design_Stuff_00057",
     "IsContainer": true,
@@ -4207,7 +4207,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.8,
    "template": {
     "Id": "container_Terminal_Design_Stuff_00085",
     "IsContainer": true,
@@ -4323,7 +4323,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.71,
    "template": {
     "Id": "container_Terminal_Design_Stuff_00065",
     "IsContainer": true,
@@ -4352,7 +4352,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.73,
    "template": {
     "Id": "container_Terminal_Design_Stuff_00080",
     "IsContainer": true,
@@ -4381,7 +4381,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.73,
    "template": {
     "Id": "n1",
     "IsContainer": true,
@@ -4410,7 +4410,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.66,
    "template": {
     "Id": "container_Terminal_Design_Stuff_00067",
     "IsContainer": true,
@@ -4439,7 +4439,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.8,
    "template": {
     "Id": "container_Terminal_Design_Stuff_00073",
     "IsContainer": true,
@@ -4468,7 +4468,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.69,
    "template": {
     "Id": "container_Terminal_Design_Stuff_00071",
     "IsContainer": true,
@@ -4497,7 +4497,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.77,
    "template": {
     "Id": "container_Terminal_Design_Stuff_00068",
     "IsContainer": true,
@@ -4526,7 +4526,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.73,
    "template": {
     "Id": "container_Terminal_Design_Stuff_00082",
     "IsContainer": true,
@@ -4555,7 +4555,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.71,
    "template": {
     "Id": "container_Terminal_Design_Stuff_00070",
     "IsContainer": true,
@@ -4584,7 +4584,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.73,
    "template": {
     "Id": "container_Terminal_Design_Stuff_00081",
     "IsContainer": true,
@@ -4613,7 +4613,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.82,
    "template": {
     "Id": "container_Terminal_Design_Stuff_00036",
     "IsContainer": true,
@@ -4642,7 +4642,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.76,
    "template": {
     "Id": "container_Terminal_Design_Stuff_00064",
     "IsContainer": true,
@@ -4671,7 +4671,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.73,
    "template": {
     "Id": "container_Terminal_Design_Stuff_00131",
     "IsContainer": true,
@@ -4700,7 +4700,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.69,
    "template": {
     "Id": "container_Terminal_Design_Stuff_00069",
     "IsContainer": true,
@@ -4729,7 +4729,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.71,
    "template": {
     "Id": "container_Terminal_Design_Stuff_00079",
     "IsContainer": true,
@@ -4758,7 +4758,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.73,
    "template": {
     "Id": "container_Terminal_Igor_Kulakov_TEMP_00002",
     "IsContainer": true,
@@ -4787,7 +4787,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.74,
    "template": {
     "Id": "container_Terminal_Design_Stuff_00106",
     "IsContainer": true,
@@ -4816,7 +4816,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.73,
    "template": {
     "Id": "container_Terminal_Design_Stuff_00072",
     "IsContainer": true,
@@ -4845,7 +4845,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.77,
    "template": {
     "Id": "container_Terminal_Design_Stuff_00099",
     "IsContainer": true,
@@ -5251,7 +5251,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.65,
    "template": {
     "Id": "container_Terminal_Igor_Kulakov_TEMP_00006",
     "IsContainer": true,
@@ -5280,7 +5280,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.66,
    "template": {
     "Id": "container_Terminal_Igor_Kulakov_TEMP_00005",
     "IsContainer": true,
@@ -5309,7 +5309,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.71,
    "template": {
     "Id": "container_Terminal_Design_Stuff_00051",
     "IsContainer": true,
@@ -5338,7 +5338,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.72,
    "template": {
     "Id": "container_Terminal_Design_Stuff_00087",
     "IsContainer": true,
@@ -5396,7 +5396,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.76,
    "template": {
     "Id": "container_Terminal_Design_Stuff_00116",
     "IsContainer": true,
@@ -5425,7 +5425,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.68,
    "template": {
     "Id": "Lootable_00003",
     "IsContainer": true,
@@ -5454,7 +5454,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.73,
    "template": {
     "Id": "container_Terminal_Design_Stuff_00053",
     "IsContainer": true,
@@ -5512,7 +5512,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.74,
    "template": {
     "Id": "container_Terminal_Design_Stuff_00121",
     "IsContainer": true,
@@ -5541,7 +5541,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.75,
    "template": {
     "Id": "container_Terminal_Design_Stuff_00130",
     "IsContainer": true,
@@ -5570,7 +5570,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.69,
    "template": {
     "Id": "container_Terminal_Design_Stuff_00086",
     "IsContainer": true,
@@ -5599,7 +5599,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.73,
    "template": {
     "Id": "container_Terminal_Igor_Kulakov_TEMP_00001",
     "IsContainer": true,
@@ -5628,7 +5628,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.79,
    "template": {
     "Id": "container_Terminal_Design_Stuff_00108",
     "IsContainer": true,
@@ -5680,7 +5680,7 @@
     "Items": [
      {
       "_id": "7dd4f5f0d1dadcd46e5ea622",
-      "_tpl": "6582e6d7b14c3f72eb071420"
+      "_tpl": "6851450d30cad62593003fa8"
      }
     ]
    }
@@ -5709,7 +5709,7 @@
     "Items": [
      {
       "_id": "a585dbb5a59a23078aad654b",
-      "_tpl": "6582e6d7b14c3f72eb071420"
+      "_tpl": "6851450d30cad62593003fa8"
      }
     ]
    }
@@ -5738,7 +5738,7 @@
     "Items": [
      {
       "_id": "67fb37e66b0e29b10afde96b",
-      "_tpl": "6582e6d7b14c3f72eb071420"
+      "_tpl": "6851450d30cad62593003fa8"
      }
     ]
    }
@@ -5767,7 +5767,7 @@
     "Items": [
      {
       "_id": "9d8b2de7a155fa9392658943",
-      "_tpl": "6582e6d7b14c3f72eb071420"
+      "_tpl": "6851450d30cad62593003fa8"
      }
     ]
    }
@@ -5796,7 +5796,7 @@
     "Items": [
      {
       "_id": "d7ec243f5b03946c8a796599",
-      "_tpl": "6582e6d7b14c3f72eb071420"
+      "_tpl": "6851450d30cad62593003fa8"
      }
     ]
    }
@@ -5825,7 +5825,7 @@
     "Items": [
      {
       "_id": "14ceb1e5ef09c45c57c8d546",
-      "_tpl": "6582e6d7b14c3f72eb071420"
+      "_tpl": "6851450d30cad62593003fa8"
      }
     ]
    }
@@ -5854,7 +5854,7 @@
     "Items": [
      {
       "_id": "bc3796b3f506459050b5069a",
-      "_tpl": "6582e6d7b14c3f72eb071420"
+      "_tpl": "6851450d30cad62593003fa8"
      }
     ]
    }
@@ -5912,7 +5912,7 @@
     "Items": [
      {
       "_id": "444f98afe20a44f174c15eb2",
-      "_tpl": "6582e6d7b14c3f72eb071420"
+      "_tpl": "6851450d30cad62593003fa8"
      }
     ]
    }
@@ -5941,7 +5941,7 @@
     "Items": [
      {
       "_id": "e8cc72a83930b39720b4cd68",
-      "_tpl": "6582e6d7b14c3f72eb071420"
+      "_tpl": "6851450d30cad62593003fa8"
      }
     ]
    }
@@ -5970,7 +5970,7 @@
     "Items": [
      {
       "_id": "3e24086da62f57dffde84be7",
-      "_tpl": "6582e6d7b14c3f72eb071420"
+      "_tpl": "6851450d30cad62593003fa8"
      }
     ]
    }
@@ -5999,7 +5999,7 @@
     "Items": [
      {
       "_id": "d0e2410cb52c9dd9ac3197f5",
-      "_tpl": "6582e6d7b14c3f72eb071420"
+      "_tpl": "6851450d30cad62593003fa8"
      }
     ]
    }
@@ -6028,7 +6028,7 @@
     "Items": [
      {
       "_id": "94f01cd1504d43849249f8f1",
-      "_tpl": "6582e6d7b14c3f72eb071420"
+      "_tpl": "6851450d30cad62593003fa8"
      }
     ]
    }
@@ -6057,7 +6057,7 @@
     "Items": [
      {
       "_id": "38c3b99e557d92fe64eb25d5",
-      "_tpl": "6582e6d7b14c3f72eb071420"
+      "_tpl": "6851450d30cad62593003fa8"
      }
     ]
    }
@@ -6086,13 +6086,13 @@
     "Items": [
      {
       "_id": "e9afdb809bb0c6c50ff856b1",
-      "_tpl": "6582e6d7b14c3f72eb071420"
+      "_tpl": "6851450d30cad62593003fa8"
      }
     ]
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.78,
    "template": {
     "Id": "container_Terminal_Design_Stuff_00056",
     "IsContainer": true,
@@ -6121,7 +6121,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.66,
    "template": {
     "Id": "container_Terminal_Design_Stuff_00122",
     "IsContainer": true,
@@ -6150,7 +6150,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.72,
    "template": {
     "Id": "container_Terminal_Design_Stuff_00078",
     "IsContainer": true,
@@ -6179,7 +6179,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.76,
    "template": {
     "Id": "container_Terminal_Design_Stuff_00055",
     "IsContainer": true,
@@ -6208,7 +6208,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.71,
    "template": {
     "Id": "container_Terminal_Design_Stuff_00031",
     "IsContainer": true,
@@ -6643,7 +6643,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.74,
    "template": {
     "Id": "container_Terminal_Design_Stuff_00123",
     "IsContainer": true,
@@ -6701,7 +6701,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.75,
    "template": {
     "Id": "container_Terminal_Natalia_Volkova_TEMP_00004",
     "IsContainer": true,
@@ -6759,7 +6759,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.79,
    "template": {
     "Id": "container_Terminal_Design_Stuff_00032",
     "IsContainer": true,
@@ -6788,7 +6788,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.75,
    "template": {
     "Id": "container_Terminal_Design_Stuff_00111",
     "IsContainer": true,
@@ -6817,7 +6817,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.7,
    "template": {
     "Id": "container_Test_for_export_00002",
     "IsContainer": true,
@@ -6846,7 +6846,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.75,
    "template": {
     "Id": "container_ProfileEditor_00004",
     "IsContainer": true,
@@ -6875,7 +6875,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.75,
    "template": {
     "Id": "container_Terminal_Natalia_Volkova_TEMP_00009",
     "IsContainer": true,
@@ -6904,7 +6904,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.72,
    "template": {
     "Id": "container_Terminal_Design_Stuff_00124",
     "IsContainer": true,
@@ -6933,7 +6933,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.73,
    "template": {
     "Id": "container_Terminal_Design_Stuff_00058",
     "IsContainer": true,
@@ -6962,7 +6962,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.69,
    "template": {
     "Id": "container_Terminal_Design_Stuff_00077",
     "IsContainer": true,
@@ -6991,7 +6991,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.79,
    "template": {
     "Id": "container_Terminal_Design_Stuff_00083",
     "IsContainer": true,
@@ -7020,7 +7020,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.75,
    "template": {
     "Id": "container_Terminal_Design_Stuff_00091",
     "IsContainer": true,
@@ -7049,7 +7049,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.75,
    "template": {
     "Id": "container_Terminal_Design_Stuff_00001",
     "IsContainer": true,
@@ -7107,7 +7107,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.76,
    "template": {
     "Id": "container_Terminal_Design_Stuff_00062",
     "IsContainer": true,
@@ -7194,7 +7194,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.76,
    "template": {
     "Id": "container_Terminal_Design_Stuff_00063",
     "IsContainer": true,
@@ -7246,13 +7246,13 @@
     "Items": [
      {
       "_id": "361ee54f081f252365745bb2",
-      "_tpl": "5909d5ef86f77467974efbd8"
+      "_tpl": "69122762e5b8725fb10f6b32"
      }
     ]
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.69,
    "template": {
     "Id": "container_Terminal_Design_Stuff_00090",
     "IsContainer": true,
@@ -7281,7 +7281,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.66,
    "template": {
     "Id": "container_Terminal_Design_Stuff_00109",
     "IsContainer": true,
@@ -7310,7 +7310,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.76,
    "template": {
     "Id": "container_Terminal_Design_Stuff_00033",
     "IsContainer": true,
@@ -7339,7 +7339,7 @@
    }
   },
   {
-   "probability": 1.0,
+   "probability": 0.69,
    "template": {
     "Id": "container_Terminal_Design_Stuff_00129",
     "IsContainer": true,
@@ -7913,7 +7913,7 @@
     "Items": [
      {
       "_id": "cb49a43192f0d1f0080fa0fd",
-      "_tpl": "68a4c0ffee0000000000cab1"
+      "_tpl": "67a0e494e8fc6968ef0fc9da"
      }
     ]
    }
@@ -7942,7 +7942,7 @@
     "Items": [
      {
       "_id": "3b459793f09014f7f82db57a",
-      "_tpl": "68a4c0ffee0000000000cab1"
+      "_tpl": "68a5b9af76a25d8e6e0e2e56"
      }
     ]
    }
@@ -7971,7 +7971,7 @@
     "Items": [
      {
       "_id": "7d552c59dbae2a5afe083aca",
-      "_tpl": "68a4c0ffee0000000000cab1"
+      "_tpl": "68a5b9af76a25d8e6e0e2e56"
      }
     ]
    }
@@ -8000,7 +8000,7 @@
     "Items": [
      {
       "_id": "50394be135c437608c468a99",
-      "_tpl": "68a4c0ffee0000000000cab1"
+      "_tpl": "68a5b9af76a25d8e6e0e2e56"
      }
     ]
    }
@@ -8029,7 +8029,7 @@
     "Items": [
      {
       "_id": "a6a9ba87c201766010c001c2",
-      "_tpl": "68a4c0ffee0000000000cab1"
+      "_tpl": "67a0e494e8fc6968ef0fc9da"
      }
     ]
    }
@@ -8058,7 +8058,7 @@
     "Items": [
      {
       "_id": "98b28249226076aeaa4a5525",
-      "_tpl": "68a4c0ffee0000000000cab1"
+      "_tpl": "68a5b9af76a25d8e6e0e2e56"
      }
     ]
    }
@@ -8087,7 +8087,7 @@
     "Items": [
      {
       "_id": "e634bfdc192d96029d89f652",
-      "_tpl": "68a4c0ffee0000000000cab1"
+      "_tpl": "67a0e494e8fc6968ef0fc9da"
      }
     ]
    }
@@ -8116,7 +8116,7 @@
     "Items": [
      {
       "_id": "5d24259c252becd8b5be3797",
-      "_tpl": "68a4c0ffee0000000000cab1"
+      "_tpl": "67a0e494e8fc6968ef0fc9da"
      }
     ]
    }
@@ -8145,7 +8145,7 @@
     "Items": [
      {
       "_id": "d3a2d0ad3297c2b42ff961e4",
-      "_tpl": "68a4c0ffee0000000000cab1"
+      "_tpl": "67a0e494e8fc6968ef0fc9da"
      }
     ]
    }
@@ -8174,7 +8174,7 @@
     "Items": [
      {
       "_id": "77a38773330e090e62c213b2",
-      "_tpl": "68a4c0ffee0000000000cab1"
+      "_tpl": "68a5b9af76a25d8e6e0e2e56"
      }
     ]
    }

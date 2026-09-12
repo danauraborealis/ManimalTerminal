@@ -259,7 +259,7 @@ namespace Manimal.Terminal
         }
     }
 
-    // WHY IS BREACH GREYED OUT — postfix whatever GetActionsClass method builds a
+    // WHY IS BREACH GREYED OUT — postfix whatever EFT.InteractionContextHelper method builds a
     // door's action list, and log each action's Disabled flag alongside the door's
     // breach state. resolved by SIGNATURE (a static method taking a Door) rather
     // than by smethod_N: the obfuscated numbers shift between SPT builds, and a
@@ -271,7 +271,7 @@ namespace Manimal.Terminal
 
         private static IEnumerable<MethodBase> TargetMethods()
         {
-            var t = AccessTools.TypeByName("GetActionsClass");
+            var t = AccessTools.TypeByName("EFT.InteractionContextHelper");
             if (t == null) yield break;
             foreach (var m in t.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static))
             {

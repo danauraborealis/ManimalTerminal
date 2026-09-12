@@ -39,7 +39,7 @@ namespace Manimal.Terminal
             return best;
         }
 
-        [HarmonyPatch(typeof(GameWorld), "method_5")]
+        [HarmonyPatch(typeof(GameWorld), "SpawnLoot")]
         internal static class Patch_DeferLootBind
         {
             [HarmonyPrefix]
@@ -48,6 +48,7 @@ namespace Manimal.Terminal
                 try
                 {
                     if (!TerminalGate.On || _passThrough) return true;
+                    TerminalContainerTemplates.ApplyLoadedContainers();
                     int have = BiggestContainerRegistry();
                     // Design_Stuff alone carries 282 containers — a registry that big
                     // means the scenes are awake and the bind is safe
@@ -93,7 +94,7 @@ namespace Manimal.Terminal
                 try
                 {
                     _passThrough = true;
-                    AccessTools.Method(typeof(GameWorld), "method_5").Invoke(Game, Args);
+                    AccessTools.Method(typeof(GameWorld), "SpawnLoot").Invoke(Game, Args);
                 }
                 catch (Exception e) { Plugin.Log.LogError($"[LootBind] deferred bind FAILED: {e}"); }
                 finally { _passThrough = false; }

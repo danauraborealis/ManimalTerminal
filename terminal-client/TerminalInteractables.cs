@@ -8,7 +8,7 @@ namespace Manimal.Terminal
 {
     // interactable state heals, from the decompile (2026-08-10):
     //
-    // CONTAINERS: GetActionsClass.smethod_16 offers "Search" ONLY when
+    // CONTAINERS: EFT.InteractionContextHelper.smethod_16 offers "Search" ONLY when
     // DoorState == Shut — the rip left every LootableContainer at None, which
     // renders as no prompt at all (empty actions list). icebreaker's Author 11
     // rebakes _doorState=2 for exactly this reason; terminal heals it at raid
@@ -161,39 +161,13 @@ namespace Manimal.Terminal
                     foreach (var lc in UnityEngine.Object.FindObjectsOfType<LootableContainer>(true))
                     {
                         if (lc == null) continue;
-                        // 1.0-only container tpls the SPT item db doesnt know — remap so
-                        // the loot window resolves. MUST mirror gen_terminal_static_containers.py
-                        // exactly or the client grid and server contents disagree.
-                        switch (lc.Template)
-                        {
-                            case "69122598e5b8725fb10f6a93": lc.Template = "6582e6d7b14c3f72eb071420"; remapped++; break; // substation corpse -> PMC body
-                            case "69122762e5b8725fb10f6b32": lc.Template = "5909d5ef86f77467974efbd8"; remapped++; break; // keycard suitcase -> weapon box 5x2
-                            case "6851450d30cad62593003fa8": lc.Template = "6582e6d7b14c3f72eb071420"; remapped++; break; // RUAF corpses -> PMC body
-                            case "691226272a5ee538f10d2f11": lc.Template = "578f8782245977354405a1e3"; remapped++; break; // safe_01 -> Safe
-                            case "68a5b9af76a25d8e6e0e2e56": lc.Template = "68a4c0ffee0000000000cab1"; remapped++; break; // valberg private safes -> Equipment Cabinet
-                            case "67a0e494e8fc6968ef0fc9da": // 1.0 generic: suitcases AND gun safes
-                                lc.Template = lc.name.IndexOf("suitcase", StringComparison.OrdinalIgnoreCase) >= 0
-                                    ? "5c052cea86f7746b2101e8d8"   // Plastic suitcase
-                                    : "68a4c0ffee0000000000cab1";  // Equipment Cabinet (our custom 10x20)
-                                remapped++;
-                                break;
-                            default:
-                                // private suitcases author NO template at all — heal by name
-                                if (string.IsNullOrWhiteSpace(lc.Template))
-                                {
-                                    lc.Template = lc.name.IndexOf("suitcase", StringComparison.OrdinalIgnoreCase) >= 0
-                                        ? "5c052cea86f7746b2101e8d8"
-                                        : "68a4c0ffee0000000000cab1";
-                                    remapped++;
-                                }
-                                break;
-                        }
+                        if (TerminalContainerTemplates.Apply(lc)) remapped++;
                         if (lc.DoorState != EDoorState.None) continue;
                         try { lc.DoorState = EDoorState.Shut; healed++; }
                         catch { }
                     }
                     if (healed > 0 || remapped > 0)
-                        Plugin.Log.LogInfo($"[Interactables] {healed} container(s) healed None -> Shut (Search prompt requires Shut), {remapped} corpse tpl(s) remapped to PMC body");
+                        Plugin.Log.LogInfo($"[Interactables] {healed} container(s) healed None -> Shut (Search prompt requires Shut), {remapped} container template(s) restored from server authoring");
 
                     // DOOR TRANSFORM STOMPERS (2026-08-10: container lids swing through
                     // the exact same coroutine/CurrentAngle path, doors don't move and

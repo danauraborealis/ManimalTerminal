@@ -155,7 +155,7 @@ namespace Manimal.Terminal
             return $" | NO game counterpart (bundle copy stays, deferred may be dead): {string.Join(", ", parts)}";
         }
 
-        // Shader.Find covers everything the client has loaded; GClass872 is the game's
+        // Shader.Find covers everything the client has loaded; ShadersFinder is the game's
         // bundle-shader registry (4.0.13 name — re-verify on any client update).
         // icebreaker's alias + retry machinery (for stand-ins whose real shader loads
         // late from the global shaders bundle) is NOT ported — terminal has no aliases
@@ -163,7 +163,7 @@ namespace Manimal.Terminal
         private static Shader FindGameShader(string name)
         {
             var s = Shader.Find(name);
-            if (s == null) { try { s = GClass872.Find(name); } catch { } }
+            if (s == null) { try { s = ShadersFinder.Find(name); } catch { } }
             return s;
         }
 

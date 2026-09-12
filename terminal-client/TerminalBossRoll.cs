@@ -15,7 +15,7 @@ namespace Manimal.Terminal
         private static readonly string[] Candidates =
             { "bossGluhar", "bossKilla", "bossBully", "bossSanitar", "bossTagilla" };
 
-        internal static void Roll(LocationSettingsClass.Location location)
+        internal static void Roll(JsonType.LocationSettings.Location location)
         {
             try
             {

@@ -4,7 +4,7 @@ using UnityEngine;
 namespace Manimal.Terminal
 {
     // EFT already ships a DXGI video-memory wrapper and attaches its command
-    // buffer to CameraClass. Reuse that authoritative reading instead of trying
+    // buffer to EFT.CameraControl.CameraManager. Reuse that authoritative reading instead of trying
     // to infer residency pressure from Unity object counts.
     internal static class TerminalVramProbe
     {
@@ -28,7 +28,7 @@ namespace Manimal.Terminal
                 _nextRead = Time.realtimeSinceStartup + 0.25f;
                 try
                 {
-                    var cc = CameraClass.Instance;
+                    var cc = EFT.CameraControl.CameraManager.Instance;
                     if (cc != null)
                     {
                         cc.GetVRamUsage(out ulong total, out ulong budget, out ulong used);

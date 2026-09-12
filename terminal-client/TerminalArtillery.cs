@@ -11,7 +11,7 @@ namespace Manimal.Terminal
     // THE ARTILLERY BARRAGE (ArtilleryTriggers, level628): four authored trigger
     // boxes, each with a native TriggerZone (artillery_trigger_1..4) plus a
     // 1.0-only ArtilleryChangeTriggerHandler. 4.0 SHIPS the full shelling system
-    // (ServerShellingControllerClass + client FX/audio — the Streets mortar event)
+    // (ArtilleryShellingControllerServer + client FX/audio — the Streets mortar event)
     // gated on ArtilleryMapsConfigs containing the location id, so:
     //  - InjectConfig (at location capture, BEFORE BaseLocalGame checks) plants a
     //    Terminal map config built from terminal_artillery.json — 4 shelling zones
@@ -53,7 +53,7 @@ namespace Manimal.Terminal
                 }
                 var cfgJson = JObject.Parse(System.IO.File.ReadAllText(path));
 
-                var backend = Singleton<BackendConfigSettingsClass>.Instance;
+                var backend = Singleton<EFT.GlobalConfiguration>.Instance;
                 var shelling = backend != null ? backend.ArtilleryShelling : null;
                 if (shelling == null || shelling.ArtilleryMapsConfigs == null)
                 {
@@ -219,7 +219,7 @@ namespace Manimal.Terminal
                 for (int i = 1; i <= 4; i++)
                 {
                     var zoneId = i.ToString();
-                    GClass3592.Instance.Subscribe($"artillery_trigger_{i}", new Action(() => OnZoneTripped(zoneId)));
+                    EFT.GameTriggers.TriggersEmitter.Instance.Subscribe($"artillery_trigger_{i}", new Action(() => OnZoneTripped(zoneId)));
                 }
 
                 _staged = true;
@@ -236,7 +236,7 @@ namespace Manimal.Terminal
         {
             try
             {
-                var ctrl = ServerShellingControllerClass.Instance;
+                var ctrl = ArtilleryShellingControllerServer.Instance;
                 if (ctrl == null) { Plugin.Log.LogWarning("[Artillery] zone tripped but no shelling controller"); return; }
                 ctrl.StartImmediateShellingZone(zoneId);
                 _pumpUntil = Time.realtimeSinceStartup + BarrageWindow;

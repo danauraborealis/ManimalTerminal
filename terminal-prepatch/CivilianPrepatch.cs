@@ -49,8 +49,9 @@ namespace Manimal.Terminal.Prepatch
             var patcherLoc = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
             var bepDir = Directory.GetParent(patcherLoc)?.Parent;
             if (bepDir == null) return false;
-            var modDllLoc = Path.Combine(bepDir.FullName, "plugins", "MoreBotsAPI", "MoreBotsPlugin.dll");
-            return File.Exists(modDllLoc);
+            var plugins = Path.Combine(bepDir.FullName, "plugins");
+            return File.Exists(Path.Combine(plugins, "MoreBotsPlugin", "MoreBotsPlugin.dll"))
+                || File.Exists(Path.Combine(plugins, "MoreBotsAPI", "MoreBotsPlugin.dll"));
         }
     }
 }

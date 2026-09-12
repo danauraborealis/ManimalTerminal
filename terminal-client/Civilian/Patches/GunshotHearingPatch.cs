@@ -18,7 +18,7 @@ namespace Manimal.Terminal.Civilian.Patches
             AccessTools.Field(typeof(Player.FirearmController), "_player");
 
         protected override MethodBase GetTargetMethod() =>
-            AccessTools.Method(typeof(Player.FirearmController), "method_58");
+            AccessTools.Method(typeof(Player.FirearmController), "Shot");
 
         [PatchPostfix]
         private static void PatchPostfix(Player.FirearmController __instance)

@@ -145,8 +145,13 @@ namespace Manimal.Terminal
     				TerminalWeather.TickProbe();
     				TerminalTickProfiler.Add("WeatherTk", System.Diagnostics.Stopwatch.GetTimestamp() - __t0);
     			}
-    			{ long __t0 = System.Diagnostics.Stopwatch.GetTimestamp(); TickNightSky(); TerminalTickProfiler.Add("NightSky", System.Diagnostics.Stopwatch.GetTimestamp() - __t0); }
-    			if (Plugin.SpatialAudio.Value)
+			{ long __t0 = System.Diagnostics.Stopwatch.GetTimestamp(); TickNightSky(); TerminalTickProfiler.Add("NightSky", System.Diagnostics.Stopwatch.GetTimestamp() - __t0); }
+			// Terminal's retail CullingManager is absent in some SPT/Fika raids. In
+			// that case ApplyLamps cannot leave every native light enabled: thousands
+			// of LightFlicker/visibility components then run in Update on the visual
+			// host. Maintain the same bounded bubble ourselves during gameplay.
+			TrackManagerlessGameplayLights();
+			if (Plugin.SpatialAudio.Value)
     			{
     				if (Time.frameCount % 120 == 7)
     				{
@@ -159,10 +164,12 @@ namespace Manimal.Terminal
     					}
     					TerminalAcoustics.TryApplyAmbientAuthoring();
     				}
-    				if ((Time.frameCount & 1) == 0)
-    				{
-    					TerminalAcoustics.DriveEnvironment();
-    				}
+				if ((Time.frameCount & 1) == 0)
+				{
+					long __t0 = System.Diagnostics.Stopwatch.GetTimestamp();
+					TerminalAcoustics.DriveEnvironment();
+					TerminalTickProfiler.Add("EnvDrive", System.Diagnostics.Stopwatch.GetTimestamp() - __t0);
+				}
     			}
     			KeyboardShortcut value = Plugin.LightProbeKey.Value;
     			if (value.IsDown() || (Plugin.DevMode.Value && Time.frameCount % 300 == 33))
@@ -261,13 +268,33 @@ namespace Manimal.Terminal
 
     	private static bool _authoredTried;
 
-    	private static FieldInfo _cloMaxIntensity;
+	private static FieldInfo _cloMaxIntensity;
 
-    	internal static void ResetForNewRaid()
-    	{
-    		_lamps.Clear();
-    		_lastLamp = (_lastAmbient = (_lastLightCull = -1f));
-    		CutsceneHold = false;
+	// Cutscene cameras fly far away from the player's body. The old workaround
+	// locked Tarkov's light culler and enabled every CullingLightObject on the map
+	// (roughly 1,800 realtime lights). Besides making the cutscenes GPU-bound, the
+	// release path left every light enabled until the player crossed another culling
+	// cell. Keep a cached map-light list and expose only a bounded bubble around the
+	// animated camera instead.
+	private const float CutsceneLightRadius = 80f;
+	private const float CutsceneLightRefreshSeconds = 0.20f;
+	private const float GameplayLightRefreshSeconds = 0.50f;
+	private static readonly List<CullingLightObject> _nativeCutsceneLights = new List<CullingLightObject>();
+	private static readonly HashSet<CullingLightObject> _cutsceneVisibleLights = new HashSet<CullingLightObject>();
+	private static bool _cutsceneLightStateKnown;
+	private static float _nextCutsceneLightRefresh;
+	private static float _nextManagerlessLightRefresh;
+
+	internal static void ResetForNewRaid()
+	{
+		_lamps.Clear();
+		_nativeCutsceneLights.Clear();
+		_cutsceneVisibleLights.Clear();
+		_cutsceneLightStateKnown = false;
+		_lastLamp = (_lastAmbient = (_lastLightCull = -1f));
+		CutsceneHold = false;
+		_nextCutsceneLightRefresh = 0f;
+		_nextManagerlessLightRefresh = 0f;
     		_sky = null;
     		_skyTimeLogged = false;
     		_ambientAuthorityTaken = false;
@@ -297,7 +324,7 @@ namespace Manimal.Terminal
     			{
     				return;
     			}
-    			GInterface0 instance = GClass4.Instance;
+                ITODSky instance = TODSkyProvider.Instance;
     			GameDateTime val = ((instance == null) ? null : instance.CurrentTime?.GameDateTime) ?? Singleton<GameWorld>.Instance?.GameDateTime;
     			if (val == null)
     			{
@@ -326,7 +353,7 @@ namespace Manimal.Terminal
     			}
     			try
     			{
-    				_sky.method_18();
+                _sky.UpdateCelestials();
     			}
     			catch (Exception ex2)
     			{
@@ -615,9 +642,10 @@ namespace Manimal.Terminal
     		//IL_00a7: Unknown result type (might be due to invalid IL or missing references)
     		//IL_00ac: Unknown result type (might be due to invalid IL or missing references)
     		HashSet<Light> hashSet = new HashSet<Light>();
-    		CullingLightObject[] array = UnityEngine.Object.FindObjectsOfType<CullingLightObject>();
-    		foreach (CullingLightObject val in array)
-    		{
+		CullingLightObject[] array = UnityEngine.Object.FindObjectsOfType<CullingLightObject>();
+		_nativeCutsceneLights.Clear();
+		foreach (CullingLightObject val in array)
+		{
     			Light light = val.GetLight();
     			if ((UnityEngine.Object)(object)light != (UnityEngine.Object)null)
     			{
@@ -857,8 +885,9 @@ namespace Manimal.Terminal
     		catch
     		{
     		}
-    		CullingLightObject[] array = UnityEngine.Object.FindObjectsOfType<CullingLightObject>();
-    		foreach (CullingLightObject val in array)
+		CullingLightObject[] array = UnityEngine.Object.FindObjectsOfType<CullingLightObject>();
+		_nativeCutsceneLights.Clear();
+		foreach (CullingLightObject val in array)
     		{
     			Light light = val.GetLight();
     			if (!light)
@@ -867,10 +896,11 @@ namespace Manimal.Terminal
     			}
     			Scene scene = ((Component)light).gameObject.scene;
     			string name = scene.name;
-    			if (name == null || !name.StartsWith("Terminal"))
-    			{
-    				continue;
-    			}
+			if (name == null || !name.StartsWith("Terminal"))
+			{
+				continue;
+			}
+			_nativeCutsceneLights.Add(val);
     			if (!flag)
     			{
     				DriveLamp(light, value, value2, shadows, ref matched);
@@ -884,7 +914,7 @@ namespace Manimal.Terminal
     				{
     					fieldInfo3.SetValue(val, Mathf.Min((float)fieldInfo3.GetValue(val), value3 * 0.6f));
     					fieldInfo4.SetValue(val, value3);
-    					val.method_3();
+                val.CacheLightSqrDistances();
     					num3++;
     				}
     			}
@@ -892,11 +922,22 @@ namespace Manimal.Terminal
     			{
     			}
     		}
-    		if (num3 > 0)
+		if (num3 > 0)
     		{
     			Plugin.Log.LogDebug((object)$"[Lights] native fade window tightened to {value3:0}m on {num3} lights");
-    		}
-    		_lastLamp = value;
+		}
+		if (!flag)
+		{
+			Camera camera = TerminalCullingDriver.CameraRef != null ? TerminalCullingDriver.CameraRef : Camera.main;
+			Player player = Singleton<GameWorld>.Instantiated ? Singleton<GameWorld>.Instance?.MainPlayer : null;
+			Vector3 position = player != null ? player.Position : camera != null ? camera.transform.position : Vector3.zero;
+			_cutsceneVisibleLights.Clear();
+			_cutsceneLightStateKnown = false;
+			int retained = ApplyNativeLightBubble(position, value3);
+			_nextManagerlessLightRefresh = Time.realtimeSinceStartup + GameplayLightRefreshSeconds;
+			Plugin.Log.LogInfo((object)$"[Lights] managerless safety cull retained {retained}/{_nativeCutsceneLights.Count} native lights within {value3:0}m");
+		}
+		_lastLamp = value;
     		_lastShadows = Plugin.LampShadows.Value;
     		_lastLightCull = value3;
     		Plugin.Log.LogInfo((object)($"[Lights] drove {num} plain lamps + {num2} native culling lights - " + $"{matched} matched AUTHORED retail values (scale {value2:0.00}), rest flat {value:F2}" + (flag ? "" : " (MANAGER-LESS: Light components driven directly)")));
@@ -1029,52 +1070,92 @@ namespace Manimal.Terminal
     		}
     	}
 
-    	internal static int ForceNativeLightsOn()
-    	{
-    		if (_cloMaxIntensity == null)
-    		{
-    			_cloMaxIntensity = AccessTools.Field(typeof(CullingLightObject), "_maxLightIntensity");
-    		}
-    		int num = 0;
-    		CullingLightObject[] array = UnityEngine.Object.FindObjectsOfType<CullingLightObject>();
-    		foreach (CullingLightObject val in array)
-    		{
-    			try
-    			{
-    				((CullingObject)val).SetVisibility(true);
-    			}
-    			catch
-    			{
-    			}
-    			Light light = val.GetLight();
-    			if ((UnityEngine.Object)(object)light == (UnityEngine.Object)null)
-    			{
-    				continue;
-    			}
-    			if (!((Behaviour)light).enabled)
-    			{
-    				((Behaviour)light).enabled = true;
-    			}
-    			try
-    			{
-    				float num2 = (float)_cloMaxIntensity.GetValue(val);
-    				if (num2 > 0f && light.intensity < num2)
-    				{
-    					light.intensity = num2;
-    					num++;
-    				}
-    			}
-    			catch
-    			{
-    			}
-    		}
-    		return num;
-    	}
+	private static void RefreshNativeCutsceneLightCache()
+	{
+		_nativeCutsceneLights.Clear();
+		foreach (CullingLightObject lightObject in UnityEngine.Object.FindObjectsOfType<CullingLightObject>())
+		{
+			if (lightObject == null) continue;
+			Light light = lightObject.GetLight();
+			if (light == null) continue;
+			string sceneName = light.gameObject.scene.name;
+			if (sceneName != null && sceneName.StartsWith("Terminal", StringComparison.OrdinalIgnoreCase))
+				_nativeCutsceneLights.Add(lightObject);
+		}
+	}
 
-    	internal static void CutsceneShowAll()
-    	{
-    		CutsceneHold = true;
-    		try
+	// Called from Camera.onPreCull after the real FPS camera has been moved to the
+	// timeline pose. Throttling keeps the pass cheap while still following cuts.
+	internal static void TrackCutsceneCamera(Vector3 cameraPosition, bool force = false)
+	{
+		if (!CutsceneHold && !force) return;
+		if (!force && Time.realtimeSinceStartup < _nextCutsceneLightRefresh) return;
+		_nextCutsceneLightRefresh = Time.realtimeSinceStartup + CutsceneLightRefreshSeconds;
+		if (_nativeCutsceneLights.Count == 0) RefreshNativeCutsceneLightCache();
+		ApplyNativeLightBubble(cameraPosition, CutsceneLightRadius);
+	}
+
+	private static int ApplyNativeLightBubble(Vector3 cameraPosition, float radius)
+	{
+		if (_cloMaxIntensity == null)
+			_cloMaxIntensity = AccessTools.Field(typeof(CullingLightObject), "_maxLightIntensity");
+
+		float radiusSq = radius * radius;
+		int visible = 0;
+		for (int i = _nativeCutsceneLights.Count - 1; i >= 0; i--)
+		{
+			CullingLightObject lightObject = _nativeCutsceneLights[i];
+			if (lightObject == null) { _nativeCutsceneLights.RemoveAt(i); continue; }
+			Light light = lightObject.GetLight();
+			if (light == null) continue;
+			bool show = (light.transform.position - cameraPosition).sqrMagnitude <= radiusSq;
+			bool wasVisible = _cutsceneVisibleLights.Contains(lightObject);
+			if (!_cutsceneLightStateKnown || show != wasVisible)
+			{
+				try { ((CullingObject)lightObject).SetVisibility(show); } catch { }
+				if (show) _cutsceneVisibleLights.Add(lightObject);
+				else _cutsceneVisibleLights.Remove(lightObject);
+			}
+			if (!show) continue;
+			visible++;
+			if (!light.enabled) light.enabled = true;
+			try
+			{
+				float max = (float)_cloMaxIntensity.GetValue(lightObject);
+				if (max > 0f && light.intensity < max) light.intensity = max;
+			}
+			catch { }
+		}
+		_cutsceneLightStateKnown = true;
+		return visible;
+	}
+
+	private static void TrackManagerlessGameplayLights()
+	{
+		if (CutsceneHold || Time.realtimeSinceStartup < _nextManagerlessLightRefresh) return;
+		try
+		{
+			if (CullingManager.Instance != null) return;
+		}
+		catch { }
+		_nextManagerlessLightRefresh = Time.realtimeSinceStartup + GameplayLightRefreshSeconds;
+		if (_nativeCutsceneLights.Count == 0) RefreshNativeCutsceneLightCache();
+		Player player = Singleton<GameWorld>.Instantiated ? Singleton<GameWorld>.Instance?.MainPlayer : null;
+		Camera camera = TerminalCullingDriver.CameraRef != null ? TerminalCullingDriver.CameraRef : Camera.main;
+		if (player == null && camera == null) return;
+		Vector3 position = player != null ? player.Position : camera.transform.position;
+		long started = System.Diagnostics.Stopwatch.GetTimestamp();
+		ApplyNativeLightBubble(position, Plugin.LightCullDistance.Value);
+		TerminalTickProfiler.Add("LightBub", System.Diagnostics.Stopwatch.GetTimestamp() - started);
+	}
+
+	internal static void CutsceneBeginLightTracking()
+	{
+		CutsceneHold = true;
+		_nextCutsceneLightRefresh = 0f;
+		_cutsceneVisibleLights.Clear();
+		_cutsceneLightStateKnown = false;
+		try
     		{
     			CullingManager instance = CullingManager.Instance;
     			if ((UnityEngine.Object)(object)instance != (UnityEngine.Object)null)
@@ -1086,31 +1167,18 @@ namespace Manimal.Terminal
     		{
     			Plugin.Log.LogWarning((object)("[CutsceneHold] native manager lock failed: " + ex.Message));
     		}
-    		int num = 0;
-    		foreach (Light lamp in _lamps)
-    		{
-    			if ((UnityEngine.Object)(object)lamp != (UnityEngine.Object)null && !((Behaviour)lamp).enabled)
-    			{
-    				((Behaviour)lamp).enabled = true;
-    				num++;
-    			}
-    		}
-    		int num2 = ForceNativeLightsOn();
-    		Plugin.Log.LogDebug((object)$"[CutsceneHold] armed - {num} lamps re-enabled, {num2} native lights forced on");
-    	}
+		// ApplyLamps captures the complete list before it hides distant objects.
+		// Re-scanning here can omit GameObjects that SetVisibility just deactivated.
+		if (_nativeCutsceneLights.Count == 0) RefreshNativeCutsceneLightCache();
+		Camera camera = TerminalCullingDriver.CameraRef != null ? TerminalCullingDriver.CameraRef : Camera.main;
+		int visible = camera != null ? ApplyNativeLightBubble(camera.transform.position, CutsceneLightRadius) : 0;
+		Plugin.Log.LogDebug((object)$"[CutsceneHold] armed - bounded {visible}/{_nativeCutsceneLights.Count} native lights to {CutsceneLightRadius:0}m around the camera");
+	}
 
-    	internal static void CutsceneRelease()
-    	{
-    		CutsceneHold = false;
-    		int num = 0;
-    		try
-    		{
-    			num = ForceNativeLightsOn();
-    		}
-    		catch
-    		{
-    		}
-    		try
+	internal static void CutsceneRelease()
+	{
+		CutsceneHold = false;
+		try
     		{
     			CullingManager instance = CullingManager.Instance;
     			if ((UnityEngine.Object)(object)instance != (UnityEngine.Object)null)
@@ -1118,11 +1186,20 @@ namespace Manimal.Terminal
     				instance.LockState(false);
     			}
     		}
-    		catch (Exception ex)
-    		{
-    			Plugin.Log.LogWarning((object)("[CutsceneHold] release failed: " + ex.Message));
-    		}
-    		Plugin.Log.LogDebug((object)$"[CutsceneHold] released - healed {num} native lights, culling unlocked");
-    	}
+		catch (Exception ex)
+		{
+			Plugin.Log.LogWarning((object)("[CutsceneHold] release failed: " + ex.Message));
+		}
+		// LockState(false) does not necessarily re-evaluate a stationary camera. Cull
+		// immediately at the normal gameplay distance so the cutscene bubble cannot
+		// remain live in the starting room until the player crosses another cell.
+		Player player = Singleton<GameWorld>.Instantiated ? Singleton<GameWorld>.Instance?.MainPlayer : null;
+		Camera camera = TerminalCullingDriver.CameraRef != null ? TerminalCullingDriver.CameraRef : Camera.main;
+		Vector3 gameplayPosition = player != null ? player.Position : camera != null ? camera.transform.position : Vector3.zero;
+		int visible = ApplyNativeLightBubble(gameplayPosition, Plugin.LightCullDistance.Value);
+		Plugin.Log.LogDebug((object)$"[CutsceneHold] released - {visible}/{_nativeCutsceneLights.Count} native lights retained near gameplay camera, culling unlocked");
+		_cutsceneVisibleLights.Clear();
+		_cutsceneLightStateKnown = false;
+	}
     }
 }

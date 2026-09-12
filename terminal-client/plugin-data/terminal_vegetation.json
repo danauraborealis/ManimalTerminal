@@ -1,0 +1,129 @@
+{
+  "Version": 1,
+  "GrassTrampler": {
+    "_angleCurve": {
+      "m_Curve": [
+        {
+          "time": 0.0,
+          "value": 0.0,
+          "inSlope": 0.0,
+          "outSlope": 0.0,
+          "weightedMode": 0,
+          "inWeight": 0.3333333432674408,
+          "outWeight": 0.3333333432674408
+        },
+        {
+          "time": 0.19974495470523834,
+          "value": 1.0,
+          "inSlope": 0.02941320277750492,
+          "outSlope": 0.02941320277750492,
+          "weightedMode": 0,
+          "inWeight": 0.3333333432674408,
+          "outWeight": 0.3333333432674408
+        },
+        {
+          "time": 0.3083682060241699,
+          "value": 0.9411279559135437,
+          "inSlope": -1.6644152402877808,
+          "outSlope": -1.6644152402877808,
+          "weightedMode": 0,
+          "inWeight": 0.3333333432674408,
+          "outWeight": 0.3333333432674408
+        },
+        {
+          "time": 0.5,
+          "value": 0.0,
+          "inSlope": -3.036936044692993,
+          "outSlope": -3.036936044692993,
+          "weightedMode": 0,
+          "inWeight": 0.3333333432674408,
+          "outWeight": 0.3333333432674408
+        },
+        {
+          "time": 0.679824709892273,
+          "value": -0.20000000298023224,
+          "inSlope": 0.11766944825649261,
+          "outSlope": 0.11766944825649261,
+          "weightedMode": 0,
+          "inWeight": 0.3333333432674408,
+          "outWeight": 0.3333333432674408
+        },
+        {
+          "time": 0.8686931133270264,
+          "value": 0.08231129497289658,
+          "inSlope": 0.5941849946975708,
+          "outSlope": 0.5941849946975708,
+          "weightedMode": 0,
+          "inWeight": 0.3333333432674408,
+          "outWeight": 0.3333333432674408
+        },
+        {
+          "time": 1.0013927221298218,
+          "value": -0.0061753313057124615,
+          "inSlope": -2.1795787811279297,
+          "outSlope": -2.1795787811279297,
+          "weightedMode": 0,
+          "inWeight": 0.3333333432674408,
+          "outWeight": 0.3333333432674408
+        }
+      ],
+      "m_PreInfinity": 2,
+      "m_PostInfinity": 2,
+      "m_RotationOrder": 0
+    },
+    "TransitionTimeBetweenStates": 1.2000000476837158,
+    "StandGrassValues": {
+      "AngleInRads": 1.5,
+      "TailLength": 1.0,
+      "Radius": 0.5,
+      "PressedRadius": 0.20000000298023224,
+      "ReturnTime": 2.0
+    },
+    "DuckGrassValues": {
+      "AngleInRads": 1.5,
+      "TailLength": 1.0,
+      "Radius": 0.699999988079071,
+      "PressedRadius": 0.20000000298023224,
+      "ReturnTime": 2.0
+    },
+    "ProneGrassValues": {
+      "AngleInRads": 1.5,
+      "TailLength": 2.0,
+      "Radius": 1.0,
+      "PressedRadius": 8.0,
+      "ReturnTime": 2.0
+    }
+  },
+  "BushBank": {
+    "CustomLength": 0.0,
+    "BaseVolume": 0.5,
+    "BasePitch": 1.0,
+    "DeltaVolume": 0.10000000149011612,
+    "DeltaPitch": 0.05000000074505806,
+    "Rolloff": 55.0,
+    "IgnoreOcclusion": 0,
+    "Physical": 0,
+    "HasEnvironment": 0,
+    "SourceType": 4,
+    "AllowLimitedPlay": 0,
+    "_clipLiength": 2.4057369232177734
+  },
+  "BushClips": [
+    "branches_13.wav",
+    "branches_16.wav",
+    "branches_05.wav",
+    "branches_14.wav",
+    "branches_10.wav",
+    "branches_03.wav",
+    "branches_15.wav",
+    "branches_09.wav",
+    "branches_01.wav",
+    "branches_02.wav",
+    "branches_08.wav",
+    "branches_11.wav",
+    "branches_12.wav",
+    "branches_04.wav",
+    "branches_07.wav",
+    "branches_06.wav"
+  ]
+}

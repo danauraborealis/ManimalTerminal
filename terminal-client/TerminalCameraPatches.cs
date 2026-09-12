@@ -13,13 +13,13 @@ namespace Manimal.Terminal
     // ALWAYS discard the scene camera prefab. shipping a camera through the bundle
     // was tried and measured dead on icebreaker: the rip's serialized DATA does not
     // survive (null shaders/materials, empty curves crashed NightVision/Thermal/
-    // DistortCameraFX in Awake), and the un-shippable SSAA left CameraClass.SetSSR
+    // DistortCameraFX in Awake), and the un-shippable SSAA left EFT.CameraControl.CameraManager.SetSSR
     // to NRE inside PlayerCameraController.Create — error screen, no spawn. the
     // camera story is: Cam2 as the CHASSIS + the donor graft (TerminalCameraDonor).
-    [HarmonyPatch(typeof(CameraClass), "SetCameraFromSettings")]
+    [HarmonyPatch(typeof(EFT.CameraControl.CameraManager), "SetCameraFromSettings")]
     internal static class Patch_RejectShellCameraPrefab
     {
-        private static void Prefix(ref CameraClass.GInterface465 settings)
+        private static void Prefix(ref EFT.CameraControl.CameraManager.ISettings settings)
         {
             if (!TerminalGate.On) return; // vanilla maps: not even a log line
             var prefab = settings != null && settings.CameraPrefab != null ? settings.CameraPrefab.name : "<null>";
@@ -130,7 +130,7 @@ namespace Manimal.Terminal
     // (2026-08-19, post-icebreaker session: the fallback cam path fired on the
     // MAIN raid camera). so: swallow AND retry the hookup once the real camera
     // with the rain components exists.
-    [HarmonyPatch(typeof(RainController), "method_0")]
+    [HarmonyPatch(typeof(RainController), "CameraChanged")]
     internal static class Patch_RainScreenOnCam2
     {
         private static Exception Finalizer(RainController __instance, Exception __exception)
@@ -158,14 +158,14 @@ namespace Manimal.Terminal
         private void Update()
         {
             if (!Rain || Time.realtimeSinceStartup > _deadline) { Done(false); return; }
-            var cam = CameraClass.Instance?.Camera;
+            var cam = EFT.CameraControl.CameraManager.Instance?.Camera;
             if (cam == null) return;
             // the real FPS camera ships the rain screen components — retry only
             // once they exist so method_0 has something to hook
             if (cam.GetComponent<RainScreenDrops>() == null) return;
             try
             {
-                HarmonyLib.AccessTools.Method(typeof(RainController), "method_0")?.Invoke(Rain, null);
+                HarmonyLib.AccessTools.Method(typeof(RainController), "CameraChanged")?.Invoke(Rain, null);
                 Plugin.Log.LogInfo("[RaidFix] RainController re-hooked to the real camera — rain restored");
                 Done(true);
             }
@@ -220,7 +220,7 @@ namespace Manimal.Terminal
     // safety net: if method_3 trips on yet another Cam2-era gap, don't let it kill
     // Awake — the rest of Awake still runs and the camera lives. a partially-
     // initialized effects stack just means some per-frame effect NREs (non-fatal).
-    [HarmonyPatch(typeof(EffectsController), "method_3")]
+    [HarmonyPatch(typeof(EffectsController), "Init")]
     internal static class Patch_EffectsControllerInit
     {
         private static Exception Finalizer(Exception __exception)

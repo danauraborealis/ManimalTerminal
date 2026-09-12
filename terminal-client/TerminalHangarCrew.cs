@@ -27,7 +27,7 @@ namespace Manimal.Terminal
 
         internal static void Arm()
         {
-            if (_armedThisRaid || TerminalSpawnGate.BotsDisabled || !Plugin.EventWavesPush.Value) return;
+            if (!TerminalCoop.Authority || _armedThisRaid || TerminalSpawnGate.BotsDisabled || !Plugin.EventWavesPush.Value) return;
             _armedThisRaid = true;
             new GameObject("Terminal_HangarCrew").AddComponent<TerminalHangarCrew>();
         }
@@ -249,8 +249,8 @@ namespace Manimal.Terminal
                 var spawnParams = new BotSpawnParams { ShallBeGroup = new ShallBeGroupParams(false, false, 1) };
                 for (int i = 0; i < count; i++)
                 {
-                    var profileData = new BotProfileDataClass(EPlayerSide.Savage, role, BotDifficulty.normal, 5f, spawnParams, false);
-                    var data = await BotCreationDataClass.Create(profileData, spawner.BotCreator, 1, spawner);
+                    var profileData = new GetProfileDataParams(EPlayerSide.Savage, role, BotDifficulty.normal, 5f, spawnParams, false);
+                    var data = await BotCreationData.Create(profileData, spawner._botCreator, 1, spawner);
                     if (data == null) { Plugin.Log.LogWarning($"[HangarCrew] profile creation failed ({i + 1}/{count})"); continue; }
                     var pick = pts.Count > 0
                         ? new List<EFT.Game.Spawning.ISpawnPoint> { pts[i % pts.Count] }

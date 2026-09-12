@@ -35,7 +35,7 @@ namespace Manimal.Terminal
         }
 #pragma warning restore 0649
 
-        private static readonly FieldInfo _cloVol = AccessTools.Field(typeof(CullingLightObject), "volumetricLight_0");
+        private static readonly FieldInfo _cloVol = AccessTools.Field(typeof(CullingLightObject), "_volumetricLight");
         private static readonly FieldInfo _lampVol = AccessTools.Field(typeof(LampController), "list_2");
 
         private static List<Row> LoadRows()
@@ -180,7 +180,7 @@ namespace Manimal.Terminal
         {
             try
             {
-                var s = Singleton<SharedGameSettingsClass>.Instance;
+                var s = Singleton<EFT.Settings.SettingsManager>.Instance;
                 return s == null || s.Graphics.Settings.VolumetricLight.Value;
             }
             catch { return true; }

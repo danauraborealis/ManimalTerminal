@@ -28,6 +28,8 @@ namespace Manimal.Terminal
         private static bool _endingStopped;
         private static int _placementsCommittedThisRaid;
         private static float _lastPopLog;
+        private static float _lastPacingLog;
+        private static float _nextFreshProfileAdmission;
         private static float _pipelineActuallyIdleSince = -1f;
         private static int _duplicateBossCallbacks;
         private sealed class AdmissionReservation
@@ -38,7 +40,7 @@ namespace Manimal.Terminal
         }
         private static readonly List<AdmissionReservation> _scavReservations = new();
         private static readonly List<AdmissionReservation> _totalReservations = new();
-        private static readonly List<(BotsController c, BotWaveDataClass w)> _waves = new();
+        private static readonly List<(BotsController c, EFT.SpawnWave w, float queuedAt)> _waves = new();
         private sealed class QueuedBoss
         {
             internal BotsController Controller;
@@ -47,6 +49,7 @@ namespace Manimal.Terminal
             // every frame while our gate owns it. Keep that identity even if recycling
             // later replaces Wave with a resized copy.
             internal BossLocationSpawn Source;
+            internal float QueuedAt;
         }
         private static readonly List<QueuedBoss> _bosses = new();
 
@@ -67,6 +70,8 @@ namespace Manimal.Terminal
             _endingStopped = false;
             _placementsCommittedThisRaid = 0;
             _lastPopLog = 0f;
+            _lastPacingLog = 0f;
+            _nextFreshProfileAdmission = 0f;
             _pipelineActuallyIdleSince = -1f;
             _duplicateBossCallbacks = 0;
             _scavReservations.Clear();
@@ -88,7 +93,7 @@ namespace Manimal.Terminal
         }
 
         // ORDINARY-SCAV ADMISSION CEILING.  This gate acts at BotsController before
-        // BotCreationDataClass.Create generates profiles.  The former low-level choke
+        // BotCreationData.Create generates profiles.  The former low-level choke
         // acted after profile generation and left 14-15 ActivateBot jobs permanently
         // counted in InSpawnProcess during witness raids.  Do not cap there again.
         //
@@ -104,7 +109,44 @@ namespace Manimal.Terminal
         private static bool ScavResidentCapEnabled => Plugin.MaxResidentScavs.Value > 0;
         private static bool LifetimeCapEnabled
             => Plugin.MaxBotsCreatedPerRaid != null && Plugin.MaxBotsCreatedPerRaid.Value > 0;
+        private static bool FreshProfilePacingEnabled
+            => Plugin.FreshProfileWaveInterval != null && Plugin.FreshProfileWaveInterval.Value > 0f;
         internal static bool BotsDisabled => Plugin.DisableAllBots != null && Plugin.DisableAllBots.Value;
+
+        private static float FreshProfileInterval
+        {
+            get
+            {
+                if (!FreshProfilePacingEnabled) return 0f;
+                // Count reserved placements as population before they finish loading.
+                // Otherwise a slow profile pipeline still reads as an empty map and
+                // repeatedly takes the two-second catch-up path.
+                int effectivePopulation = TerminalPopulationDirector.LivingCount + PendingTotalAdmissions;
+                if (Plugin.LowPopulationWaveThreshold != null
+                    && Plugin.LowPopulationWaveInterval != null
+                    && effectivePopulation <= Plugin.LowPopulationWaveThreshold.Value)
+                    return Plugin.LowPopulationWaveInterval.Value;
+                return Plugin.FreshProfileWaveInterval.Value;
+            }
+        }
+
+        private static bool FreshProfileAdmissionOpen
+            => !FreshProfilePacingEnabled || Time.realtimeSinceStartup >= _nextFreshProfileAdmission;
+
+        private static void NoteFreshProfileAdmission()
+        {
+            if (!FreshProfilePacingEnabled) return;
+            _nextFreshProfileAdmission = Time.realtimeSinceStartup + FreshProfileInterval;
+        }
+
+        private static void LogPacingHold()
+        {
+            if (!FreshProfilePacingEnabled || Time.realtimeSinceStartup - _lastPacingLog < 10f) return;
+            _lastPacingLog = Time.realtimeSinceStartup;
+            float remaining = Mathf.Max(0f, _nextFreshProfileAdmission - Time.realtimeSinceStartup);
+            Plugin.Log.LogInfo($"[SpawnPacing] fresh-profile admission waiting {remaining:0.0}s "
+                + $"(alive={TerminalPopulationDirector.LivingCount}, pending={PendingTotalAdmissions}, queued={_waves.Count + _bosses.Count}); recycled fulfillment remains immediate");
+        }
 
         private static void LogBotlessBlock(string path)
         {
@@ -268,13 +310,13 @@ namespace Manimal.Terminal
             catch { return false; }
         }
 
-        private static bool IsOrdinaryScavWave(BotWaveDataClass wave)
+        private static bool IsOrdinaryScavWave(EFT.SpawnWave wave)
             => wave != null && TerminalPopulationDirector.IsOrdinaryScav(wave.WildSpawnType);
 
         private static bool IsOrdinaryScavWave(BossLocationSpawn wave)
             => wave != null && TerminalPopulationDirector.IsOrdinaryScav(wave.BossType);
 
-        private static int ScavDemand(BotWaveDataClass wave) => Math.Max(0, wave?.BotsCount ?? 0);
+        private static int ScavDemand(EFT.SpawnWave wave) => Math.Max(0, wave?.BotsCount ?? 0);
         private static int ScavDemand(BossLocationSpawn wave)
             => wave == null ? 0 : 1 + Math.Max(0, wave.EscortCount);
 
@@ -298,7 +340,9 @@ namespace Manimal.Terminal
         internal static bool TryReserveDirectAdmissions(int wanted)
         {
             if (!CanAdmitTotal(wanted)) return false;
+            if (!FreshProfileAdmissionOpen) { LogPacingHold(); return false; }
             ReserveTotalAdmissions(wanted);
+            NoteFreshProfileAdmission();
             return true;
         }
 
@@ -310,14 +354,14 @@ namespace Manimal.Terminal
                     ? Comfort.Common.Singleton<IBotGame>.Instance.BotsController : null;
                 if (bc?.BotSpawner == null) return false;
                 var spawner = bc.BotSpawner;
-                if (spawner.InSpawnProcess < 0)
+                if (spawner._inSpawnProcess < 0)
                 {
-                    Plugin.Log.LogWarning($"[SpawnGate] clamped negative native activation counter ({spawner.InSpawnProcess} -> 0)");
-                    spawner.InSpawnProcess = 0;
+                    Plugin.Log.LogWarning($"[SpawnGate] clamped negative native activation counter ({spawner._inSpawnProcess} -> 0)");
+                    spawner._inSpawnProcess = 0;
                 }
-                bool actualWork = BotCreationDataClass.ProfilesLoadingProcess > 0
-                    || spawner.BotCreator.BotsLoading > 0
-                    || spawner.BotCreator.BundlesLoading > 0
+                bool actualWork = BotCreationData.ProfilesLoadingProcess > 0
+                    || spawner._botCreator.BotsLoading > 0
+                    || spawner._botCreator.BundlesLoading > 0
                     || spawner.SpawnDelaysService.WaitCount > 0;
                 if (actualWork)
                 {
@@ -331,7 +375,7 @@ namespace Manimal.Terminal
                 // this raid reached 12 forever and starved every later event wave.
                 // Give a legitimate callback ten quiet seconds, then repair only the
                 // orphaned counter. All authoritative workload counters above are idle.
-                if (spawner.InSpawnProcess > 0)
+                if (spawner._inSpawnProcess > 0)
                 {
                     float now = Time.realtimeSinceStartup;
                     if (_pipelineActuallyIdleSince < 0f)
@@ -340,8 +384,8 @@ namespace Manimal.Terminal
                         return true;
                     }
                     if (now - _pipelineActuallyIdleSince < 10f) return true;
-                    int stale = spawner.InSpawnProcess;
-                    spawner.InSpawnProcess = 0;
+                    int stale = spawner._inSpawnProcess;
+                    spawner._inSpawnProcess = 0;
                     _pipelineActuallyIdleSince = -1f;
                     Plugin.Log.LogWarning($"[SpawnGate] repaired stale native activation counter ({stale} orphaned placement(s); all real loaders idle)");
                 }
@@ -360,7 +404,13 @@ namespace Manimal.Terminal
                     _duplicateBossCallbacks++;
                     return;
                 }
-            _bosses.Add(new QueuedBoss { Controller = controller, Wave = wave, Source = wave });
+            _bosses.Add(new QueuedBoss
+            {
+                Controller = controller,
+                Wave = wave,
+                Source = wave,
+                QueuedAt = Time.realtimeSinceStartup,
+            });
         }
 
         private static void LogIgnoreMax(BossLocationSpawn wave)
@@ -374,7 +424,9 @@ namespace Manimal.Terminal
         {
             get
             {
+                if (!TerminalCoop.Authority) return false;
                 if (!Plugin.HoldBotsForCutscene.Value) return true;
+                if (TerminalCoop.Active) return TerminalCoop.AttackReleased || (TerminalCoop.AttackStarted >= 0 && TerminalCoop.Now - TerminalCoop.AttackStarted >= 37.9);
                 // 480s failsafe releases NO MATTER WHAT — caps every hold below
                 if (_raidStart > 0f && Time.realtimeSinceStartup - _raidStart > 480f) return true;
                 // release in the attack cutscene's FINAL stretch (2026-08-17, user
@@ -392,7 +444,7 @@ namespace Manimal.Terminal
                     || (_attackStartedAt > 0f && Time.realtimeSinceStartup - _attackStartedAt > AttackLen - ReleaseLead);
                 if (!cutsceneDone) return false;
                 // ALSO wait for the preset profiles (kept from the shelved tushonka
-                // work — witness raids proved released waves die on BossSpawnerClass.
+                // work — witness raids proved released waves die on BotBossSpawn.
                 // method_2's FIRST line `if (!IsProfilesLoaded) return false` and
                 // crawl BSG's retry queue: the 'ruaf missing at start' symptom, and
                 // it exists on the OLD bundle too). release into a loaded spawner
@@ -422,7 +474,7 @@ namespace Manimal.Terminal
             [HarmonyPostfix]
             private static void Postfix()
             {
-                if (!TerminalGate.On) return;
+                if (!TerminalGate.On || !TerminalCoop.Authority) return;
                 TerminalAILimitFirewall.EnforceAtRaidStart();
                 _raidStart = Time.realtimeSinceStartup;
                 _attackStartedAt = -1f;
@@ -434,6 +486,8 @@ namespace Manimal.Terminal
                 _releasingQueuedWave = false;
                 _placementsCommittedThisRaid = 0;
                 _lastPopLog = 0f;
+                _lastPacingLog = 0f;
+                _nextFreshProfileAdmission = 0f;
                 _pipelineActuallyIdleSince = -1f;
                 _duplicateBossCallbacks = 0;
                 _scavReservations.Clear();
@@ -453,24 +507,28 @@ namespace Manimal.Terminal
                     Plugin.Log.LogWarning($"[SpawnGate] total living-AI ceiling armed at {Plugin.MaxAliveBots.Value}; authored special waves wait intact and faction recyclers get first refusal");
                 if (ScavResidentCapEnabled)
                     Plugin.Log.LogWarning($"[SpawnGate] ordinary-scav resident-resource ceiling armed at {Plugin.MaxResidentScavs.Value} living + uncleaned bodies; corpse retirement refunds capacity");
+                if (FreshProfilePacingEnabled)
+                    Plugin.Log.LogWarning($"[SpawnPacing] fresh-profile waves paced at {Plugin.FreshProfileWaveInterval.Value:0.0}s, "
+                        + $"catching up at {Plugin.LowPopulationWaveInterval.Value:0.0}s while living + admitted AI <= {Plugin.LowPopulationWaveThreshold.Value}; recycled waves bypass pacing");
                 if (LifetimeCapEnabled)
                     Plugin.Log.LogWarning($"[SpawnGate] lifetime budget armed at {Plugin.MaxBotsCreatedPerRaid.Value} total bot placements — deaths do not refund slots");
                 // EITHER feature needs the host: with the ceiling on but the cutscene
                 // hold off, no host means nothing ever drains the queue and the map
                 // stays empty for the whole raid
-                if (Plugin.HoldBotsForCutscene.Value || CapEnabled || TotalCapEnabled || ScavResidentCapEnabled || LifetimeCapEnabled)
+                if (Plugin.HoldBotsForCutscene.Value || CapEnabled || TotalCapEnabled || ScavResidentCapEnabled
+                    || FreshProfilePacingEnabled || LifetimeCapEnabled)
                     new GameObject("Terminal_SpawnGate").AddComponent<FlushHost>();
             }
         }
 
-        [HarmonyPatch(typeof(BotsController), nameof(BotsController.ActivateBotsByWave), typeof(BotWaveDataClass))]
+        [HarmonyPatch(typeof(BotsController), nameof(BotsController.ActivateBotsByWave), typeof(EFT.SpawnWave))]
         internal static class Patch_GateWaves
         {
             [HarmonyPrefix]
-            private static bool Prefix(BotsController __instance, ref BotWaveDataClass wave, ref Task __result)
+            private static bool Prefix(BotsController __instance, ref EFT.SpawnWave wave, ref Task __result)
             {
                 if (!TerminalGate.On) return true;
-                if (_endingStopped) { __result = Task.CompletedTask; return false; }
+                if (!TerminalCoop.Authority || _endingStopped) { __result = Task.CompletedTask; return false; }
                 if (BotsDisabled)
                 {
                     LogBotlessBlock("assault wave");
@@ -489,7 +547,7 @@ namespace Manimal.Terminal
                 // With no all-role ceiling, non-scav plain waves retain their authored
                 // behavior. With it enabled they join the same early queue so several
                 // callbacks cannot all observe the same free slots in one frame.
-                if (Open && !IsOrdinaryScavWave(wave) && !TotalCapEnabled) return true;
+                if (Open && !IsOrdinaryScavWave(wave) && !TotalCapEnabled && !FreshProfilePacingEnabled) return true;
 
                 // Try recycling before queuing. A complete reuse creates no profile;
                 // partial reuse shrinks the queued wave to its real shortfall.
@@ -502,7 +560,7 @@ namespace Manimal.Terminal
                 // Every ordinary scav wave enters our queue, even when headroom exists.
                 // FlushHost serializes profile generation, preventing a frame of many
                 // simultaneous event callbacks from all observing the same empty map.
-                _waves.Add((__instance, wave));
+                _waves.Add((__instance, wave, Time.realtimeSinceStartup));
                 if (!Open) LogHold("assault wave");
                 else LogPopHold();
                 __result = Task.CompletedTask;
@@ -517,7 +575,7 @@ namespace Manimal.Terminal
             private static bool Prefix(BotsController __instance, ref BossLocationSpawn wave)
             {
                 if (!TerminalGate.On) return true;
-                if (_endingStopped) return false;
+                if (!TerminalCoop.Authority || _endingStopped) return false;
                 if (BotsDisabled)
                 {
                     LogBotlessBlock("boss/event wave");
@@ -537,7 +595,7 @@ namespace Manimal.Terminal
                     // IgnoreMaxBots still bypasses EFT's role-blind native ceiling, but
                     // not Terminal's all-role safety ceiling. Queue the intact authored
                     // squad until enough living slots exist.
-                    if (!TotalCapEnabled)
+                    if (!TotalCapEnabled && !FreshProfilePacingEnabled)
                     {
                         if (wave.IgnoreMaxBots) LogIgnoreMax(wave);
                         return true;
@@ -555,7 +613,7 @@ namespace Manimal.Terminal
                 // With the total ceiling disabled, non-scav event waves remain outside
                 // the scav-only queue. Otherwise they wait and drain through the path
                 // above once the cutscene gate opens.
-                if (Open && !IsOrdinaryScavWave(wave) && !TotalCapEnabled) return true;
+                if (Open && !IsOrdinaryScavWave(wave) && !TotalCapEnabled && !FreshProfilePacingEnabled) return true;
 
                 if (Open && TerminalPopulationDirector.TryPrepareBossWave(__instance, ref wave)) return false;
                 QueueBoss(__instance, wave);
@@ -574,10 +632,10 @@ namespace Manimal.Terminal
         {
             [HarmonyPrefix]
             private static bool Prefix(BotSpawner __instance, List<ISpawnPoint> openedPositions,
-                BotCreationDataClass data)
+                BotCreationData data)
             {
                 if (!TerminalGate.On) return true;
-                if (_endingStopped) return false;
+                if (!TerminalCoop.Authority || _endingStopped) return false;
                 if (BotsDisabled)
                 {
                     LogBotlessBlock("final placement");
@@ -611,7 +669,7 @@ namespace Manimal.Terminal
         }
 
         // Non-wave scav replacement is the map's infinite churn path. Intercept it at
-        // BotsController, before BotCreationDataClass.Create. NonWavesSpawnScenario
+        // BotsController, before BotCreationData.Create. NonWavesSpawnScenario
         // retries on its own schedule, so a rejected request needs no queue.
         [HarmonyPatch(typeof(BotsController), nameof(BotsController.ActivateBotsWithoutWave))]
         internal static class Patch_AdmitWithoutWave
@@ -620,7 +678,7 @@ namespace Manimal.Terminal
             private static bool Prefix(int count, IGetProfileData data)
             {
                 if (!TerminalGate.On) return true;
-                if (_endingStopped) return false;
+                if (!TerminalCoop.Authority || _endingStopped) return false;
                 if (BotsDisabled)
                 {
                     LogBotlessBlock("non-wave profile admission");
@@ -631,13 +689,17 @@ namespace Manimal.Terminal
                 if (!IsOrdinaryScavProfile(data))
                 {
                     if (!CanAdmitTotal(wanted)) { LogPopHold(); return false; }
+                    if (!FreshProfileAdmissionOpen) { LogPacingHold(); return false; }
                     ReserveTotalAdmissions(wanted);
+                    NoteFreshProfileAdmission();
                     return true;
                 }
                 if (CanAdmitScavs(wanted) && CanAdmitTotal(wanted))
                 {
+                    if (!FreshProfileAdmissionOpen) { LogPacingHold(); return false; }
                     ReserveScavAdmissions(wanted);
                     ReserveTotalAdmissions(wanted);
+                    NoteFreshProfileAdmission();
                     return true;
                 }
                 LogPopHold();
@@ -653,7 +715,7 @@ namespace Manimal.Terminal
         internal static class Patch_BypassNativeCapForAdmittedScavs
         {
             [HarmonyPrefix]
-            private static void Prefix(BotCreationDataClass data, ref bool withCheckMinMax)
+            private static void Prefix(BotCreationData data, ref bool withCheckMinMax)
             {
                 if (!TerminalGate.On || data == null) return;
                 if (IsOrdinaryScavProfile(data._profileData)) withCheckMinMax = false;
@@ -672,7 +734,7 @@ namespace Manimal.Terminal
             private static bool Prefix()
             {
                 if (!TerminalGate.On) return true;
-                if (_endingStopped) return false;
+                if (!TerminalCoop.Authority || _endingStopped) return false;
                 if (BotsDisabled)
                 {
                     LogBotlessBlock("non-wave scenario");
@@ -708,10 +770,10 @@ namespace Manimal.Terminal
                     return;
                 }
                 if (Time.realtimeSinceStartup < _next) return;
-                bool cap = CapEnabled || TotalCapEnabled || ScavResidentCapEnabled;
+                bool managed = CapEnabled || TotalCapEnabled || ScavResidentCapEnabled || FreshProfilePacingEnabled;
                 // faster tick with the ceiling on — the queue drains one wave per
                 // tick, so the cadence sets how quickly kills make room
-                _next = Time.realtimeSinceStartup + (cap ? 0.5f : 1f);
+                _next = Time.realtimeSinceStartup + (managed ? 0.5f : 1f);
                 if (!Open) return;
 
                 if (!LifetimeBudgetOpen)
@@ -722,13 +784,13 @@ namespace Manimal.Terminal
                     return;
                 }
 
-                if (!cap)
+                if (!managed)
                 {
                     // legacy path: cutscene gate only, release the backlog wholesale
                     if (_waves.Count + _bosses.Count > 0)
                     {
                         Plugin.Log.LogInfo($"[SpawnGate] cutscene done — releasing {_waves.Count} wave(s) + {_bosses.Count} boss wave(s)");
-                        foreach (var (c, w) in _waves)
+                        foreach (var (c, w, _) in _waves)
                             try { _ = c.ActivateBotsByWave(w); } catch (Exception e) { Plugin.Log.LogWarning($"[SpawnGate] wave release failed: {e.Message}"); }
                         foreach (var queued in _bosses)
                             try { queued.Controller.ActivateBotsByWave(queued.Wave); } catch (Exception e) { Plugin.Log.LogWarning($"[SpawnGate] boss release failed: {e.Message}"); }
@@ -776,14 +838,14 @@ namespace Manimal.Terminal
                             && TerminalPopulationDirector.TryPrepareRuafWave(c, ref w))
                         {
                             _bosses.RemoveAt(specialBoss);
-                            LogReleased("recycled RUAF wave");
+                            LogReleased("recycled RUAF wave", queued.QueuedAt, false);
                             return;
                         }
                         if (TerminalPopulationDirector.IsBlackDivision(w.BossType)
                             && TerminalPopulationDirector.TryPrepareBlackDivisionWave(c, ref w))
                         {
                             _bosses.RemoveAt(specialBoss);
-                            LogReleased("recycled Black Division wave");
+                            LogReleased("recycled Black Division wave", queued.QueuedAt, false);
                             return;
                         }
                         queued.Wave = w;
@@ -794,17 +856,19 @@ namespace Manimal.Terminal
                             _bosses.Add(queued);
                             blockedSpecial = true;
                         }
-                        else
+                        else if (FreshProfileAdmissionOpen)
                         {
                             _bosses.RemoveAt(specialBoss);
                             if (w.IgnoreMaxBots) LogIgnoreMax(w);
                             ReserveTotalAdmissions(wanted);
+                            NoteFreshProfileAdmission();
                             _releasingQueuedWave = true;
                             try { c.ActivateBotsByWave(w); }
                             finally { _releasingQueuedWave = false; }
-                            LogReleased(w.BossName);
+                            LogReleased(w.BossName, queued.QueuedAt, true);
                             return;
                         }
+                        else LogPacingHold();
                     }
 
                     int specialPlain = -1;
@@ -818,24 +882,26 @@ namespace Manimal.Terminal
                     }
                     if (specialPlain >= 0)
                     {
-                        var (c, w) = _waves[specialPlain];
+                        var (c, w, queuedAt) = _waves[specialPlain];
                         int wanted = ScavDemand(w);
                         if (!CanAdmitTotal(wanted))
                         {
                             _waves.RemoveAt(specialPlain);
-                            _waves.Add((c, w));
+                            _waves.Add((c, w, queuedAt));
                             blockedSpecial = true;
                         }
-                        else
+                        else if (FreshProfileAdmissionOpen)
                         {
                             _waves.RemoveAt(specialPlain);
                             ReserveTotalAdmissions(wanted);
+                            NoteFreshProfileAdmission();
                             _releasingQueuedWave = true;
                             try { _ = c.ActivateBotsByWave(w); }
                             finally { _releasingQueuedWave = false; }
-                            LogReleased("non-scav wave");
+                            LogReleased("non-scav wave", queuedAt, true);
                             return;
                         }
+                        else LogPacingHold();
                     }
 
                     // Preserve special-wave priority. We rotated the blocked heads so
@@ -853,52 +919,61 @@ namespace Manimal.Terminal
                         if (TerminalPopulationDirector.TryPrepareBossWave(c, ref w))
                         {
                             _bosses.RemoveAt(0);
-                            LogReleased("recycled scav boss-wave");
+                            LogReleased("recycled scav boss-wave", queued.QueuedAt, false);
                             return;
                         }
                         queued.Wave = w;
                         if (!CanAdmitScavs(ScavDemand(w)) || !CanAdmitTotal(ScavDemand(w))) { LogPopHold(); return; }
+                        if (!FreshProfileAdmissionOpen) { LogPacingHold(); return; }
                         _bosses.RemoveAt(0);
                         // This flag bypasses EFT's role-blind total MaxBots check only
                         // after the ordinary group passed our live/profile budgets.
                         w.IgnoreMaxBots = true;
                         ReserveScavAdmissions(ScavDemand(w));
                         ReserveTotalAdmissions(ScavDemand(w));
+                        NoteFreshProfileAdmission();
                         _releasingQueuedWave = true;
                         try { c.ActivateBotsByWave(w); }
                         finally { _releasingQueuedWave = false; }
-                        LogReleased(w.BossName);
+                        LogReleased(w.BossName, queued.QueuedAt, true);
                         return;
                     }
 
                     if (_waves.Count > 0)
                     {
-                        var (c, original) = _waves[0];
+                        var (c, original, queuedAt) = _waves[0];
                         var w = original;
                         if (TerminalPopulationDirector.TryPreparePlainWave(c, ref w))
                         {
                             _waves.RemoveAt(0);
-                            LogReleased("recycled scav wave");
+                            LogReleased("recycled scav wave", queuedAt, false);
                             return;
                         }
-                        _waves[0] = (c, w);
+                        _waves[0] = (c, w, queuedAt);
                         if (!CanAdmitScavs(ScavDemand(w)) || !CanAdmitTotal(ScavDemand(w))) { LogPopHold(); return; }
+                        if (!FreshProfileAdmissionOpen) { LogPacingHold(); return; }
                         _waves.RemoveAt(0);
                         w.WithCheckMinMax = false;
                         ReserveScavAdmissions(ScavDemand(w));
                         ReserveTotalAdmissions(ScavDemand(w));
+                        NoteFreshProfileAdmission();
                         _releasingQueuedWave = true;
                         try { _ = c.ActivateBotsByWave(w); }
                         finally { _releasingQueuedWave = false; }
-                        LogReleased("scav wave");
+                        LogReleased("scav wave", queuedAt, true);
                     }
                 }
                 catch (Exception e) { Plugin.Log.LogWarning($"[SpawnGate] queued release failed: {e.Message}"); }
             }
 
-            private static void LogReleased(string what)
+            private static void LogReleased(string what, float queuedAt, bool generatedProfiles)
             {
-                Plugin.Log.LogDebug($"[SpawnGate] released queued '{what}' (aliveScavs={AliveScavCount()}/{(CapEnabled ? Plugin.MaxAliveScavs.Value.ToString() : "unlimited")}, "
+                float age = Mathf.Max(0f, Time.realtimeSinceStartup - queuedAt);
+                float next = FreshProfilePacingEnabled
+                    ? Mathf.Max(0f, _nextFreshProfileAdmission - Time.realtimeSinceStartup)
+                    : 0f;
+                Plugin.Log.LogDebug($"[SpawnGate] released queued '{what}' age={age:0.0}s profiles={(generatedProfiles ? "fresh" : "recycled")} nextFresh={next:0.0}s "
+                    + $"(aliveScavs={AliveScavCount()}/{(CapEnabled ? Plugin.MaxAliveScavs.Value.ToString() : "unlimited")}, "
                     + $"aliveTotal={TerminalPopulationDirector.LivingCount}/{(TotalCapEnabled ? Plugin.MaxAliveBots.Value.ToString() : "unlimited")}, pendingTotal={PendingTotalAdmissions}, "
                     + $"residentScavs={TerminalPopulationDirector.ResidentOrdinaryScavCount}/{(ScavResidentCapEnabled ? Plugin.MaxResidentScavs.Value.ToString() : "unlimited")}, "
                     + $"lifetimeCreatedScavs={TerminalPopulationDirector.OrdinaryScavsCreatedCount}, "

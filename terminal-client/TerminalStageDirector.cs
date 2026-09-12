@@ -48,7 +48,7 @@ namespace Manimal.Terminal
             [HarmonyPostfix]
             private static void Postfix()
             {
-                if (!TerminalGate.On || !Plugin.StageDirector.Value) return;
+                if (!TerminalGate.On || !TerminalCoop.Authority || !Plugin.StageDirector.Value) return;
                 new GameObject("Terminal_StageDirector").AddComponent<Host>();
             }
         }
@@ -112,7 +112,7 @@ namespace Manimal.Terminal
                     // Record progression first: AnyEvent can synchronously activate T0
                     // waves, and their recycler must know the tier is now legal.
                     TerminalCrewJobs.NoteEvent("T0 (stage-1 attrition)");
-                    Singleton<BotEventHandler>.Instance?.AnyEvent("T0");
+                    Singleton<GlobalEventDispatcher>.Instance?.AnyEvent("T0");
                     TerminalPopulationDirector.EnsureProgressWavesActivated("T0");
                 }
                 catch (Exception e) { Plugin.Log.LogWarning($"[StageDirector] T0 raise failed: {e.Message}"); }

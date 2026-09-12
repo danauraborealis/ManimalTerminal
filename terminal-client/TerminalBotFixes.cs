@@ -50,7 +50,7 @@ namespace Manimal.Terminal
         // bot hearing: dangling despawned-bot refs in the sound graph NRE inside
         // PlaySound and abort the CALLER's flow (player shots, door slams) — swallow,
         // rate-limited log
-        [HarmonyPatch(typeof(BotEventHandler), nameof(BotEventHandler.PlaySound))]
+        [HarmonyPatch(typeof(GlobalEventDispatcher), nameof(GlobalEventDispatcher.PlaySound))]
         internal static class Patch_PlaySoundAirbag
         {
             private static float _lastLog;
@@ -72,7 +72,7 @@ namespace Manimal.Terminal
         // is a dead shell on a backported map — every door interaction NREs AFTER the
         // swing. our map has no quest triggers to fire; vanilla maps keep the exception
         // (masking theirs would silently break quests)
-        [HarmonyPatch(typeof(WorldInteractiveObject), "method_3")]
+        [HarmonyPatch(typeof(WorldInteractiveObject), "PushTriggers")]
         internal static class Patch_DoorTriggerEmit
         {
             private static Exception Finalizer(Exception __exception)
@@ -88,7 +88,7 @@ namespace Manimal.Terminal
         [HarmonyPatch(typeof(BotOwner), "method_10")]
         internal static class Patch_BotActivationStepwise
         {
-            private static readonly MethodInfo _m2 = AccessTools.Method(typeof(BotOwner), "method_2");
+            private static readonly MethodInfo _m2 = AccessTools.Method(typeof(BotOwner), "AfterActivationSubscribe");
             private static readonly MethodInfo _m11 = AccessTools.Method(typeof(BotOwner), "method_11");
 
             private static bool Prefix(BotOwner __instance)
@@ -163,11 +163,11 @@ namespace Manimal.Terminal
         // PATROL SUB-POINTS, ported from icebreaker 08-13 (34,090 -> 45 NREs there).
         // a follower joining a boss lands in PatrolPointChooserBasic.FindPointForFollower,
         // which calls SetTarget(container, follower.BotFollower.Index) — a formation slot,
-        // so ALWAYS >= 0. GClass504.method_0 therefore takes its `index >= 0` branch and
+        // so ALWAYS >= 0. BotPointControl.method_0 therefore takes its `index >= 0` branch and
         // does `new PatrolPointContainer(p.TargetPoint.GetSubPoint(index))`. GetSubPoint is
         // `subPoints[Mathf.Clamp(index, 0, Count-1)]`: the INDEX is safe, the CONTENTS are
         // not. a dead entry comes back, gets wrapped, and PatrollingData.PointSetted reads
-        // .Position off a null TargetPoint — every frame, from GClass514.Update.
+        // .Position off a null TargetPoint — every frame, from PatrolMoveRoundBoss.Update.
         //
         // terminal is MORE exposed than icebreaker was: its patrol points are rebuilt from
         // the retail dump by TerminalAIBake (FillFields restoring subPoints refs), and any

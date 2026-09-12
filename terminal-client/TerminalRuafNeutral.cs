@@ -26,7 +26,7 @@ namespace Manimal.Terminal
                 {
                     if (!TerminalGate.On || !Plugin.RuafNeutral.Value) return true;
                     if (person == null || person.IsAI) return true; // bot-vs-bot untouched
-                    var role = __instance?.InitialBot?.Profile?.Info?.Settings?.Role.ToString() ?? "";
+                    var role = __instance?._initialBot?.Profile?.Info?.Settings?.Role.ToString() ?? "";
                     if (role.IndexOf("ruaf", StringComparison.OrdinalIgnoreCase) < 0
                         && role.IndexOf("vsrf", StringComparison.OrdinalIgnoreCase) < 0) return true;
                     if (cause == EBotEnemyCause.followGetHit || cause == EBotEnemyCause.byKill || cause == EBotEnemyCause.death)

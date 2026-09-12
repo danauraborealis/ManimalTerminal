@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using SysIoPath = System.IO.Path;
 using System.Runtime.Serialization;
 using EFT.Interactive;
@@ -226,7 +225,7 @@ namespace Manimal.Terminal
 
                 // --- voxels ---
                 var voxData = UnityEngine.Object.FindObjectOfType<AIVoxelesData>();
-                var vrow = Rows(comps, "AIVoxelesData").FirstOrDefault();
+                var vrow = Rows(comps, "AIVoxelesData").First;
                 if (voxData != null && vrow?["fields"] is JObject vf)
                 {
                     var cells = new List<NavGraphVoxelSimple>();
@@ -255,7 +254,7 @@ namespace Manimal.Terminal
 
                 // --- patrols (loot/exfil points; container refs unresolvable -> null) ---
                 var patData = UnityEngine.Object.FindObjectOfType<AIPatrolsData>();
-                var prow = Rows(comps, "AIPatrolsData").FirstOrDefault();
+                var prow = Rows(comps, "AIPatrolsData").First;
                 if (patData != null && prow?["fields"] is JObject pf)
                     FillFields(patData, pf, null);
 
@@ -266,7 +265,7 @@ namespace Manimal.Terminal
                 FillSingle<BotZoneEntranceInfo>(comps, "BotZoneEntranceInfo");
 
                 // --- the cover bake itself ---
-                var crow = Rows(comps, "AICoversData").FirstOrDefault();
+                var crow = Rows(comps, "AICoversData").First;
                 if (crow?["fields"] is JObject cf)
                 {
                     // ID-SPACE RECONCILE, in three passes. terminal's RETAIL data is
@@ -335,7 +334,7 @@ namespace Manimal.Terminal
                 covers.AIMinesPositions = UnityEngine.Object.FindObjectOfType<AIMinesPositionsHolder>();
                 covers.AIDangerPlacesHolder = UnityEngine.Object.FindObjectOfType<AIDangerPlacesHolder>();
                 covers.AIPlaceInfoHolder = UnityEngine.Object.FindObjectOfType<AIPlaceInfoHolder>();
-                // Places is a bare public field the engine never null-guards — ExUsecBrainClass
+                // Places is a bare public field the engine never null-guards — ExUsecLayersStrategy
                 // foreaches it in its decision layer, so null = every rogue brain NREs silently
                 // and the whole map stands still. the old exception-finalizer used to heal this;
                 // now that RestoreData succeeds that path never runs, so heal it here.
@@ -444,8 +443,8 @@ namespace Manimal.Terminal
             }
         }
 
-        private static IEnumerable<JToken> Rows(JObject comps, string cls)
-            => (comps?[cls] as JArray) ?? Enumerable.Empty<JToken>();
+        private static JArray Rows(JObject comps, string cls)
+            => (comps?[cls] as JArray) ?? new JArray();
 
         private static T Comp<T>(JToken row) where T : Component
             => _comps.TryGetValue(row.Value<long>("path_id"), out var c) ? c as T : null;
@@ -472,7 +471,7 @@ namespace Manimal.Terminal
 
         private static void FillSingle<T>(JObject comps, string cls) where T : Component
         {
-            var row = Rows(comps, cls).FirstOrDefault();
+            var row = Rows(comps, cls).First;
             var target = UnityEngine.Object.FindObjectOfType<T>();
             if (row?["fields"] is JObject f && target != null)
             {

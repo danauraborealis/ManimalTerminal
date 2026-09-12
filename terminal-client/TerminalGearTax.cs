@@ -1,7 +1,6 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Linq;
 using System.Reflection;
 using Comfort.Common;
 using EFT;
@@ -27,6 +26,9 @@ namespace Manimal.Terminal
     internal static class TerminalGearTax
     {
         private const string CabinetTpl = "68a4c0ffee0000000000cab1";
+        internal static readonly Dictionary<string, string> CoopCabinets = new Dictionary<string, string>();
+        internal static readonly HashSet<string> CoopFinished = new HashSet<string>();
+        internal static readonly HashSet<string> CoopPrepared = new HashSet<string>();
         private static readonly FieldInfo LastEquippedField =
             AccessTools.Field(typeof(Player), "_lastEquippedWeaponOrKnifeItem");
 
@@ -37,6 +39,7 @@ namespace Manimal.Terminal
             private static void Postfix()
             {
                 if (!TerminalGate.On || !Plugin.GearConfiscation.Value) return;
+                if (!TerminalCoop.LocalHuman) return;
                 new GameObject("Terminal_GearTax").AddComponent<TaxHost>();
             }
         }
@@ -47,6 +50,9 @@ namespace Manimal.Terminal
 
             private IEnumerator Run()
             {
+                // In Fika, GameWorld.OnGameStarted fires while the loading screen is
+                // paused at the Start Raid button. Never touch hands/inventory there.
+                while (TerminalCoop.Active && !TerminalCoop.RaidStarted) yield return null;
                 // let loot bind + the player settle; the intro cutscene covers this
                 yield return new WaitForSeconds(2f);
                 var player = Singleton<GameWorld>.Instance?.MainPlayer;
@@ -57,6 +63,18 @@ namespace Manimal.Terminal
                     player = Singleton<GameWorld>.Instance?.MainPlayer;
                 }
                 if (player == null) { Done("no main player"); yield break; }
+                if (TerminalCoop.Active)
+                {
+                    // Wait for the host snapshot before deciding whether this is a
+                    // new confiscation or a reconnect with already-confiscated gear.
+                    TerminalCoop.Request(TerminalEvent.GearCabinet);
+                    float grantDeadline = Time.realtimeSinceStartup + 60f;
+                    while ((!TerminalCoop.SyncReady || (!CoopFinished.Contains(player.ProfileId) && !CoopCabinets.ContainsKey(player.ProfileId)))
+                        && Time.realtimeSinceStartup < grantDeadline) yield return null;
+                    if (CoopFinished.Contains(player.ProfileId)) { Done("already processed this raid"); yield break; }
+                    if (!TerminalCoop.SyncReady) { Done("host state unavailable — gear untouched"); yield break; }
+                    if (!CoopCabinets.ContainsKey(player.ProfileId)) { Done("host cabinet reservation unavailable — gear untouched"); yield break; }
+                }
 
                 // the container bind can be DEFERRED behind the registry self-repair
                 // (TerminalLootBind, 2026-08-18) — wait for a bound safe instead of
@@ -73,6 +91,30 @@ namespace Manimal.Terminal
                     yield break;
                 }
 
+                // Fika cannot safely clear a world container through a remote player's
+                // inventory controller: that descriptor stalls after emptying hands.
+                // The host instead commits GearPrepared after choosing the cabinet;
+                // every connected peer clears that one cabinet from the authoritative
+                // event before this coroutine is allowed to touch hands. On reconnect,
+                // the marker replays without clearing gear already deposited there.
+                if (TerminalCoop.Active)
+                {
+                    float preparedDeadline = Time.realtimeSinceStartup + 30f;
+                    while (!CoopPrepared.Contains(player.ProfileId) && Time.realtimeSinceStartup < preparedDeadline)
+                        yield return null;
+                    if (!CoopPrepared.Contains(player.ProfileId))
+                    {
+                        Done("host did not acknowledge cabinet preparation — gear and hands untouched");
+                        yield break;
+                    }
+                }
+                else if (!TerminalCoop.Active)
+                {
+                    // Solo owns the entire object graph, so the direct pre-transfer
+                    // clear is safe and does not need a network inventory operation.
+                    foreach (var grid in root.Grids) grid.RemoveAll();
+                }
+
                 // SetEmptyHands is an asynchronous hands-controller operation. The old
                 // fixed 0.6s delay could elapse during one long startup frame while the
                 // holster animation/controller had not advanced at all. Removing the
@@ -84,7 +126,7 @@ namespace Manimal.Terminal
                     try
                     {
                         Plugin.Log.LogDebug($"[GearTax] empty-hands requested from {HandsState(player)}");
-                        player.SetEmptyHands(new Callback<GInterface198>(_ => handsCallback = true));
+                        player.SetEmptyHands(new Callback<EFT.IEmptyHandsController>(_ => handsCallback = true));
                     }
                     catch (Exception e)
                     {
@@ -110,20 +152,53 @@ namespace Manimal.Terminal
                 Destroy(gameObject);
             }
 
+            internal static bool ApplyCoopPreparation(string profile, bool clearGeneratedLoot)
+            {
+                if (string.IsNullOrEmpty(profile) || !CoopCabinets.TryGetValue(profile, out var ownerId))
+                    return false;
+                if (clearGeneratedLoot)
+                {
+                    LootableContainer cabinet = null;
+                    try
+                    {
+                        cabinet = Array.Find(UnityEngine.Object.FindObjectsOfType<LootableContainer>(),
+                            c => c?.ItemOwner?.ID == ownerId);
+                    }
+                    catch { }
+                    if (cabinet?.ItemOwner?.RootItem is not CompoundItem root || root.Grids == null)
+                        return false;
+                    int removed = 0;
+                    foreach (var grid in root.Grids)
+                        foreach (var item in grid.Items) removed++;
+                    foreach (var grid in root.Grids) grid.RemoveAll();
+                    Plugin.Log.LogInfo($"[GearTax] synchronized preparation cleared {removed} generated item(s) from reserved cabinet '{ownerId}'");
+                }
+                CoopPrepared.Add(profile);
+                return true;
+            }
+
             private static bool TryPickCabinet(out LootableContainer safe, out CompoundItem root)
             {
                 safe = null;
                 root = null;
                 try
                 {
-                    var candidates = UnityEngine.Object.FindObjectsOfType<LootableContainer>()
-                        .Where(l => l != null && l.ItemOwner != null
+                    var candidates = new List<LootableContainer>();
+                    foreach (var l in UnityEngine.Object.FindObjectsOfType<LootableContainer>())
+                        if (l != null && l.ItemOwner != null
                             && (l.name.IndexOf("valberg", StringComparison.OrdinalIgnoreCase) >= 0
                                 || (l.transform.parent != null && l.transform.parent.name.IndexOf("valberg", StringComparison.OrdinalIgnoreCase) >= 0))
                             && l.ItemOwner.RootItem is CompoundItem c && c.Grids != null && c.Grids.Length > 0)
-                        .ToList();
+                            candidates.Add(l);
                     if (candidates.Count == 0) return false;
-                    safe = candidates[UnityEngine.Random.Range(0, candidates.Count)];
+                    if (TerminalCoop.Active)
+                    {
+                        var me = Singleton<GameWorld>.Instance?.MainPlayer;
+                        if (me == null || !CoopCabinets.TryGetValue(me.ProfileId, out var ownerId)) return false;
+                        safe = candidates.Find(c => c.ItemOwner.ID == ownerId);
+                        if (safe == null) return false;
+                    }
+                    else safe = candidates[UnityEngine.Random.Range(0, candidates.Count)];
                     root = safe.ItemOwner.RootItem as CompoundItem;
                     return root?.Grids != null && root.Grids.Length > 0;
                 }
@@ -189,7 +264,7 @@ namespace Manimal.Terminal
                 {
                     if (host.Grids == null) continue;
                     foreach (var grid in host.Grids)
-                        foreach (var it in grid.Items.ToList())
+                        foreach (var it in new List<Item>(grid.Items))
                             if (!taken.Contains(it)) taken.Add(it);
                 }
 
@@ -214,7 +289,7 @@ namespace Manimal.Terminal
                 {
                     if (!search.IsItemKnown(root, null))
                         search.SetItemAsKnown(root, false);
-                    if (root is SearchableItemItemClass searchable && !search.IsSearched(searchable))
+                    if (root is EFT.InventoryLogic.SearchableItem searchable && !search.IsSearched(searchable))
                         search.SetItemAsSearched(searchable);
                 }
                 catch (Exception e)
@@ -223,20 +298,24 @@ namespace Manimal.Terminal
                     yield break;
                 }
 
-                // out with the cabinet's generated loot, in with the player's gear —
-                // big items first so the packer never strands a rifle behind a bandage.
-                // InteractionsHandlerClass.Move + TryRunNetworkTransaction is the same
+                // In with the player's gear — big items first so the packer never
+                // strands a rifle behind a smaller item.
+                // EFT.InventoryLogic.ItemManipulator.Move + TryRunNetworkTransaction is the same
                 // native path used by EFT's inventory UI and transfer requirements. It
                 // owns remove/add events, slot caches, fast-access unbinding, operation
                 // locking and rollback.
-                foreach (var grid in root.Grids)
-                    grid.RemoveAll();
-
                 int placed = 0;
                 int failed = 0;
-                foreach (var it in taken.OrderByDescending(CellArea))
+                var packingOrder = new List<Item>();
+                foreach (var item in taken)
                 {
-                    GClass3393 destination = null;
+                    int index = packingOrder.Count;
+                    while (index > 0 && CellArea(packingOrder[index - 1]) < CellArea(item)) index--;
+                    packingOrder.Insert(index, item);
+                }
+                foreach (var it in packingOrder)
+                {
+                    EFT.InventoryLogic.GridItemAddress destination = null;
                     foreach (var grid in root.Grids)
                     {
                         var loc = grid.FindFreeSpace(it);
@@ -251,8 +330,8 @@ namespace Manimal.Terminal
                         continue;
                     }
 
-                    GStruct154<GClass3411> move;
-                    try { move = InteractionsHandlerClass.Move(it, destination, controller, true); }
+                    Diz.LanguageExtensions.OperationResult<EFT.InventoryLogic.MoveResult> move;
+                    try { move = EFT.InventoryLogic.ItemManipulator.Move(it, destination, controller, true); }
                     catch (Exception e)
                     {
                         failed++;
@@ -297,6 +376,12 @@ namespace Manimal.Terminal
                         Plugin.Log.LogWarning($"[GearTax] native transaction failed for '{it.LocalizedName()}': {result?.Error?.ToString() ?? "no result"}");
                         continue;
                     }
+                    if (!IsOwnedBy(it, safe.ItemOwner))
+                    {
+                        failed++;
+                        Plugin.Log.LogError($"[GearTax] native transaction completed but cabinet does not own '{it.LocalizedName()}' — confiscation stopped");
+                        break;
+                    }
                     placed++;
                 }
 
@@ -309,15 +394,20 @@ namespace Manimal.Terminal
                     else Plugin.Log.LogWarning("[GearTax] could not clear stale last-equipped item field");
                 }
                 int boundAfter = CountTakenFastAccess(player, taken);
+                bool complete = failed == 0 && placed == taken.Count;
+                foreach (var item in taken) complete &= IsOwnedBy(item, safe.ItemOwner);
+                if (TerminalCoop.Active && complete)
+                    TerminalCoop.Request(TerminalEvent.GearDone);
 
-                Plugin.Log.LogInfo($"[GearTax] confiscated {placed}/{taken.Count} item(s) -> '{safe.name}' via native transactions "
+                Plugin.Log.LogInfo($"[GearTax] {(complete ? "confiscated" : "PARTIAL; will resume after reconnect")} {placed}/{taken.Count} item(s) -> '{safe.name}' via native transactions "
                     + $"(failed={failed}, quickBindingsCleared={Math.Max(0, boundBefore - boundAfter)}, staleBindings={boundAfter}, "
                     + $"lastEquippedCleared={clearedLast}) at {safe.transform.position}");
+                if (!complete) yield break;
                 try
                 {
                     // informational only — the MP Officer's authored lines play as
                     // timed subtitles during the intro (TerminalSubtitles)
-                    NotificationManagerClass.DisplayMessageNotification(
+                    EFT.Communications.NotificationManager.DisplayMessageNotification(
                         "Port security has confiscated your equipment. It is locked in one of the terminal's equipment cabinets.",
                         ENotificationDurationType.Long, ENotificationIconType.Alert, Color.yellow);
                 }
@@ -330,10 +420,10 @@ namespace Manimal.Terminal
                 {
                     var controller = player.InventoryController;
                     if (controller?.Inventory?.FastAccess?.BoundItems == null) return 0;
-                    return controller.Inventory.FastAccess.BoundItems.Values
-                        .Where(item => item != null && taken.Contains(item))
-                        .Distinct()
-                        .Count();
+                    var bound = new HashSet<Item>();
+                    foreach (var item in controller.Inventory.FastAccess.BoundItems.Values)
+                        if (item != null && taken.Contains(item)) bound.Add(item);
+                    return bound.Count;
                 }
                 catch { return 0; }
             }

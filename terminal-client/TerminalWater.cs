@@ -1,8 +1,11 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using Comfort.Common;
 using EFT;
+using HarmonyLib;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 namespace Manimal.Terminal
 {
@@ -18,7 +21,6 @@ namespace Manimal.Terminal
     internal static class TerminalWater
     {
         private const string NativeWaterShader = "Hidden/WaterForSSR";
-        private const string SeaSurfaceShader = "FX/SimpleWater4";
         private const string DirtDecalShader = "Decal/Ultra Deferred Decal Of God 3000";
 
         private static bool _staged;
@@ -43,12 +45,9 @@ namespace Manimal.Terminal
 
             try
             {
-                // The native hidden deferred pass is correct for the small pumping
-                // station pool, but it relies on retail camera/GBuffer plumbing which
-                // the custom location cannot supply for the huge offshore planes. In
-                // practice those planes became a flat white/fog sheet. Keep the pump
-                // on its authored pass and give the sea a supported forward water
-                // material from EFT's own shader bundle.
+                // Both water systems use the game's deferred water renderer. Keep
+                // their material inputs separate: preserve the tested pump treatment
+                // while restoring the sea's actual sharedassets texture references.
                 var seaFilters = new List<MeshFilter>(9);
                 var seaRenderers = new List<Renderer>(9);
                 var pumpFilters = new List<MeshFilter>(6);
@@ -71,11 +70,13 @@ namespace Manimal.Terminal
                     if (!r) continue;
                     if (r.name == "Pumping_station_water_dirt_LOD0") dirtRenderer = r;
                     r.enabled = false;
+                    r.forceRenderingOff = true;
                 }
 
                 if (dirtRenderer && show)
                 {
                     RestorePumpDirtDecal(dirtRenderer);
+                    dirtRenderer.forceRenderingOff = false;
                     dirtRenderer.enabled = true;
                 }
 
@@ -88,12 +89,11 @@ namespace Manimal.Terminal
 
                 var normal = FindTexture("Lighthouse_Swamp_Water_NM");
                 if (!normal) normal = Texture2D.normalTexture;
-                RestoreSeaSurface(seaRenderers, normal);
 
                 var shader = FindShader(NativeWaterShader);
                 if (!shader || !shader.isSupported)
                 {
-                    Plugin.Log.LogWarning($"[Water] pump shader '{NativeWaterShader}' unavailable; shoreline forward water remains active");
+                    Plugin.Log.LogWarning($"[Water] native shader '{NativeWaterShader}' unavailable; water surfaces remain hidden");
                     return;
                 }
 
@@ -106,22 +106,102 @@ namespace Manimal.Terminal
                 // WaterForSSR creates its Material there, so configure it inactive.
                 _runtimeWaterRoot = new GameObject("Terminal_RuntimeWaterSSR");
                 _runtimeWaterRoot.SetActive(false);
+                SceneManager.MoveGameObjectToScene(_runtimeWaterRoot, seaRoot.gameObject.scene);
                 _runtimeWaterRoot.transform.SetParent(seaRoot.parent, false);
-                var water = _runtimeWaterRoot.AddComponent<WaterForSSR>();
-                ConfigureRetailWater(water, shader, normal, foam, ripple, pumpFilters);
-                var matrixDriver = _runtimeWaterRoot.AddComponent<TerminalWaterMatrixDriver>();
-                matrixDriver.Water = water;
+                var assets = _runtimeWaterRoot.AddComponent<TerminalWaterAssets>();
+                _runtimeWaterRoot.AddComponent<TerminalWaterReflectionDriver>();
+                // Resolved against retail level629's WaterContainer PPtrs and the
+                // sharedassets path-ID catalog, not guessed from texture names.
+                var seaNormal = LoadWaterTexture(assets, "Static Voronoi - Tileable - NM2", true);
+                var seaDetails = LoadWaterTexture(assets, "detailedWavesMap hd2", true);
+                var seaFoam = LoadWaterTexture(assets, "Foam 01", false);
+                var seaRipple = LoadWaterTexture(assets, "circles", false);
+                if (seaNormal && seaDetails && seaFoam && seaRipple)
+                    CreateContainer("Sea", shader, seaNormal, seaDetails, seaFoam, seaRipple, seaFilters);
+                else
+                    Plugin.Log.LogError("[Water] recovered sea textures incomplete; check plugin-data/water deployment");
+                CreateContainer("Pump", shader, normal, normal, foam, ripple, pumpFilters);
                 _runtimeWaterRoot.SetActive(true);
 
-                EnsureNativeRenderer(_runtimeWaterRoot.transform.parent);
+                EnsureNativeRenderer(_runtimeWaterRoot.transform);
                 TerminalPerfWatch.WatchWater(renderers);
-                Plugin.Log.LogInfo($"[Water] restored split water: sea={seaFilters.Count} forward '{SeaSurfaceShader}',"
-                    + $" pump={pumpFilters.Count} deferred '{shader.name}', live drain matrices=yes,"
-                    + $" normal='{normal.name}', foam='{foam.name}', ripple='{ripple.name}', dirtDecal={(dirtRenderer ? "yes" : "missing")}");
+                Plugin.Log.LogInfo($"[Water] restored native water: sea={seaFilters.Count} +"
+                    + $" pump={pumpFilters.Count} deferred '{shader.name}', per-plane matrices=yes,"
+                    + $" seaNormal='{seaNormal?.name}', detail='{seaDetails?.name}', foam='{seaFoam?.name}',"
+                    + $" ripple='{seaRipple?.name}', pump material preserved, dirtDecal={(dirtRenderer ? "yes" : "missing")}");
             }
             catch (Exception e)
             {
                 Plugin.Log.LogWarning($"[Water] native restore failed: {e}");
+            }
+        }
+
+        private static void CreateContainer(string label, Shader shader, Texture2D normal,
+            Texture2D details, Texture2D foam, Texture2D ripple, List<MeshFilter> filters)
+        {
+            if (filters.Count == 0) return;
+            var child = new GameObject("Terminal_Water_" + label);
+            child.transform.SetParent(_runtimeWaterRoot.transform, false);
+            var driver = child.AddComponent<TerminalWaterMatrixDriver>();
+            var water = child.AddComponent<WaterForSSR>();
+            ConfigureRetailWater(water, shader, normal, details, foam, ripple, filters);
+            driver.Water = water;
+        }
+
+        private static Texture2D LoadWaterTexture(TerminalWaterAssets assets, string name, bool normalMap)
+        {
+            string path = Path.Combine(Path.GetDirectoryName(typeof(Plugin).Assembly.Location) ?? ".",
+                "plugin-data", "water", name + ".png");
+            if (!File.Exists(path)) return null;
+            var texture = new Texture2D(2, 2, TextureFormat.RGBA32, true, normalMap)
+            {
+                name = "Terminal_" + name,
+                wrapMode = TextureWrapMode.Repeat,
+                filterMode = FilterMode.Trilinear,
+                anisoLevel = 4
+            };
+            assets.Textures.Add(texture);
+            if (!ImageConversion.LoadImage(texture, File.ReadAllBytes(path), false)) return null;
+            if (normalMap)
+            {
+                // AssetRipper exports normal maps as conventional RGB normals.
+                // Runtime PNG loading bypasses Unity's normal-map importer; pack
+                // x in alpha/y in green for the desktop water shader's DXT5nm path.
+                var pixels = texture.GetPixels32();
+                for (int i = 0; i < pixels.Length; i++)
+                    pixels[i] = new Color32(255, pixels[i].g, 255, pixels[i].r);
+                texture.SetPixels32(pixels);
+            }
+            texture.Apply(true, true);
+            return texture;
+        }
+
+        [HarmonyPatch(typeof(WaterForSSR), nameof(WaterForSSR.InitWaterMatrices))]
+        internal static class Patch_PerPlaneMatrices
+        {
+            private static bool Prefix(WaterForSSR __instance, ref List<WaterForSSR.WaterObject> ____waterHolder)
+            {
+                // Only our containers opt in. Native maps keep their original path.
+                if (!__instance.GetComponent<TerminalWaterMatrixDriver>()) return true;
+                var planes = __instance.WaterPlanes;
+                if (____waterHolder == null) ____waterHolder = new List<WaterForSSR.WaterObject>(planes.Length);
+                int draw = 0;
+                foreach (var plane in planes)
+                {
+                    if (!plane || !plane.sharedMesh) continue;
+                    if (draw == ____waterHolder.Count)
+                        ____waterHolder.Add(new WaterForSSR.WaterObject(plane.sharedMesh, plane.transform.localToWorldMatrix));
+                    else
+                    {
+                        // Native method_2 uses Find(sharedMesh) and collapses repeated
+                        // tiles onto the first entry. Preserve one entry PER FILTER.
+                        ____waterHolder[draw].Mesh = plane.sharedMesh;
+                        ____waterHolder[draw].Matrix = plane.transform.localToWorldMatrix;
+                    }
+                    draw++;
+                }
+                if (draw < ____waterHolder.Count) ____waterHolder.RemoveRange(draw, ____waterHolder.Count - draw);
+                return false;
             }
         }
 
@@ -142,6 +222,7 @@ namespace Manimal.Terminal
             WaterForSSR water,
             Shader shader,
             Texture2D normal,
+            Texture2D details,
             Texture2D foam,
             Texture2D ripple,
             List<MeshFilter> filters)
@@ -149,7 +230,7 @@ namespace Manimal.Terminal
             water.WaterShader = shader;
             water.RippleTexture = ripple;
             water.Normals = normal;
-            water.NormalsDetails = normal;
+            water.NormalsDetails = details;
             water.NormalsDetailsMipMapBias = -2f;
             water.Foam = foam;
 
@@ -181,52 +262,6 @@ namespace Manimal.Terminal
             water.ReflectionColor = Color.white;
             water.DiffuseColor = new Color(0f, 0f, 0f, 1f);
             water.WaterPlanes = filters.ToArray();
-        }
-
-        private static void RestoreSeaSurface(List<Renderer> renderers, Texture2D normal)
-        {
-            var shader = FindShader(SeaSurfaceShader);
-            if (!shader || !shader.isSupported)
-            {
-                Plugin.Log.LogWarning($"[Water] shoreline shader '{SeaSurfaceShader}' unavailable; sea planes remain off instead of drawing the white placeholder");
-                return;
-            }
-
-            var material = new Material(shader)
-            {
-                name = "Terminal_Shoreline_Sea_Water_Runtime",
-                renderQueue = 2990,
-            };
-            SetTexture(material, "_BumpMap", normal);
-            SetTexture(material, "_MainTex", Texture2D.blackTexture);
-            SetTexture(material, "_ReflectionTex", Texture2D.grayTexture);
-            SetColor(material, "_BaseColor", new Color(0.006f, 0.055f, 0.07f, 0.93f));
-            SetColor(material, "_ReflectionColor", new Color(0.11f, 0.20f, 0.22f, 0.72f));
-            SetColor(material, "_SpecularColor", new Color(0.55f, 0.66f, 0.69f, 1f));
-            SetFloat(material, "_FresnelScale", 0.42f);
-            SetFloat(material, "_Shininess", 110f);
-            SetVector(material, "_DistortParams", new Vector4(0.35f, 0.45f, 3.5f, 0.18f));
-            SetVector(material, "_InvFadeParemeter", new Vector4(0.15f, 0.35f, 0.12f, 1f));
-            SetVector(material, "_AnimationTiling", new Vector4(2.2f, 2.2f, -1.1f, -1.1f));
-            SetVector(material, "_AnimationDirection", new Vector4(1f, 0.35f, -0.55f, 0.8f));
-            SetVector(material, "_BumpTiling", new Vector4(0.075f, 0.075f, 0.13f, 0.13f));
-            SetVector(material, "_BumpDirection", new Vector4(1f, 0.25f, -0.4f, 0.75f));
-            // These offshore planes are static; displacement at their enormous scale
-            // creates horizon cracks. Normal-map motion provides the surface detail.
-            SetFloat(material, "_GerstnerIntensity", 0f);
-
-            int enabled = 0;
-            foreach (var renderer in renderers)
-            {
-                var mesh = renderer as MeshRenderer;
-                if (!mesh) continue;
-                mesh.sharedMaterial = material;
-                mesh.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-                mesh.receiveShadows = false;
-                mesh.enabled = true;
-                enabled++;
-            }
-            Plugin.Log.LogInfo($"[Water] shoreline forward surface enabled on {enabled} renderer(s) with '{shader.name}'");
         }
 
         private static WaterForSSR.TextureBlendSetting Blend(float scale, float x, float y, float blend)
@@ -338,22 +373,146 @@ namespace Manimal.Terminal
         }
     }
 
-    // WaterForSSR snapshots each plane's local-to-world matrix only during validate.
-    // The retail pump animates the Water_station hierarchy after that snapshot, so the
-    // collision moved while the rendered water stayed at its starting height. Refresh
-    // the small pump-only list after animation each frame.
+    // Terminal keeps AmbientLight disabled to omit its screen ambient/stencil
+    // passes. Native LateUpdate also owns _MyGlobalReflectionProbe, however;
+    // SetSH alone does not create or render it. Drive only that native capture
+    // after weather has published the current raid's SH, never the screen passes.
+    [DefaultExecutionOrder(10000)]
+    internal sealed class TerminalWaterReflectionDriver : MonoBehaviour
+    {
+        private static readonly int ProbeId = Shader.PropertyToID("_MyGlobalReflectionProbe");
+        private static readonly System.Reflection.FieldInfo CubeField = AccessTools.Field(typeof(AmbientLight), "_cubeRT");
+        private static readonly System.Reflection.FieldInfo FaceField = AccessTools.Field(typeof(AmbientLight), "_faceNum");
+        private static readonly System.Reflection.FieldInfo NextCaptureField = AccessTools.Field(typeof(AmbientLight), "_nextRenderTime");
+        private AmbientLight _source;
+        private RenderTexture _cube;
+        private Texture _previousProbe;
+        private bool _ownsCube;
+
+        private void LateUpdate()
+        {
+            if (!TerminalGate.On) { enabled = false; return; }
+            if (!TerminalWeather.Staged) return;
+            var source = EFT.Weather.WeatherController.Instance?.TimeOfDayController?.AmbientLightScript;
+            // Native SetSH initializes the component even while it is disabled.
+            // If another owner enables it, its own LateUpdate handles capture.
+            if (!source || !source.IsInitialized) return;
+            if (source.isActiveAndEnabled)
+            {
+                if (_source == source)
+                {
+                    // Ownership passed back to the native component. Its own
+                    // OnDisable will release the target; do not dispose it later.
+                    _ownsCube = false;
+                    _source = null;
+                    _cube = null;
+                    _previousProbe = null;
+                }
+                return;
+            }
+            try
+            {
+                if (_source != source)
+                {
+                    ReleaseCapture();
+                    if (CubeField == null || FaceField == null || NextCaptureField == null)
+                        throw new MissingFieldException("AmbientLight reflection capture layout changed");
+                    _source = source;
+                    _previousProbe = Shader.GetGlobalTexture(ProbeId);
+                    _cube = CubeField.GetValue(source) as RenderTexture;
+                    _ownsCube = !_cube;
+                    if (_ownsCube)
+                    {
+                        // A recreated target must initialize ALL faces. Native's
+                        // face cursor otherwise survives a disable/re-enable cycle.
+                        FaceField.SetValue(source, -1);
+                        NextCaptureField.SetValue(source, 0f);
+                    }
+                    source.method_2();
+                    _cube = CubeField.GetValue(source) as RenderTexture;
+                    if (!_cube || !_cube.IsCreated())
+                        throw new InvalidOperationException("native reflection cubemap was not created");
+                    Plugin.Log.LogInfo($"[Water] reflection capture ready: source='{source.name}' "
+                        + $"cube={(_cube ? _cube.width : 0)}px created={(_cube && _cube.IsCreated())} "
+                        + $"faceInterval={source.RenderDelay:F2}s screenAmbientEnabled={source.enabled} "
+                        + $"previousProbe='{(_previousProbe ? _previousProbe.name : "missing")}'");
+                    return;
+                }
+                // This method applies the authored RenderDelay itself: Terminal's
+                // sidecar is 128px, one face per second after the first full cube.
+                source.method_2();
+            }
+            catch (Exception e)
+            {
+                Plugin.Log.LogWarning($"[Water] reflection capture stopped: {e.Message}");
+                enabled = false;
+            }
+        }
+
+        private void OnDisable() => ReleaseCapture();
+        private void OnDestroy() => ReleaseCapture();
+
+        private void ReleaseCapture()
+        {
+            // Do not overwrite a probe installed by a newer scene or another owner.
+            // Read the field on failure too: method_2 may allocate before throwing.
+            if (!_cube && _source && _ownsCube)
+                _cube = CubeField?.GetValue(_source) as RenderTexture;
+            if (_cube && Shader.GetGlobalTexture(ProbeId) == _cube)
+                Shader.SetGlobalTexture(ProbeId, _previousProbe ? _previousProbe : null);
+            if (_ownsCube && _cube)
+            {
+                if (_source)
+                {
+                    var camera = _source.GetComponent<Camera>();
+                    if (camera && camera.targetTexture == _cube) camera.targetTexture = null;
+                    if (CubeField.GetValue(_source) as RenderTexture == _cube)
+                        CubeField.SetValue(_source, null);
+                }
+                _cube.Release();
+                Destroy(_cube);
+            }
+            _source = null;
+            _cube = null;
+            _previousProbe = null;
+            _ownsCube = false;
+        }
+    }
+
+    // Refresh our small per-filter lists after pump animation, without native's
+    // shared-mesh lookup (several sea tiles intentionally share a single mesh).
+    [DefaultExecutionOrder(10000)]
     internal sealed class TerminalWaterMatrixDriver : MonoBehaviour
     {
         internal WaterForSSR Water;
 
         private void LateUpdate()
         {
-            try { if (Water) Water.method_2(); }
+            try { if (Water) Water.InitWaterMatrices(); }
             catch (Exception e)
             {
-                Plugin.Log.LogWarning($"[Water] live pump matrix refresh stopped: {e.Message}");
+                Plugin.Log.LogWarning($"[Water] per-plane matrix refresh stopped: {e.Message}");
                 enabled = false;
             }
+        }
+
+        private void OnDestroy()
+        {
+            // WaterForSSR.OnDestroy unregisters but does not dispose its material.
+            if (Water && AccessTools.Field(typeof(WaterForSSR), "_waterMaterial")?.GetValue(Water) is Material material)
+                Destroy(material);
+        }
+    }
+
+    internal sealed class TerminalWaterAssets : MonoBehaviour
+    {
+        internal readonly List<Texture2D> Textures = new List<Texture2D>();
+
+        private void OnDestroy()
+        {
+            foreach (var texture in Textures)
+                if (texture) Destroy(texture);
+            Textures.Clear();
         }
     }
 }

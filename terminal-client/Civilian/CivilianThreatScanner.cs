@@ -96,7 +96,7 @@ namespace Manimal.Terminal.Civilian
             var from = weaponRoot.position;
             var to = threat.Position + Vector3.up * 1.3f;
 
-            return !Physics.Linecast(from, to, LayerMaskClass.HighPolyWithTerrainMask);
+            return !Physics.Linecast(from, to, LayersMaskController.HighPolyWithTerrainMask);
         }
     }
 }

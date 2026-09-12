@@ -53,13 +53,14 @@ namespace Manimal.Terminal
 
         // the game hands smethod_6 the authoritative Location object before any other
         // identity exists — capture the id so construction-time patches can gate on it
-        [HarmonyPatch(typeof(LocalGame), "smethod_6")]
+        [HarmonyPatch(typeof(LocalGame), nameof(LocalGame.Create))]
         internal static class Patch_CaptureLocationId
         {
-            private static void Prefix(LocationSettingsClass.Location location)
+            internal static void Prefix(JsonType.LocationSettings.Location location)
             {
                 bool previousWasTerminal = string.Equals(PendingLocationId, LocationId, StringComparison.OrdinalIgnoreCase);
                 PendingLocationId = location?.Id;
+                TerminalCoop.Reset();
                 _cachedFrame = -1;
                 bool enteringTerminal = string.Equals(PendingLocationId, LocationId, StringComparison.OrdinalIgnoreCase);
 

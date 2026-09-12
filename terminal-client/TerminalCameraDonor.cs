@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Reflection;
 using Comfort.Common;
 using EFT;
@@ -16,7 +15,7 @@ namespace Manimal.Terminal
     // the bundle route died twice on icebreaker, for reasons measured: bundle binding
     // needs stubs and exact compiled layouts, and the rip's serialized DATA is dead on
     // arrival — shaders/materials null, curves empty — so shipped components crashed
-    // Awake/Start, and the un-shippable SSAA broke CameraClass.SetSSR inside
+    // Awake/Start, and the un-shippable SSAA broke EFT.CameraControl.CameraManager.SetSSR inside
     // PlayerCameraController.Create: error screen, no spawn.
     //
     // instead: run any VANILLA raid once with DevMode on — the dumper walks the real
@@ -55,7 +54,7 @@ namespace Manimal.Terminal
         // zero exceptions — an OnRenderImage owner with null refs blits nothing
         // SILENTLY):
         //   MBOIT_Scattering                 needs WindowsManager; dead on backported maps
-        //   PerfectCullingCrossSceneSampler  Start() NREs (GClass1238)
+        //   PerfectCullingCrossSceneSampler  Start() NREs (Koenigz.PerfectCulling.EFT.CullingGridVisibilitySampler)
         //   StreamingController              factory's streaming manager, not an effect
         //   ContactShadows                   NoiseTextureSet ScriptableObject can't ride the dump
         //   ScreenWater / InfectionEffect    resolving a ripped asset by name is not the
@@ -86,16 +85,16 @@ namespace Manimal.Terminal
                     // deferred — by OnGameStarted the stack is built, so try once more
                     if (TerminalGate.On)
                     {
-                        var live = CameraClass.Instance?.Camera;
+                        var live = EFT.CameraControl.CameraManager.Instance?.Camera;
                         if (live != null) TryGraft(live.gameObject, "OnGameStarted");
                     }
                     // vanilla maps only — dumping our own grafted camera would feed the
                     // graft its own output next raid
                     if (TerminalGate.On || !Plugin.DevMode.Value) return;
                     if (System.IO.File.Exists(DonorPath)) return; // one blessed donor, dump once
-                    var cc = CameraClass.Instance;
+                    var cc = EFT.CameraControl.CameraManager.Instance;
                     var cam = cc != null ? cc.Camera : null;
-                    if (cam == null) { Plugin.Log.LogWarning("[CamDonor] no CameraClass.Camera to dump"); return; }
+                    if (cam == null) { Plugin.Log.LogWarning("[CamDonor] no EFT.CameraControl.CameraManager.Camera to dump"); return; }
                     Dump(cam.gameObject);
                 }
                 catch (Exception e) { Plugin.Log.LogWarning($"[CamDonor] dump failed: {e.Message}"); }
@@ -143,7 +142,7 @@ namespace Manimal.Terminal
 
         // ------------------------------------------------------------------ graft side
 
-        [HarmonyPatch(typeof(CameraClass), "SetCamera", typeof(Camera))]
+        [HarmonyPatch(typeof(EFT.CameraControl.CameraManager), "SetCamera", typeof(Camera))]
         internal static class Patch_GraftDonorCamera
         {
             [HarmonyPrefix]
@@ -154,7 +153,7 @@ namespace Manimal.Terminal
             }
         }
 
-        // the camera GO we already grafted — per-GO, because CameraClass persists across
+        // the camera GO we already grafted — per-GO, because EFT.CameraControl.CameraManager persists across
         // raids but its camera object does not
         private static GameObject _graftedGo;
 
@@ -202,9 +201,9 @@ namespace Manimal.Terminal
             // UI burn-in and ZERO exceptions — on these obfuscated classes many public
             // fields are live runtime wiring, not tuning. Cam2's own components already
             // work; the graft's whole job is only what Cam2 LACKS.
-            var skip = new HashSet<string>((Plugin.CamDonorSkip?.Value ?? "")
-                .Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries).Select(x => x.Trim()),
-                StringComparer.OrdinalIgnoreCase);
+            var skip = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var name in (Plugin.CamDonorSkip?.Value ?? "").Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries))
+                skip.Add(name.Trim());
 
             int filled = 0, missingType = 0, refMiss = 0, existing = 0, skipped = 0;
             var addedNames = new List<string>();
@@ -218,8 +217,9 @@ namespace Manimal.Terminal
             go.SetActive(false);
             try
             {
-                foreach (var row in comps.OfType<JObject>())
+                foreach (var token in comps)
                 {
+                    if (token is not JObject row) continue;
                     var typeName = (string)row["type"];
                     var type = AccessTools.TypeByName(typeName);
                     if (type == null || !typeof(Component).IsAssignableFrom(type)) { missingType++; continue; }
@@ -250,7 +250,7 @@ namespace Manimal.Terminal
                         {
                             // the dust texture never resolves here and HG supplies its own
                             if (hgBloom && kv.Key == "m_DustTexture") continue;
-                            var f = SerializedFields(type).FirstOrDefault(x => x.Name == kv.Key);
+                            var f = FindSerializedField(type, kv.Key);
                             if (f == null) continue;
                             try
                             {
@@ -268,7 +268,7 @@ namespace Manimal.Terminal
                     {
                         try
                         {
-                            var lensDust = SerializedFields(type).FirstOrDefault(x => x.Name == "m_UseLensDust");
+                            var lensDust = FindSerializedField(type, "m_UseLensDust");
                             if (lensDust != null) lensDust.SetValue(c, false);
                         }
                         catch { }
@@ -312,6 +312,13 @@ namespace Manimal.Terminal
 
         // ------------------------------------------------------------- (de)serialization
 
+        private static FieldInfo FindSerializedField(Type type, string name)
+        {
+            foreach (var field in SerializedFields(type))
+                if (field.Name == name) return field;
+            return null;
+        }
+
         private static IEnumerable<FieldInfo> SerializedFields(Type t)
         {
             for (var cur = t; cur != null && cur != typeof(MonoBehaviour) && cur != typeof(Behaviour) && cur != typeof(Component); cur = cur.BaseType)
@@ -342,10 +349,7 @@ namespace Manimal.Terminal
                 case Color c: return new JObject { ["r"] = c.r, ["g"] = c.g, ["b"] = c.b, ["a"] = c.a };
                 case LayerMask lm: return new JObject { ["mask"] = lm.value };
                 case AnimationCurve ac:
-                    var keys = new JArray();
-                    foreach (var k in ac.keys)
-                        keys.Add(new JObject { ["t"] = k.time, ["v"] = k.value, ["i"] = k.inTangent, ["o"] = k.outTangent });
-                    return new JObject { ["curve"] = keys, ["pre"] = (int)ac.preWrapMode, ["post"] = (int)ac.postWrapMode };
+                    return TerminalSerializedCurves.ToDonor(ac);
                 case UnityEngine.Object uo:
                     // by NAME + type — the whole point: the ref is re-resolved against
                     // the game's own loaded assets on the destination map
@@ -373,11 +377,7 @@ namespace Manimal.Terminal
             if (want == typeof(LayerMask)) return (LayerMask)(int)tok["mask"];
             if (want == typeof(AnimationCurve))
             {
-                var ac = new AnimationCurve(((JArray)tok["curve"])
-                    .Select(k => new Keyframe((float)k["t"], (float)k["v"], (float)k["i"], (float)k["o"])).ToArray());
-                ac.preWrapMode = (WrapMode)(int)tok["pre"];
-                ac.postWrapMode = (WrapMode)(int)tok["post"];
-                return ac;
+                return TerminalSerializedCurves.FromDonor(tok);
             }
             if (typeof(UnityEngine.Object).IsAssignableFrom(want) && tok["ref"] != null)
             {
@@ -395,7 +395,7 @@ namespace Manimal.Terminal
                     var sh = Shader.Find(name);
                     if (sh != null) return sh;
                 }
-                var found = Resources.FindObjectsOfTypeAll(want).FirstOrDefault(o => o.name == name);
+                var found = Array.Find(Resources.FindObjectsOfTypeAll(want), o => o.name == name);
                 if (found == null) { refMiss++; return null; }
                 // carried materials come from the rip, whose shader is decompiled
                 // garbage — swap in the game's own same-name shader (the RebindShaders

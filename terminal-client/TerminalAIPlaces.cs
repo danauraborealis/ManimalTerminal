@@ -12,7 +12,7 @@ namespace Manimal.Terminal
 {
     // terminal port of icebreaker's spawn-trigger layer (resurrection #4): the T0-T5 /
     // TB1-TB8 trigger boxes recovered from level635 (extract_terminal_aiplaces.py).
-    // mechanism: AIPlaceInfo trigger box -> logic raises BotEventHandler.AnyEvent(name)
+    // mechanism: AIPlaceInfo trigger box -> logic raises GlobalEventDispatcher.AnyEvent(name)
     // on player entry -> BSG's BossSpawnScenario fires the base.json BossLocationSpawn
     // waves with TriggerName=botEvent + TriggerId=name. 55 of terminal's 65 live boss
     // waves are botEvent-gated — without this layer the map's spawn choreography never
@@ -59,7 +59,7 @@ namespace Manimal.Terminal
             [HarmonyPostfix]
             private static void Postfix(BotsController __instance)
             {
-                if (!TerminalGate.On) return;
+                if (!TerminalGate.On || !TerminalCoop.Authority) return;
                 try { TryBuild(__instance); }
                 catch (Exception e) { Plugin.Log.LogWarning($"[AIPlaces] build failed: {e.Message}"); }
                 // crew jobs: fresh book per raid, then watch every bot birth — tier-event
@@ -202,6 +202,32 @@ namespace Manimal.Terminal
         public bool EnterRaise = true;
         public bool ExitRaise;
         private AIPlaceInfo _place;
+        private float _nextCoopPoll;
+        private readonly HashSet<string> _inside = new HashSet<string>();
+        private readonly List<Player> _humans = new List<Player>();
+
+        // Observed-player physics callbacks are not guaranteed on a headless host.
+        // Poll the authored volume too; OnEnter's profile latch merges both paths.
+        private void Update()
+        {
+            if (!TerminalCoop.Active || !TerminalCoop.Authority || Time.time < _nextCoopPoll) return;
+            _nextCoopPoll = Time.time + 0.25f;
+            var box = GetComponent<BoxCollider>();
+            if (!box || !box.enabled) return;
+            TerminalCoop.CollectHumans(_humans);
+            var present = new HashSet<string>();
+            foreach (var player in _humans)
+            {
+                var position = box.transform.InverseTransformPoint(player.Position);
+                if (new Bounds(box.center, box.size).Contains(position))
+                {
+                    present.Add(player.ProfileId);
+                    OnEnter(player);
+                }
+                else if (_inside.Contains(player.ProfileId)) OnExit(player);
+            }
+            _inside.RemoveWhere(id => !present.Contains(id));
+        }
 
         public override void Init(AIPlaceInfo aiPlaceInfo, BotsController botsController)
         {
@@ -229,27 +255,31 @@ namespace Manimal.Terminal
 
         private void OnEnter(Player p)
         {
-            if (EnterRaise && p != null && p.IsYourPlayer)
+            if (!TerminalCoop.Authority || !TerminalCoop.IsHuman(p)) return;
+            if (TerminalCoop.Active && !_inside.Add(p.ProfileId)) return;
+            if (EnterRaise)
             {
                 FireCounts.TryGetValue(EventName, out var n);
                 FireCounts[EventName] = ++n;
                 Plugin.Log.LogWarning($"[AIPlaces] ENTER '{gameObject.name}' -> raising event '{EventName}' (fire #{n} this raid)");
                 TerminalCrewJobs.NoteEvent(EventName); // wave bots born off this event push the players
-                Singleton<BotEventHandler>.Instance?.AnyEvent(EventName);
+                Singleton<GlobalEventDispatcher>.Instance?.AnyEvent(EventName);
                 TerminalPopulationDirector.EnsureProgressWavesActivated(EventName);
+                TerminalCoop.Request(TerminalEvent.Wave, EventName);
             }
         }
 
         private void OnExit(Player p)
         {
-            if (p == null || !p.IsYourPlayer) return;
+            if (!TerminalCoop.Authority || !TerminalCoop.IsHuman(p)) return;
+            if (TerminalCoop.Active && !_inside.Remove(p.ProfileId)) return;
             // log the exit even when ExitRaise is off — enter/exit churn is exactly
             // what we're looking for and it's invisible otherwise
             Plugin.Log.LogWarning($"[AIPlaces] EXIT  '{gameObject.name}' ('{EventName}')"
                 + (ExitRaise ? " -> raising on exit too" : ""));
             if (ExitRaise)
             {
-                Singleton<BotEventHandler>.Instance?.AnyEvent(EventName);
+                Singleton<GlobalEventDispatcher>.Instance?.AnyEvent(EventName);
                 TerminalPopulationDirector.EnsureProgressWavesActivated(EventName);
             }
         }

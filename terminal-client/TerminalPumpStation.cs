@@ -38,6 +38,11 @@ namespace Manimal.Terminal
         private const string MultitoolTpl = "590c2e1186f77425357b6124";
 
         private static bool _staged;
+        private static bool _raidStarted;
+        private static int _raidPlayerCount;
+        private static int _raidSeed;
+        private static bool _hasCoopLayout;
+        internal static bool Ready => _staged;
         internal static bool PowerFixed;
         internal static bool WaterDrained;
         private static readonly HashSet<string> _broken = new HashSet<string>();   // cabinet paths still broken
@@ -59,6 +64,10 @@ namespace Manimal.Terminal
         internal static void ResetForRaid()
         {
             _staged = false;
+            _raidStarted = false;
+            _raidPlayerCount = 0;
+            _raidSeed = 0;
+            _hasCoopLayout = false;
             PowerFixed = false;
             WaterDrained = false;
             _broken.Clear();
@@ -67,8 +76,9 @@ namespace Manimal.Terminal
 
         internal static void TryStage()
         {
-            if (_staged || !Plugin.PumpStation.Value) return;
+            if (_staged || !_raidStarted || !Plugin.PumpStation.Value) return;
             if (!TerminalGate.On) return;
+            if (TerminalCoop.Active && !_hasCoopLayout) return;
             var gw = Singleton<GameWorld>.Instantiated ? Singleton<GameWorld>.Instance : null;
             if (gw == null || gw.TriggersEmitter == null) return;
 
@@ -108,30 +118,99 @@ namespace Manimal.Terminal
             }
         }
 
-        // the 1.0 selector, offline edition: authored group table said solo breaks 1
-        // cabinet from a dedicated 2-cabinet pool — use the maxGroupSize=1 row
+        [HarmonyPatch(typeof(GameWorld), nameof(GameWorld.OnGameStarted))]
+        internal static class Patch_SelectAtRaidStart
+        {
+            private static void Postfix(GameWorld __instance)
+            {
+                if (!TerminalGate.On || _raidStarted || __instance == null) return;
+                // Snapshot the humans once the raid roster exists, not during scene
+                // loading. Bot spawns/deaths and later repair ticks must not reroll it.
+                _raidStarted = true;
+                if (TerminalCoop.Active) return; // host sends roster count AND seed
+                try
+                {
+                    var humans = new HashSet<string>(StringComparer.Ordinal);
+                    void AddHuman(IPlayer player)
+                    {
+                        if (player == null) return;
+                        string key = TerminalPumpSelection.HumanKey(player.IsAI, player.Profile?.Info?.Nickname,
+                            player.ProfileId, player.Id);
+                        if (key != null) humans.Add(key);
+                    }
+                    if (__instance.RegisteredPlayers != null)
+                        foreach (var player in __instance.RegisteredPlayers) AddHuman(player);
+                    AddHuman(__instance.MainPlayer); // same profile is counted only once
+                    _raidPlayerCount = Math.Max(1, humans.Count);
+                    _raidSeed = CreateRaidSeed();
+                    TryStage();
+                }
+                catch (Exception e)
+                {
+                    _staged = true;
+                    Plugin.Log.LogError($"[Pump] raid selection initialization failed: {e}");
+                }
+            }
+        }
+
+        internal static void ApplyCoopLayout(int humans, int seed)
+        {
+            if (_hasCoopLayout) return;
+            _hasCoopLayout = true;
+            _raidPlayerCount = Math.Max(1, humans);
+            _raidSeed = seed;
+            TryStage();
+        }
+
+        internal static bool ApplyCoopRepair(string path)
+        {
+            if (!_staged) return false;
+            if (_cabinets.TryGetValue(path, out var cab) && IsBroken(cab)) OnRepaired(cab);
+            return true;
+        }
+
+        internal static CabinetInfo FindBroken(string path)
+            => _cabinets.TryGetValue(path, out var cab) && IsBroken(cab) ? cab : null;
+
+        internal static void ApplyCoopShock(string path)
+        {
+            if (_cabinets.TryGetValue(path, out var cab)) OnUnsafeRepairFailed(cab);
+        }
+
+        internal static void Drain()
+        {
+            if (!PowerFixed || WaterDrained) return;
+            if (TerminalCoop.Active && !TerminalCoop.Applying)
+            {
+                TerminalCoop.Request(TerminalEvent.PumpDrain);
+                return;
+            }
+            WaterDrained = true;
+            TerminalGatesExplosion.Emit(WaterRemoveTrigger);
+        }
+
+        private static int CreateRaidSeed()
+        {
+            // Unity's global RNG is shared with scene scripts and other mods. A
+            // dedicated per-raid RNG cannot be reset by somebody else's InitState.
+            var game = Singleton<AbstractGame>.Instantiated ? Singleton<AbstractGame>.Instance : null;
+            if (game != null && game.GetType().Name.IndexOf("Coop", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                var backend = AccessTools.TypeByName("FikaBackendUtils");
+                string code = backend == null ? null : AccessTools.Property(backend, "RaidCode")?.GetValue(null)?.ToString();
+                string server = backend == null ? null : AccessTools.Property(backend, "ServerGuid")?.GetValue(null)?.ToString();
+                if (!string.IsNullOrEmpty(code) && !string.IsNullOrEmpty(server))
+                    return TerminalPumpSelection.RaidSeed(code + "|" + server);
+                Plugin.Log.LogWarning("[Pump] co-op match seed unavailable; cabinet choices cannot be synchronized across peers");
+            }
+            return TerminalPumpSelection.RaidSeed(Guid.NewGuid().ToString("N"));
+        }
+
         private static void SelectBrokenCabinets(JArray rows, Dictionary<string, Transform> index)
         {
-            var pool = new List<string>();
-            int toBreak = 1;
-            foreach (var row in rows)
-            {
-                if (row.Value<string>("cls") != "ElectricalCabinetSelector") continue;
-                var cfgs = row["fields"]?["_groupConfigurations"] as JArray;
-                if (cfgs == null) break;
-                foreach (var cfg in cfgs)
-                {
-                    if (cfg.Value<int?>("MaxGroupSize") != 1) continue;
-                    toBreak = cfg.Value<int?>("CabinetsToBreak") ?? 1;
-                    foreach (var ac in (cfg["AvailableCabinets"] as JArray) ?? new JArray())
-                    {
-                        var p = ac["$ref"]?.Value<string>("path");
-                        if (p != null) pool.Add(p);
-                    }
-                    break;
-                }
-                break;
-            }
+            var configuration = TerminalPumpSelection.Configuration(rows, _raidPlayerCount);
+            var pool = TerminalPumpSelection.Pool(configuration);
+            int toBreak = configuration.Value<int>("CabinetsToBreak");
 
             // every with_logic cabinet's repair suffix comes from its plant-action row
             foreach (var row in rows)
@@ -146,39 +225,32 @@ namespace Manimal.Terminal
                     _cabinets[root] = new CabinetInfo { Path = root, Suffix = suffix, Root = t };
             }
 
-            // choose the broken set (from the authored pool when present) — pool paths
-            // that don't resolve to a known cabinet are dropped, and if the whole pool
-            // misses we fall back to any cabinet: zero broken would strand the puzzle
-            var candidates = new List<string>();
-            foreach (var p in pool) if (_cabinets.ContainsKey(p)) candidates.Add(p);
-            if (candidates.Count == 0) candidates.AddRange(_cabinets.Keys);
-            for (int i = 0; i < toBreak && candidates.Count > 0; i++)
-            {
-                var pick = candidates[UnityEngine.Random.Range(0, candidates.Count)];
-                candidates.Remove(pick);
+            // Never silently turn the authored two-cabinet solo pool into one, or
+            // fall back to unrelated cabinets elsewhere on the map.
+            foreach (var p in pool)
+                if (!_cabinets.ContainsKey(p) || !index.ContainsKey(p + "/Electric_box_Switch"))
+                    throw new InvalidOperationException($"[Pump] authored pool incomplete ({pool.Count} expected): '{p}' or its repair switch is missing");
+            foreach (var pick in TerminalPumpSelection.Choose(pool, toBreak, new System.Random(_raidSeed)))
                 _broken.Add(pick);
-            }
 
-            // set scene states: broken -> with_logic rig on; healthy -> Closed shell on.
-            // pairing is positional (the shells are siblings placed on the same boxes)
-            var shells = new List<Transform>();
-            foreach (var kv in index)
-                if (kv.Key.Contains("/Electric_box/Electric_box_07_Closed") && kv.Key.Split('/').Length == 3)
-                    shells.Add(kv.Value);
+            // Use the actual selector targets: solo (7) pairs with Closed (17),
+            // solo (8) with Closed (22). Proximity guessing misses their authored
+            // green-light states and can leave the selected broken panel covered.
             foreach (var cab in _cabinets.Values)
             {
                 bool broken = _broken.Contains(cab.Path);
-                cab.Root.gameObject.SetActive(broken);
-                Transform shell = null;
-                float best = 4f; // meters — same-box pairing
-                foreach (var s in shells)
+                var states = TerminalPumpSelection.InitialStates(rows, cab.Path, broken);
+                cab.Root.gameObject.SetActive(false);
+                foreach (var state in states)
                 {
-                    float d = (s.position - cab.Root.position).sqrMagnitude;
-                    if (d < best) { best = d; shell = s; }
+                    if (state.Key == cab.Path) continue;
+                    if (index.TryGetValue(state.Key, out var target)) target.gameObject.SetActive(state.Value);
+                    else Plugin.Log.LogWarning($"[Pump] initial-state target missing: '{state.Key}'");
                 }
-                if (shell) shell.gameObject.SetActive(!broken);
-                else Plugin.Log.LogDebug($"[Pump] no Closed shell within 2m of '{cab.Path}' — visual pair incomplete");
+                cab.Root.gameObject.SetActive(broken);
             }
+            Plugin.Log.LogInfo($"[Pump] selection: humans={_raidPlayerCount}, bracket={configuration.Value<int>("MaxGroupSize")},"
+                + $" pool={pool.Count}/{pool.Count}, broken={_broken.Count}, seed={_raidSeed}; candidates=[{string.Join(", ", pool)}]; selected=[{string.Join(", ", _broken)}]");
         }
 
         internal static CabinetInfo CabinetForSwitch(Transform sw)
@@ -200,6 +272,12 @@ namespace Manimal.Terminal
 
         internal static void OnRepaired(CabinetInfo cab)
         {
+            if (!IsBroken(cab)) return;
+            if (TerminalCoop.Active && !TerminalCoop.Applying)
+            {
+                TerminalCoop.Request(TerminalEvent.PumpRepair, cab.Path);
+                return;
+            }
             _broken.Remove(cab.Path);
             // native rows on the cabinet listen for its repaired trigger (green light,
             // spark loop off, working loop on)
@@ -213,7 +291,7 @@ namespace Manimal.Terminal
                 TerminalGatesExplosion.Emit(BoxesFixedTrigger);
                 TerminalGatesExplosion.PlayAt(TerminalFxBundle.FindClip("amb_terminal_interactive_generator_start_electricity"),
                     cab.Root.position, 30f);
-                NotificationManagerClass.DisplayMessageNotification(
+                EFT.Communications.NotificationManager.DisplayMessageNotification(
                     "Power restored — the pump station panel is live",
                     ENotificationDurationType.Long, ENotificationIconType.Default, Color.green);
             }
@@ -224,7 +302,7 @@ namespace Manimal.Terminal
             // the authored shock: native HandlerDamage on the cabinet listens for the
             // failed trigger (10dmg to both arms, once)
             TerminalGatesExplosion.Emit("repair_unsafe_failed_electicity_terminal_" + cab.Suffix);
-            NotificationManagerClass.DisplayMessageNotification(
+            EFT.Communications.NotificationManager.DisplayMessageNotification(
                 "Repair failed — the cabinet shocked you",
                 ENotificationDurationType.Default, ENotificationIconType.Alert, Color.red);
         }
@@ -233,12 +311,13 @@ namespace Manimal.Terminal
     // interaction layer for the pump puzzle switches, same pattern as the gate:
     // matched by GO name in a Terminal scene, hold sessions, triggers emitted into
     // the resurrected native graph
-    [HarmonyPatch(typeof(GetActionsClass), "smethod_11")]
+    [HarmonyPatch(typeof(EFT.InteractionContextHelper), nameof(EFT.InteractionContextHelper.GetAvailableActions),
+        typeof(GamePlayerOwner), typeof(EFT.Interactive.Switch))]
     internal static class Patch_PumpSwitchActions
     {
-        private static void Replace(ref ActionsReturnClass result, ActionsTypesClass act)
+        private static void Replace(ref EFT.UI.AvailableInteractionState result, EFT.UI.InteractionAction act)
         {
-            if (result == null) result = new ActionsReturnClass { Actions = new List<ActionsTypesClass> { act } };
+            if (result == null) result = new EFT.UI.AvailableInteractionState { Actions = new List<EFT.UI.InteractionAction> { act } };
             else { result.Actions.Clear(); result.Actions.Add(act); }
         }
 
@@ -252,7 +331,7 @@ namespace Manimal.Terminal
             catch { return false; }
         }
 
-        private static void Postfix(ref ActionsReturnClass __result, GamePlayerOwner owner, EFT.Interactive.Switch interactiveSwitch)
+        private static void Postfix(ref EFT.UI.AvailableInteractionState __result, GamePlayerOwner owner, EFT.Interactive.Switch interactiveSwitch)
         {
             try
             {
@@ -272,7 +351,7 @@ namespace Manimal.Terminal
                     var player = Singleton<GameWorld>.Instance?.MainPlayer;
                     bool hasTool = player != null && TerminalPumpStation.HasMultitool(player);
                     var sw = interactiveSwitch;
-                    Replace(ref __result, new ActionsTypesClass
+                    Replace(ref __result, new EFT.UI.InteractionAction
                     {
                         Name = hasTool ? "Repair" : "Repair without tools (risky)",
                         Disabled = false,
@@ -301,7 +380,9 @@ namespace Manimal.Terminal
                                     toolNow = p != null && TerminalPumpStation.HasMultitool(p);
                                 }
                                 catch { }
-                                if (toolNow || UnityEngine.Random.value < 0.1f)
+                                if (TerminalCoop.Active)
+                                    TerminalCoop.Request(TerminalEvent.PumpRepair, cab.Path);
+                                else if (toolNow || UnityEngine.Random.value < 0.1f)
                                     TerminalPumpStation.OnRepaired(cab);
                                 else
                                     TerminalPumpStation.OnUnsafeRepairFailed(cab);
@@ -318,16 +399,15 @@ namespace Manimal.Terminal
                         __result = null;
                         return;
                     }
-                    Replace(ref __result, new ActionsTypesClass
+                    Replace(ref __result, new EFT.UI.InteractionAction
                     {
                         Name = "Drain the reservoir",
                         Disabled = false,
                         Action = () =>
                         {
-                            TerminalPumpStation.WaterDrained = true;
+                            TerminalPumpStation.Drain();
                             // native takes it from here: animator IsRemoved, pump
                             // start/drain sounds, loop stop — all authored listeners
-                            TerminalGatesExplosion.Emit("Water_remove_1178689405");
                             try { owner?.ClearInteractionState(); } catch { }
                         },
                     });
@@ -335,13 +415,13 @@ namespace Manimal.Terminal
                 else if (goName == "Interactive_Button_off")
                 {
                     // powered-down panel: retail shows 'needs electric power' on use
-                    Replace(ref __result, new ActionsTypesClass
+                    Replace(ref __result, new EFT.UI.InteractionAction
                     {
                         Name = "Inspect panel",
                         Disabled = false,
                         Action = () =>
                         {
-                            NotificationManagerClass.DisplayMessageNotification(
+                            EFT.Communications.NotificationManager.DisplayMessageNotification(
                                 "The panel has no power — repair the broken electrical cabinet first",
                                 ENotificationDurationType.Default, ENotificationIconType.Default, Color.white);
                         },

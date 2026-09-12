@@ -6,11 +6,11 @@ namespace Manimal.Terminal
 {
     // reflection-based finalizer guard for the BSG core method observed on the
     // 2026-08-20 Terminal raid-start crash (NullReferenceException, confirmed in the
-    // client log: Class304.method_3[T] throws, Class308.LocalRaidStarted propagates it
+    // client log: Backend.method_3[T] throws, EFT.EftClientBackendSession.LocalRaidStarted propagates it
     // unhandled up into TarkovApplication's async raid-start chain — no matching
     // server-side error at the same timestamp):
-    //   Class308.LocalRaidStarted
-    // Class304.method_3 is NOT patched here on purpose: it's an open generic method
+    //   EFT.EftClientBackendSession.LocalRaidStarted
+    // Backend.method_3 is NOT patched here on purpose: it's an open generic method
     // (`method_3<T>`) and Harmony cannot patch an open generic method definition — a
     // real build attempt to do so failed loud (HarmonyException / IL Compile Error,
     // "Specified method is not supported"), which is expected and not a bug to chase.
@@ -25,7 +25,7 @@ namespace Manimal.Terminal
     // silently) and Terminal stays unguarded until the name is fixed.
     internal static class TerminalCrashGuard
     {
-        private const string TargetTypeName = "Class308";
+        private const string TargetTypeName = "EFT.EftClientBackendSession";
         private const string TargetMethodName = "LocalRaidStarted";
 
         internal static void TryPatch(Harmony h)

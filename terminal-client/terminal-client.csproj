@@ -5,7 +5,7 @@
     <RootNamespace>Manimal.Terminal</RootNamespace>
     <AssemblyName>ManimalTerminalClient</AssemblyName>
     <Nullable>disable</Nullable>
-    <Authors>Manimal</Authors>
+    <Authors>$(ModUsername)</Authors>
     <AssemblyVersion>$(ModVersion).0</AssemblyVersion>
     <FileVersion>$(AssemblyVersion)</FileVersion>
     <Configurations>Debug;Release</Configurations>
@@ -39,6 +39,9 @@
     </Reference>
     <Reference Include="UnityEngine.CoreModule">
       <HintPath>$(SPTPath)\EscapeFromTarkov_Data\Managed\UnityEngine.CoreModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.JSONSerializeModule">
+      <HintPath>$(SPTPath)\EscapeFromTarkov_Data\Managed\UnityEngine.JSONSerializeModule.dll</HintPath>
     </Reference>
     <Reference Include="UnityEngine.UI">
       <HintPath>$(SPTPath)\EscapeFromTarkov_Data\Managed\UnityEngine.UI.dll</HintPath>
@@ -122,6 +125,7 @@
       <_BuildInfoLines Include="    {" />
       <_BuildInfoLines Include="        public const string Version = %22$(ModVersion)%22%3B" />
       <_BuildInfoLines Include="        public const string ModGuid = %22$(ModGuid)%22%3B" />
+      <_BuildInfoLines Include="        public const string PluginName = %22$(ModUsername)-$(ModDisplayName)%22%3B" />
       <_BuildInfoLines Include="    }" />
       <_BuildInfoLines Include="}" />
     </ItemGroup>
@@ -131,7 +135,7 @@
     </ItemGroup>
   </Target>
 
-  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+  <Target Name="PostBuild" AfterTargets="PostBuildEvent" Condition="'$(SkipDeploy)' != 'true'">
     <ItemGroup>
       <PluginDataFiles Include="$(ProjectDir)plugin-data\**\*.*" />
     </ItemGroup>
@@ -141,23 +145,12 @@
     <Copy SourceFiles="$(ProjectDir)lib\PerfectCullingRuntime.dll" DestinationFolder="$(SPTPath)\BepInEx\plugins\ManimalTerminal" Condition="Exists('$(ProjectDir)lib\PerfectCullingRuntime.dll')" />
     <!-- data sidecars ride next to the dll — load paths are assembly-relative -->
     <Copy SourceFiles="@(PluginDataFiles)" DestinationFiles="@(PluginDataFiles->'$(SPTPath)\BepInEx\plugins\ManimalTerminal\plugin-data\%(RecursiveDir)%(Filename)%(Extension)')" />
-    <!-- mirror the build to every non-fika SPT install so testers on any of
-         them get the same DLL + plugin-data in one build. fika install is
-         skipped by design — its client is co-op-only, needs a hand mirror
-         with its own bundles. each block conditions on the install existing
-         AND being different from $(SPTPath) (already handled above). -->
-    <Copy SourceFiles="$(TargetPath)"                     DestinationFolder="D:\SPTDev\BepInEx\plugins\ManimalTerminal"        Condition="Exists('D:\SPTDev') And '$(SPTPath)' != 'D:\SPTDev'" />
-    <Copy SourceFiles="@(PluginDataFiles)" DestinationFiles="@(PluginDataFiles->'D:\SPTDev\BepInEx\plugins\ManimalTerminal\plugin-data\%(RecursiveDir)%(Filename)%(Extension)')"        Condition="Exists('D:\SPTDev') And '$(SPTPath)' != 'D:\SPTDev'" />
-    <Copy SourceFiles="$(TargetPath)"                     DestinationFolder="D:\SPTDevSonic\BepInEx\plugins\ManimalTerminal"    Condition="Exists('D:\SPTDevSonic') And '$(SPTPath)' != 'D:\SPTDevSonic'" />
-    <Copy SourceFiles="@(PluginDataFiles)" DestinationFiles="@(PluginDataFiles->'D:\SPTDevSonic\BepInEx\plugins\ManimalTerminal\plugin-data\%(RecursiveDir)%(Filename)%(Extension)')"    Condition="Exists('D:\SPTDevSonic') And '$(SPTPath)' != 'D:\SPTDevSonic'" />
-    <Copy SourceFiles="$(TargetPath)"                     DestinationFolder="D:\SPTFreshDev\BepInEx\plugins\ManimalTerminal"    Condition="Exists('D:\SPTFreshDev') And '$(SPTPath)' != 'D:\SPTFreshDev'" />
-    <Copy SourceFiles="@(PluginDataFiles)" DestinationFiles="@(PluginDataFiles->'D:\SPTFreshDev\BepInEx\plugins\ManimalTerminal\plugin-data\%(RecursiveDir)%(Filename)%(Extension)')"    Condition="Exists('D:\SPTFreshDev') And '$(SPTPath)' != 'D:\SPTFreshDev'" />
   </Target>
 
   <!-- per-build: DLL-ONLY update zip, for testers who already have the full install.
        the full package (scene bundle) will live behind an explicit package-release.ps1
        at the repo root, not behind every compile. -->
-  <Target Name="PackageModForDistribution" AfterTargets="Build">
+  <Target Name="PackageModForDistribution" AfterTargets="Build" Condition="'$(SkipPackage)' != 'true'">
     <PropertyGroup>
       <ZipFileName>Manimal-Terminal-client-DLL-UPDATE-$(ModVersion).zip</ZipFileName>
       <TempPackageDir>$(ProjectDir)obj\Package</TempPackageDir>
@@ -169,6 +162,10 @@
     <!-- Cloud rendering now depends on the recovered retail coverage map; include
          this one data asset even in the otherwise DLL-only tester update. -->
     <MakeDir Directories="$(ModPackageDir)\plugin-data\weather" />
+    <ItemGroup>
+      <WaterTextureFiles Include="$(ProjectDir)plugin-data\water\*.png" />
+    </ItemGroup>
+    <Copy SourceFiles="@(WaterTextureFiles)" DestinationFolder="$(ModPackageDir)\plugin-data\water" />
     <Copy SourceFiles="$(ProjectDir)plugin-data\weather\CloudMapWoHorizonBorder2.png"
           DestinationFolder="$(ModPackageDir)\plugin-data\weather"
           Condition="Exists('$(ProjectDir)plugin-data\weather\CloudMapWoHorizonBorder2.png')" />
@@ -190,6 +187,12 @@
     <MakeDir Directories="$(ModPackageDir)\plugin-data\video" />
     <Copy SourceFiles="$(ProjectDir)plugin-data\video\term_intro.mp4"
           DestinationFolder="$(ModPackageDir)\plugin-data\video" />
+    <Copy SourceFiles="$(ProjectDir)plugin-data\terminal_container_templates.json" DestinationFolder="$(ModPackageDir)\plugin-data" />
+    <Copy SourceFiles="$(ProjectDir)plugin-data\terminal_vegetation.json" DestinationFolder="$(ModPackageDir)\plugin-data" />
+    <ItemGroup>
+      <VegetationAudioFiles Include="$(ProjectDir)plugin-data\vegetation\*.wav" />
+    </ItemGroup>
+    <Copy SourceFiles="@(VegetationAudioFiles)" DestinationFolder="$(ModPackageDir)\plugin-data\vegetation" />
     <ZipDirectory SourceDirectory="$(TempPackageDir)" DestinationFile="$(ProjectDir)$(ZipFileName)" Overwrite="true" />
     <RemoveDir Directories="$(TempPackageDir)" />
     <Message Text="--- dll-update zip at: $(ProjectDir)$(ZipFileName) ---" Importance="high" />

@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
 using Audio.SpatialSystem;
@@ -94,8 +93,8 @@ namespace Manimal.Terminal
         {
             private static IEnumerable<MethodBase> TargetMethods()
             {
-                return typeof(SpatialAudioSystem).GetMethods(BindingFlags.Public | BindingFlags.Instance)
-                    .Where(m => m.Name == "ProcessSourceOcclusion");
+                foreach (var method in typeof(SpatialAudioSystem).GetMethods(BindingFlags.Public | BindingFlags.Instance))
+                    if (method.Name == "ProcessSourceOcclusion") yield return method;
             }
 
             [HarmonyPrefix]

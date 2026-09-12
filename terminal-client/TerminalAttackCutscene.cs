@@ -28,6 +28,19 @@ namespace Manimal.Terminal
         internal static float FinishedAt = -1f;
         internal static bool PlayingNow;
 
+        internal static void PlayCoop(bool skip)
+        {
+            if (_playedThisRaid) return;
+            _playedThisRaid = true;
+            if (skip || !TerminalCoop.LocalHuman || !Plugin.AttackCutscene.Value || !Available)
+            {
+                FinishedAt = Time.realtimeSinceStartup;
+                if (TerminalCoop.LocalHuman) TerminalCoop.Request(TerminalEvent.AttackDone);
+                return;
+            }
+            new GameObject("Terminal_AttackCutscene").AddComponent<TerminalAttackCutscene>();
+        }
+
         internal static void ResetForNewRaid()
         {
             _playedThisRaid = false;
@@ -50,6 +63,7 @@ namespace Manimal.Terminal
             [HarmonyPostfix]
             private static void Postfix()
             {
+                if (TerminalCoop.Active) return;
                 if (!TerminalGate.On || _playedThisRaid) return;
                 if (!Plugin.AttackCutscene.Value) return;
                 var go = new GameObject("Terminal_AttackCutsceneTimer");
@@ -135,11 +149,13 @@ namespace Manimal.Terminal
             _sceneLoaded = _scene.IsValid() && _scene.isLoaded;
             if (!_sceneLoaded) { Bail("cutscene scene failed to load"); yield break; }
 
+            RestoreMachineGunWorldLayer();
+
             try { TerminalShaderRebind.RebindNow(); }
             catch (Exception e) { Plugin.Log.LogWarning($"[AttackCutscene] shader rebind failed: {e.Message}"); }
             try { TerminalVolumetricLights.Restore(); }
             catch (Exception e) { Plugin.Log.LogWarning($"[AttackCutscene] volumetric pass failed: {e.Message}"); }
-            try { TerminalLights.CutsceneShowAll(); }
+            try { TerminalLights.CutsceneBeginLightTracking(); }
             catch (Exception e) { Plugin.Log.LogWarning($"[AttackCutscene] culler hold failed: {e.Message}"); }
 
             foreach (var rgo in _scene.GetRootGameObjects())
@@ -175,7 +191,7 @@ namespace Manimal.Terminal
             var lst = _rigCam.GetComponent<AudioListener>();
             if (lst != null) lst.enabled = false;
 
-            _realCam = CameraClass.Instance?.Camera;
+            _realCam = EFT.CameraControl.CameraManager.Instance?.Camera;
             if (_realCam == null) _realCam = Camera.main;
             if (_realCam == null) { Bail("no main camera"); yield break; }
 
@@ -239,6 +255,8 @@ namespace Manimal.Terminal
             _director.extrapolationMode = DirectorWrapMode.Hold;
             _director.timeUpdateMode = DirectorUpdateMode.DSPClock; // see the intro's note: a hitch must not desync audio
             _director.Play();
+            if (TerminalCoop.Active && TerminalCoop.AttackStarted >= 0)
+                _director.time = Math.Min(_director.duration - 0.05, Math.Max(0, TerminalCoop.Now - TerminalCoop.AttackStarted));
             TerminalSubtitles.Show("attack", _director);
             Plugin.Log.LogInfo($"[AttackCutscene] playing '{_director.playableAsset.name}' " +
                                $"({_director.duration:0.0}s{(Plugin.AttackCutsceneSkippable.Value ? ", SPACE skips" : "")})");
@@ -283,6 +301,37 @@ namespace Manimal.Terminal
             Destroy(gameObject);
         }
 
+        private void RestoreMachineGunWorldLayer()
+        {
+            // The authored PKM prop (including its LOD meshes) retained the item
+            // inspection layer. The raid camera does not render Weapon Preview;
+            // the other attack-scene weapons are on Default. Fix only this prop,
+            // including inactive LOD children, without changing activation or LODs.
+            var gun = FindInScene(_scene, "Cutscene_weapon_pkm");
+            if (gun == null)
+            {
+                Plugin.Log.LogWarning("[AttackCutscene] Cutscene_weapon_pkm missing; machine-gun layer repair skipped");
+                return;
+            }
+            int previewLayer = LayerMask.NameToLayer("Weapon Preview");
+            int worldLayer = LayerMask.NameToLayer("Default");
+            if (previewLayer < 0 || worldLayer < 0)
+            {
+                Plugin.Log.LogWarning("[AttackCutscene] weapon-preview/world layer unavailable; machine-gun layer repair skipped");
+                return;
+            }
+
+            int changed = 0;
+            foreach (var child in gun.GetComponentsInChildren<Transform>(true))
+            {
+                if (child.gameObject.layer != previewLayer) continue;
+                child.gameObject.layer = worldLayer;
+                changed++;
+            }
+            if (changed > 0)
+                Plugin.Log.LogInfo($"[AttackCutscene] restored machine gun to world layer: {changed} preview-layer object(s)");
+        }
+
         private static GameObject FindInScene(Scene scn, string name)
         {
             if (!scn.IsValid() || !scn.isLoaded) return null;
@@ -314,6 +363,7 @@ namespace Manimal.Terminal
                     (Mathf.PerlinNoise(tt, tt) - 0.5f) * amp);
             }
             cam.transform.SetPositionAndRotation(t.position, rot);
+			TerminalLights.TrackCutsceneCamera(t.position);
 
             // same fov-pop guard as the intro: clamp the RATE so a bad curve frame
             // becomes a smooth correction instead of a zoom-out and back
@@ -343,6 +393,7 @@ namespace Manimal.Terminal
             _restored = true;
             PlayingNow = false;
             if (FinishedAt < 0f) FinishedAt = Time.realtimeSinceStartup;
+            if (TerminalCoop.Active) TerminalCoop.Request(TerminalEvent.AttackDone);
             if (_driving) { Camera.onPreCull -= DriveCamera; _driving = false; }
             _lastFov = -1f;
             try { TerminalAcoustics.SetAmbientSilenced(false); } catch { }

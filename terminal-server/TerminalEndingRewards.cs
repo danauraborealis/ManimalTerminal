@@ -1,14 +1,15 @@
 using HarmonyLib;
 using SPTarkov.DI.Annotations;
 using SPTarkov.Server.Core.DI;
-using SPTarkov.Server.Core.Helpers;
+using SPTarkov.Server.Core.Helpers.Profile;
+using SPTarkov.Server.Core.Helpers.Commerce;
 using SPTarkov.Server.Core.Models.Common;
 using SPTarkov.Server.Core.Models.Eft.Common.Tables;
 using SPTarkov.Server.Core.Models.Eft.Match;
 using SPTarkov.Server.Core.Models.Enums;
-using SPTarkov.Server.Core.Models.Utils;
+using SPTarkov.Common.Models.Logging;
 using SPTarkov.Server.Core.Servers;
-using SPTarkov.Server.Core.Services;
+using SPTarkov.Server.Core.Services.InRaid;
 using WTTServerCommonLib.Services;
 
 namespace Manimal.Terminal.Server;
@@ -23,7 +24,7 @@ namespace Manimal.Terminal.Server;
 // terminal_survivor.json and loaded on OnLoad via WTT's CustomAchievementService.
 // idempotency comes from the achievement itself — Achievements dict is a
 // TryAdd, and ProfileHelper.AddHideoutCustomisationUnlock dedupes on target id.
-[Injectable(TypePriority = OnLoadOrder.PostDBModLoader + 90003)]
+[Injectable(TypePriority = OnLoadOrder.Preload + 90003)]
 public class TerminalEndingRewards(
     ISptLogger<TerminalEndingRewards> logger,
     ProfileHelper profileHelper,
@@ -45,8 +46,9 @@ public class TerminalEndingRewards(
     private static bool _patched;
     private static TerminalEndingRewards? _instance;
 
-    public async Task OnLoad()
+    public async Task OnLoadAsync(CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         _instance = this;
 
         // register the achievement templates + locale + icon from db/CustomAchievements/
@@ -54,8 +56,10 @@ public class TerminalEndingRewards(
         try
         {
             await achievementService.CreateCustomAchievements(typeof(TerminalEndingRewards).Assembly);
+            cancellationToken.ThrowIfCancellationRequested();
             _log.Info("[TerminalRewards] custom Survivor achievement registered");
         }
+        catch (OperationCanceledException) { throw; }
         catch (Exception e)
         {
             _log.Error($"[TerminalRewards] achievement registration failed — rewards will not grant: {e.Message}");
@@ -64,12 +68,20 @@ public class TerminalEndingRewards(
         if (_patched) return;
         _patched = true;
         var h = new Harmony("com.manimal.terminal.endingrewards");
-        h.Patch(AccessTools.Method(typeof(LocationLifecycleService), nameof(LocationLifecycleService.EndLocalRaid)),
+        h.Patch(AccessTools.Method(typeof(LocationLifecycleService), nameof(LocationLifecycleService.EndLocalRaidAsync)),
             postfix: new HarmonyMethod(typeof(TerminalEndingRewards), nameof(EndPostfix)));
         _log.Info("[TerminalRewards] armed — survivor ending grants unlock at Zubr extraction");
     }
 
-    public static void EndPostfix(MongoId sessionId, EndLocalRaidRequestData request)
+    public static void EndPostfix(MongoId sessionId, EndLocalRaidRequestData request,
+        CancellationToken cancellationToken, ref Task __result)
+    {
+        __result = TerminalRaidCompletion.AfterAsync(__result,
+            () => GrantRewardsAsync(sessionId, request, cancellationToken));
+    }
+
+    private static async Task GrantRewardsAsync(MongoId sessionId, EndLocalRaidRequestData request,
+        CancellationToken cancellationToken)
     {
         try
         {
@@ -95,9 +107,10 @@ public class TerminalEndingRewards(
             }
 
             self._rewards.AddAchievementToProfile(fullProfile, SurvivorAchievementId);
-            self._saves.SaveProfileAsync(sessionId).GetAwaiter().GetResult();
+            await self._saves.SaveProfileAsync(sessionId, cancellationToken);
             self._log.Info("[TerminalRewards] Survivor ending completed — achievement + 7 unlocks granted");
         }
+        catch (OperationCanceledException) { throw; }
         catch (Exception e)
         {
             _instance?._log.Warning($"[TerminalRewards] survivor grant failed: {e.Message}");

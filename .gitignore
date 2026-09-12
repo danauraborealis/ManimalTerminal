@@ -10,6 +10,14 @@ obj/
 /.dotnet-home/
 /.uv-cache/
 /.tmp/
+/obj-migration/
+
+# Local development tools, tests and docs stay on disk, outside commits.
+tools/
+tests/
+docs/
+__pycache__/
+.pytest_cache/
 
 # Distribution zips emitted by PackageModForDistribution targets
 *.zip

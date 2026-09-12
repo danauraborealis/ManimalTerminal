@@ -132,7 +132,7 @@ namespace Manimal.Terminal
                     // AND TAKE THE WHEEL. user 2026-08-11: "its been dark and night
                     // before, now randomly its always brighter — idk if its just the
                     // time im going into the map". that IS the mechanism: TOD_Time.Start
-                    // seeds the sky's cycle from EFTDateTimeClass.Now (real-world-ish
+                    // seeds the sky's cycle from EFT.DateTimeExtensions.Now (real-world-ish
                     // time) and then keeps advancing it every frame, overwriting our
                     // per-second Cycle writes. play at night IRL -> dark map; play in the
                     // afternoon -> daylight, exactly as observed, and no amount of

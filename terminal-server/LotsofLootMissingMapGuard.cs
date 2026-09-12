@@ -1,9 +1,9 @@
 using HarmonyLib;
 using SPTarkov.DI.Annotations;
 using SPTarkov.Server.Core.DI;
-using SPTarkov.Server.Core.Generators;
+using SPTarkov.Server.Core.Generators.Loot;
 using SPTarkov.Server.Core.Models.Eft.Common;
-using SPTarkov.Server.Core.Models.Utils;
+using SPTarkov.Common.Models.Logging;
 
 namespace Manimal.Terminal.Server;
 
@@ -34,14 +34,15 @@ namespace Manimal.Terminal.Server;
 //
 // Only Terminal's KeyNotFoundException is swallowed — every other map and exception
 // type rethrows unchanged, so this doesn't mask unrelated loot-generation bugs.
-[Injectable(TypePriority = OnLoadOrder.PostDBModLoader + 90003)]
+[Injectable(TypePriority = OnLoadOrder.Preload + 90003)]
 public class LotsofLootMissingMapGuard(ISptLogger<LotsofLootMissingMapGuard> logger) : IOnLoad
 {
     private static ISptLogger<LotsofLootMissingMapGuard>? _log;
     private static bool _patched;
 
-    public Task OnLoad()
+    public Task OnLoadAsync(CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         _log = logger;
         if (_patched) return Task.CompletedTask;
         _patched = true;

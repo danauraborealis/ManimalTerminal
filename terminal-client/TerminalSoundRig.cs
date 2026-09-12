@@ -291,6 +291,14 @@ namespace Manimal.Terminal
 
         private JObject _doorOpen;
 
+        internal static string CheckpointDoorId()
+        {
+            // Progression cannot depend on audio being enabled on a headless host.
+            string path = Path.Combine(Path.GetDirectoryName(typeof(Plugin).Assembly.Location) ?? ".",
+                "plugin-data", "sound_rig.json");
+            return JObject.Parse(File.ReadAllText(path))["doorOpen"]?.Value<string>("doorId");
+        }
+
         // retail's post-attack beat (ClientInteractiveTriggerEventFilter, dead in 4.0):
         // the checkpoint cutscene door unlocks and the AdditionalSounds tableau plays —
         // cardlock release, door-push foley, VSRF voice. only the voice's clip survived
@@ -298,6 +306,7 @@ namespace Manimal.Terminal
         // fx bundle.
         private System.Collections.IEnumerator DoorOpenBeat()
         {
+            while (TerminalCoop.Active && !TerminalCoop.AttackReleased) yield return null;
             if (_doorOpen == null) yield break;
             var doorId = _doorOpen.Value<string>("doorId");
             EFT.Interactive.Door door = null;
@@ -313,9 +322,9 @@ namespace Manimal.Terminal
                         // it, the EVENT does (the vsrf foley IS the door opening). widen
                         // the state mask so it stays usable afterward, then unlock.
                         d.Snap = EFT.Interactive.EDoorState.Locked | EFT.Interactive.EDoorState.Shut | EFT.Interactive.EDoorState.Open;
-                        if (d.DoorState == EFT.Interactive.EDoorState.Locked)
+                        if (TerminalCoop.Authority && d.DoorState == EFT.Interactive.EDoorState.Locked)
                             d.DoorState = EFT.Interactive.EDoorState.Shut;
-                        d.KeyId = string.Empty;
+                        if (TerminalCoop.Authority) d.KeyId = string.Empty;
                     }
                     catch (Exception e) { Plugin.Log.LogWarning($"[SoundRig] door unlock failed: {e.Message}"); }
                     break;
@@ -657,24 +666,7 @@ namespace Manimal.Terminal
 
         private static AnimationCurve BuildCurve(JObject obj)
         {
-            var keysTok = obj["m_Curve"] as JArray;
-            if (keysTok == null) return new AnimationCurve();
-            var keys = new Keyframe[keysTok.Count];
-            for (int i = 0; i < keysTok.Count; i++)
-            {
-                var k = (JObject)keysTok[i];
-                var kf = new Keyframe(F(k, "time"), F(k, "value"), F(k, "inSlope"), F(k, "outSlope"));
-                kf.weightedMode = (WeightedMode)(k["weightedMode"]?.Value<int>() ?? 0);
-                kf.inWeight = F(k, "inWeight");
-                kf.outWeight = F(k, "outWeight");
-                keys[i] = kf;
-            }
-            var curve = new AnimationCurve(keys);
-            // NEVER restore wrap modes on a rolloff — serialized 2 is WrapMode.Loop and
-            // a looping falloff makes every distant sound audible map-wide (icebreaker)
-            curve.preWrapMode = WrapMode.ClampForever;
-            curve.postWrapMode = WrapMode.ClampForever;
-            return curve;
+            return TerminalSerializedCurves.FromUnity(obj) ?? new AnimationCurve();
         }
 
         private UnityEngine.Object ResolveReference(JObject obj, Type wanted)

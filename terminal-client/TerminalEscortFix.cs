@@ -9,7 +9,7 @@ namespace Manimal.Terminal
     // its boss instantly and its 3 escorts minutes later, or never).
     //
     // from the decompile: a wave's own boss honours BossLocationSpawn.IgnoreMaxBots
-    // (BossSpawnerClass.Spawn skips CheckOnMax entirely when it's set), but the
+    // (BotBossSpawn.Spawn skips CheckOnMax entirely when it's set), but the
     // FOLLOWERS are spawned separately by method_6 through
     // TryToSpawnInZoneAndDelay(..., forceSpawn) — and for every non-start wave that
     // flag arrives FALSE, so escorts fall back into the capped/delayed queue while
@@ -27,9 +27,9 @@ namespace Manimal.Terminal
             {
                 // method_5 (plain escort count) and method_6 (the Supports list) both
                 // carry the (wave, forceSpawn) pair
-                foreach (var name in new[] { "method_5", "method_6" })
+                foreach (var name in new[] { "SpawnBossSupports", "SpawnEscort" })
                 {
-                    var m = AccessTools.Method(typeof(BossSpawnerClass), name);
+                    var m = AccessTools.Method(typeof(BotBossSpawn), name);
                     if (m != null) yield return m;
                 }
             }

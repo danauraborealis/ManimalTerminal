@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
 using Comfort.Common;
@@ -43,6 +44,8 @@ namespace Manimal.Terminal
             internal float LastRecycledAt = -1f;
             internal int RecycleCount;
             internal float VisualRepairUntil = -1f;
+            internal List<Renderer> VisualRepairRenderers;
+            internal List<SkinnedMeshRenderer> VisualRepairSkins;
         }
 
         private static readonly Dictionary<string, Entry> Entries = new Dictionary<string, Entry>();
@@ -95,6 +98,7 @@ namespace Manimal.Terminal
 
         internal static void ResetForRaid()
         {
+            foreach (var entry in Entries.Values) FinishBodyVisibilityRepair(entry);
             Entries.Clear();
             _highestProgressTier = -1;
             _created = _died = _retiredCorpses = _recycledPlacements = _avoidedCreations = _recoveredBirths = 0;
@@ -168,7 +172,7 @@ namespace Manimal.Terminal
 
         internal static bool HasReachedTier(int tier) => _highestProgressTier >= tier;
 
-        // BossSpawnScenario normally consumes BotEventHandler.OnEvent synchronously.
+        // BossSpawnScenario normally consumes GlobalEventDispatcher.OnEvent synchronously.
         // Terminal's reconstructed trigger layer proved that the event can still be
         // logged while the matching scenario rows remain dormant, leaving a long empty
         // middle raid.  Call this only AFTER AnyEvent: native gets first refusal, then
@@ -190,7 +194,7 @@ namespace Manimal.Terminal
                     if (!string.Equals(wave.TriggerId, "T" + tier, StringComparison.OrdinalIgnoreCase)) continue;
                     try
                     {
-                        scenario.method_5(wave); // native activation; honors authored Delay
+                        scenario.ActivateWave(wave); // native activation; honors authored Delay
                         repaired++;
                     }
                     catch (Exception e)
@@ -219,7 +223,7 @@ namespace Manimal.Terminal
             [HarmonyPostfix]
             private static void Postfix(BotsController __instance)
             {
-                if (!TerminalGate.On || __instance?.BotSpawner == null) return;
+                if (!TerminalGate.On || !TerminalCoop.Authority || __instance?.BotSpawner == null) return;
                 ResetForRaid();
                 __instance.BotSpawner.OnBotCreated += OnBotCreated;
                 __instance.BotSpawner.OnBotRemoved += OnBotRemoved;
@@ -233,14 +237,14 @@ namespace Manimal.Terminal
         // destroyed Components compare equal to null, and AITaskManager interprets a
         // null Bot as an ownerless task that SHOULD run. Mark fake-null bot tasks for
         // cancellation before it executes their closures against a pooled transform.
-        [HarmonyPatch(typeof(AITaskManager), "method_0")]
+        [HarmonyPatch(typeof(AITaskManager), "UpdateSimpleTasks")]
         internal static class Patch_DropDestroyedBotTasks
         {
             [HarmonyPrefix]
             private static void Prefix(AITaskManager __instance)
             {
-                if (!TerminalGate.On || __instance?.SimpleTasks == null) return;
-                foreach (var task in __instance.SimpleTasks)
+                if (!TerminalGate.On || __instance?._simpleTasks == null) return;
+                foreach (var task in __instance._simpleTasks)
                     if (task != null && !ReferenceEquals(task.Bot, null) && !task.Bot)
                         task.IsCancelRequested = true;
             }
@@ -253,7 +257,7 @@ namespace Manimal.Terminal
         [HarmonyPatch(typeof(EffectsCommutator), "UpdatePlayersBleedings")]
         internal static class Patch_DropDestroyedBleedingPlayers
         {
-            private static readonly FieldInfo BleedingPlayers = AccessTools.Field(typeof(EffectsCommutator), "list_1");
+            private static readonly FieldInfo BleedingPlayers = AccessTools.Field(typeof(EffectsCommutator), "_playerBleedingDecalTimes");
 
             [HarmonyPrefix]
             private static void Prefix(EffectsCommutator __instance)
@@ -300,7 +304,10 @@ namespace Manimal.Terminal
             }
         }
 
-        [HarmonyPatch(typeof(Corpse), "method_17")]
+        [HarmonyPatch(typeof(Corpse), nameof(Corpse.Init), typeof(string), typeof(InventoryEquipment),
+            typeof(EFT.BodyCustomization), typeof(bool), typeof(GameWorld), typeof(EPlayerSide),
+            typeof(Vector3), typeof(Transform), typeof(bool), typeof(Diz.Binding.BindableState<Item>),
+            typeof(bool), typeof(ContainerCollectionView), typeof(MongoID))]
         internal static class Patch_AuditCorpseIdentity
         {
             [HarmonyPostfix]
@@ -362,7 +369,7 @@ namespace Manimal.Terminal
 
         // OnBotCreated is not guaranteed for every custom/direct placement path.  The
         // witness raid ended at ledger=0/native=9: those nine living bots had entered
-        // BotSpawner.Bots without an event record, which also made stage 1 clear early.
+        // BotSpawner._bots without an event record, which also made stage 1 clear early.
         // Reconcile against the authoritative native list at low frequency.
         private static void ReconcileNativeBots()
         {
@@ -371,7 +378,7 @@ namespace Manimal.Terminal
             try
             {
                 var game = Singleton<IBotGame>.Instantiated ? Singleton<IBotGame>.Instance : null;
-                var bots = game?.BotsController?.BotSpawner?.Bots;
+                var bots = game?.BotsController?.BotSpawner?._bots;
                 if (bots == null) return;
                 int before = _recoveredBirths;
                 foreach (var bot in bots.BotOwners)
@@ -413,6 +420,7 @@ namespace Manimal.Terminal
                     };
                     Entries[id] = entry;
                 }
+                FinishBodyVisibilityRepair(entry);
                 if (!entry.Alive) return;
                 entry.Alive = false;
                 entry.DeathAt = Time.time;
@@ -435,7 +443,7 @@ namespace Manimal.Terminal
                 try
                 {
                     var bc = Singleton<IBotGame>.Instantiated ? Singleton<IBotGame>.Instance.BotsController : null;
-                    n = Math.Max(n, bc?.BotSpawner?.AllBotsCount ?? 0);
+                    n = Math.Max(n, bc?.BotSpawner?._allBotsCount ?? 0);
                 }
                 catch { }
                 return n;
@@ -451,6 +459,7 @@ namespace Manimal.Terminal
                 if (entry == null || !entry.Alive || entry.Removed || !entry.Bot) continue;
                 try
                 {
+                    FinishBodyVisibilityRepair(entry);
                     entry.Removed = true;
                     TerminalCrewJobs.ByProfile.Remove(entry.ProfileId);
                     entry.Bot.LeaveData.RemoveFromMap();
@@ -530,7 +539,7 @@ namespace Manimal.Terminal
             e.LogicalTier = TierOf(e.LogicalZone);
         }
 
-        internal static bool TryPreparePlainWave(BotsController controller, ref BotWaveDataClass wave)
+        internal static bool TryPreparePlainWave(BotsController controller, ref EFT.SpawnWave wave)
         {
             if (wave == null || !Plugin.ScavRecycler.Value || !IsOrdinaryScav(wave.WildSpawnType)) return false;
             var zone = FindZone(controller, wave.SpawnAreaName);
@@ -545,7 +554,7 @@ namespace Manimal.Terminal
             }
             var shortfall = wave.BotsCount - reused;
             _avoidedCreations += reused;
-            wave = new BotWaveDataClass
+            wave = new EFT.SpawnWave
             {
                 BotsCount = shortfall,
                 Side = wave.Side,
@@ -689,7 +698,7 @@ namespace Manimal.Terminal
             if (pool == RecyclePool.Scav
                 && (targetStage < 2 || targetTier < 0 || !HasReachedTier(targetTier))) return 0;
 
-            var player = Singleton<GameWorld>.Instantiated ? Singleton<GameWorld>.Instance.MainPlayer : null;
+            var player = TerminalCoop.NearestHuman(targetZone.transform.position);
             if (!player) return 0;
             float sourceMinDistSq = Plugin.ScavRecycleMinDistance.Value * Plugin.ScavRecycleMinDistance.Value;
             float targetMinDistSq = Plugin.ScavRecycleDestinationDistance.Value * Plugin.ScavRecycleDestinationDistance.Value;
@@ -744,7 +753,7 @@ namespace Manimal.Terminal
                     // remained forceRenderingOff while independently owned equipment
                     // stayed visible. Clear the stale flag now and for a short settling
                     // window while the culling sphere catches the new transform.
-                    e.VisualRepairUntil = Time.time + 3f;
+                    BeginBodyVisibilityRepair(e);
                     RepairRecycledBodyVisibility(e, out int bodyRenderers, out int forcedBackOn);
 
                     TerminalCrewJobs.ByProfile[e.ProfileId] = new TerminalCrewJobs.Rec
@@ -771,6 +780,39 @@ namespace Manimal.Terminal
             return moved;
         }
 
+        private static void BeginBodyVisibilityRepair(Entry entry)
+        {
+            FinishBodyVisibilityRepair(entry);
+            if (!entry.Player || !entry.Player.PlayerBody) return;
+            entry.VisualRepairRenderers ??= new List<Renderer>(128);
+            entry.VisualRepairSkins ??= new List<SkinnedMeshRenderer>(16);
+            // Capture once per teleport, not once per frame. Only override meshes
+            // that were not already configured to update offscreen by their owner.
+            entry.Player.PlayerBody.GetRenderersNonAlloc(entry.VisualRepairRenderers);
+            entry.VisualRepairUntil = Time.time + 3f;
+            foreach (var renderer in entry.VisualRepairRenderers)
+            {
+                if (renderer is SkinnedMeshRenderer skinned && skinned && !skinned.updateWhenOffscreen)
+                {
+                    entry.VisualRepairSkins.Add(skinned);
+                    skinned.updateWhenOffscreen = true;
+                }
+            }
+        }
+
+        private static void FinishBodyVisibilityRepair(Entry entry)
+        {
+            entry.VisualRepairUntil = -1f;
+            if (entry.VisualRepairSkins != null)
+            {
+                foreach (var skinned in entry.VisualRepairSkins)
+                    if (skinned) skinned.updateWhenOffscreen = false;
+                entry.VisualRepairSkins.Clear();
+            }
+            // Release references before the player/gear can return to a pool.
+            entry.VisualRepairRenderers?.Clear();
+        }
+
         private static void RepairRecycledBodyVisibility(Entry entry, out int renderers, out int forcedBackOn)
         {
             renderers = 0;
@@ -778,8 +820,8 @@ namespace Manimal.Terminal
             try
             {
                 if (entry == null || !entry.Player || !entry.Player.PlayerBody) return;
-                var body = new List<Renderer>(128);
-                entry.Player.PlayerBody.GetRenderersNonAlloc(body);
+                var body = entry.VisualRepairRenderers;
+                if (body == null) return;
                 renderers = body.Count;
                 foreach (var renderer in body)
                 {
@@ -789,11 +831,6 @@ namespace Manimal.Terminal
                         renderer.forceRenderingOff = false;
                         forcedBackOn++;
                     }
-                    // A teleported skinned mesh can retain bounds/bones from its old
-                    // culled position. Let it update offscreen thereafter; recycler
-                    // populations are deliberately small, so this is bounded.
-                    if (renderer is SkinnedMeshRenderer skinned)
-                        skinned.updateWhenOffscreen = true;
                 }
             }
             catch { }
@@ -846,7 +883,8 @@ namespace Manimal.Terminal
             }
             float ageFromLastPlacement = Time.time - Math.Max(e.SpawnAt, e.LastRecycledAt);
             if (ageFromLastPlacement < Plugin.ScavRecycleMinAge.Value) { reason = RecycleReject.TooYoung; return false; }
-            if ((e.Bot.Position - playerPos).sqrMagnitude < minDistSq || IsInCamera(e.Bot.Position))
+            var nearest = TerminalCoop.NearestHuman(e.Bot.Position);
+            if (nearest == null || (e.Bot.Position - nearest.Position).sqrMagnitude < minDistSq || IsInCamera(e.Bot.Position))
             {
                 reason = RecycleReject.NearOrVisible;
                 return false;
@@ -883,7 +921,9 @@ namespace Manimal.Terminal
                     if (IsInCamera(p)) continue;
                     if (!NavMesh.SamplePosition(p, out var hit, 6f, NavMesh.AllAreas)) continue;
                     if (IsInCamera(hit.position)) continue;
-                    float distSq = (hit.position - playerPos).sqrMagnitude;
+                    var nearest = TerminalCoop.NearestHuman(hit.position);
+                    if (nearest == null) continue;
+                    float distSq = (hit.position - nearest.Position).sqrMagnitude;
                     if (distSq >= minDistSq) result.Add(hit.position);
                     else if (distSq >= fallbackMinDistSq) fallback.Add(hit.position);
                 }
@@ -917,20 +957,36 @@ namespace Manimal.Terminal
         {
             private float _nextCleanup;
             private float _nextHeartbeat;
+            private IEnumerator _cleanupSweep;
 
             private void Update()
             {
-                if (!TerminalGate.On) { Destroy(gameObject); return; }
+                if (!TerminalGate.On)
+                {
+                    foreach (var entry in Entries.Values) FinishBodyVisibilityRepair(entry);
+                    _cleanupSweep = null;
+                    Destroy(gameObject);
+                    return;
+                }
                 ReconcileNativeBots();
                 foreach (var entry in Entries.Values)
-                    if (entry.Alive && !entry.Removed && entry.VisualRepairUntil >= Time.time)
+                {
+                    if (entry.VisualRepairUntil < 0f) continue;
+                    if (entry.Alive && !entry.Removed && entry.Player
+                        && entry.Player.HealthController != null && entry.Player.HealthController.IsAlive
+                        && entry.VisualRepairUntil >= Time.time)
                         RepairRecycledBodyVisibility(entry, out _, out _);
+                    else FinishBodyVisibilityRepair(entry);
+                }
                 bool manual = Plugin.ScavCorpseCleanupKey.Value.IsDown();
-                if (manual || (Plugin.ScavCorpseCleanup.Value && Time.time >= _nextCleanup))
+                if (manual || (_cleanupSweep == null && Plugin.ScavCorpseCleanup.Value && Time.time >= _nextCleanup))
                 {
                     _nextCleanup = Time.time + 10f;
-                    SweepCorpses(manual);
+                    // A manual request replaces the remaining automatic sweep.
+                    // Its fresh snapshot excludes corpses already retired.
+                    _cleanupSweep = SweepCorpses(manual);
                 }
+                if (_cleanupSweep != null && !_cleanupSweep.MoveNext()) _cleanupSweep = null;
                 if (Time.time >= _nextHeartbeat)
                 {
                     _nextHeartbeat = Time.time + 60f;
@@ -949,10 +1005,10 @@ namespace Manimal.Terminal
                     try
                     {
                         var spawner = Singleton<IBotGame>.Instantiated ? Singleton<IBotGame>.Instance.BotsController?.BotSpawner : null;
-                        nativeAlive = spawner?.AllBotsCount ?? 0;
-                        activating = spawner?.InSpawnProcess ?? 0;
-                        botCreatorLoading = spawner?.BotCreator?.BotsLoading ?? 0;
-                        profilesLoading = BotCreationDataClass.ProfilesLoadingProcess;
+                        nativeAlive = spawner?._allBotsCount ?? 0;
+                        activating = spawner?._inSpawnProcess ?? 0;
+                        botCreatorLoading = spawner?._botCreator?.BotsLoading ?? 0;
+                        profilesLoading = BotCreationData.ProfilesLoadingProcess;
                         delayed = spawner?.SpawnDelaysService?.WaitCount ?? 0;
                     }
                     catch { }
@@ -961,11 +1017,11 @@ namespace Manimal.Terminal
                 }
             }
 
-            private static void SweepCorpses(bool manual)
+            private static IEnumerator SweepCorpses(bool manual)
             {
                 var world = Singleton<GameWorld>.Instantiated ? Singleton<GameWorld>.Instance : null;
                 var me = world ? world.MainPlayer : null;
-                if (!me) return;
+                if (!me) yield break;
                 int limit = manual ? int.MaxValue : Plugin.ScavCorpseCleanupPerSweep.Value;
                 int removed = 0;
                 var ordered = new List<Entry>(Entries.Values);
@@ -978,6 +1034,7 @@ namespace Manimal.Terminal
                 });
                 foreach (var e in ordered)
                 {
+                    if (!TerminalGate.On || !world) yield break;
                     if (removed >= limit) break;
                     if (e.Alive || e.Removed || !e.Player) continue;
                     float lifetime = e.OrdinaryScav ? Plugin.ScavCorpseLifetime.Value : Plugin.SpecialCorpseLifetime.Value;
@@ -992,6 +1049,10 @@ namespace Manimal.Terminal
                     // a Fika client looting far from the host must never lose its body.
                     if (IsNearAnyHuman(world, corpse.transform.position, distance * distance)) continue;
                     if (RetireCorpse(world, e, corpse)) removed++;
+                    // Disposal releases gear, AI registrations and pooled objects.
+                    // At most one attempt per frame, including manual sweeps and
+                    // failures. Recheck age/proximity for the next body after yielding.
+                    yield return null;
                 }
                 if (manual)
                     Plugin.Log.LogWarning($"[CorpseCleanup] manual sweep retired {removed} distance-eligible AI corpse(s), scav priority first");
@@ -1021,6 +1082,7 @@ namespace Manimal.Terminal
 
             private static bool RetireCorpse(GameWorld world, Entry e, Corpse corpse)
             {
+                FinishBodyVisibilityRepair(e);
                 var player = e.Player;
                 int cancelledAiTasks = 0;
 
@@ -1112,11 +1174,11 @@ namespace Manimal.Terminal
 
             private static int CancelDelayedBotTasks(BotOwner bot)
             {
-                if (!bot || bot.AITaskManager == null || bot.AITaskManager.SimpleTasks == null) return 0;
+                if (!bot || bot.AITaskManager == null || bot.AITaskManager._simpleTasks == null) return 0;
                 int cancelled = 0;
                 // Cancellation is applied by AITaskManager on its next tick; iterate a
                 // snapshot so this remains safe if a mod cancels synchronously.
-                var tasks = new List<AITaskManager.GClass607>(bot.AITaskManager.SimpleTasks);
+                var tasks = new List<AITaskManager.AISimpleTaskData>(bot.AITaskManager._simpleTasks);
                 foreach (var task in tasks)
                 {
                     if (task == null || !ReferenceEquals(task.Bot, bot)) continue;
@@ -1141,7 +1203,7 @@ namespace Manimal.Terminal
                                 && ReferenceEquals(registered, player))
                                 players.Remove(profileId);
                         }
-                        else if (value is IDictionary<string, IPlayerOwner> owners)
+                        else if (value is IDictionary<string, EFT.IObserverToPlayerBridge> owners)
                         {
                             if (!owners.TryGetValue(profileId, out var owner) || owner == null
                                 || !ReferenceEquals(owner.iPlayer, player)) continue;

@@ -1,16 +1,17 @@
+using SPTarkov.Server.Core.Models.Spt.Tables;
 using HarmonyLib;
 using SPTarkov.DI.Annotations;
 using SPTarkov.Server.Core.DI;
-using SPTarkov.Server.Core.Generators;
+using SPTarkov.Server.Core.Generators.Loot;
 using SPTarkov.Server.Core.Models.Common;
 using SPTarkov.Server.Core.Models.Eft.Common;
 using SPTarkov.Server.Core.Models.Eft.Common.Tables;
 using SPTarkov.Server.Core.Models.Spt.Config;
 using SPTarkov.Server.Core.Models.Spt.Mod;
-using SPTarkov.Server.Core.Models.Utils;
+using SPTarkov.Common.Models.Logging;
 using SPTarkov.Server.Core.Routers;
 using SPTarkov.Server.Core.Servers;
-using SPTarkov.Server.Core.Services;
+using SPTarkov.Server.Core.Services.InRaid;
 using SPTarkov.Server.Core.Utils;
 using SPTarkov.Server.Core.Utils.Cloners;
 using SPTarkov.Server.Core.Utils.Json;
@@ -18,39 +19,33 @@ using SysPath = System.IO.Path;
 
 namespace Manimal.Terminal.Server;
 
-public record ModMetadata : AbstractModMetadata
+public record ModMetadata : IModMetadata
 {
-    public override string ModGuid { get; init; } = "com.manimal.terminal";
-    public override string Name { get; init; } = "ManimalTerminal";
-    public override string Author { get; init; } = "Manimal";
-    public override List<string>? Contributors { get; init; }
-    // read from the assembly rather than repeated as a literal. forge requires every
-    // version a mod declares to match exactly, and the csproj already feeds ModVersion
-    // (Directory.Build.props) into <Version> — so this stays correct across a bump
-    // instead of silently drifting from the client's BuildInfo.Version.
-    public override SemanticVersioning.Version Version { get; init; } =
-        new(typeof(ModMetadata).Assembly.GetName().Version is { } v
-            ? $"{v.Major}.{v.Minor}.{v.Build}"
-            : "0.1.0");
-    public override SemanticVersioning.Range SptVersion { get; init; } = new("~4.0");
-    public override List<string>? Incompatibilities { get; init; }
+    public string ModGuid { get; init; } = BuildInfo.ModGuid;
+    public string Name { get; init; } = BuildInfo.Name;
+    public string Author { get; init; } = BuildInfo.Author;
+    public List<string>? Contributors { get; init; }
+    // Generated from the same properties as the client and project version.
+    public SemanticVersioning.Version Version { get; init; } = new(BuildInfo.Version);
+    public SemanticVersioning.Range SptVersion { get; init; } = new("~4.1.0");
+    public List<string>? Incompatibilities { get; init; }
     // the map's bosses/items come from contentbackport + blackdiv — declared so a
     // missing install fails with the server's own dependency error instead of a
     // crash on unresolvable loot tpls / boss roles at raid start. guids + versions
     // read off the installed server dlls 2026-08-09, not guessed.
-    public override Dictionary<string, SemanticVersioning.Range>? ModDependencies { get; init; } = new()
+    public Dictionary<string, SemanticVersioning.Range>? ModDependencies { get; init; } = new()
     {
-        { "com.wtt.commonlib", new SemanticVersioning.Range("~2.0.23") },
-        { "com.wtt.contentbackport", new SemanticVersioning.Range("~1.1.3") },
+        { "com.wtt.commonlib", new SemanticVersioning.Range("^3.0.6") },
+        { "com.wtt.contentbackport", new SemanticVersioning.Range("^2.0.1") },
         { "com.blackdiv.tacticaltoaster", new SemanticVersioning.Range(">=0.0.1") },
-        { "com.morebotsapi.tacticaltoaster", new SemanticVersioning.Range(">=0.0.1") },
+        { "com.morebotsapi.tacticaltoaster", new SemanticVersioning.Range(">=2.1.1") },
         // RUAF Come Home carries the vsRF replacements (ruafRifleman/ruafMarksman in
         // our BossLocationSpawn) — guid read off the repo's Server/Mod.cs, v1.1.2
         { "com.ruafcomehome.tacticaltoaster", new SemanticVersioning.Range(">=1.1.0") },
     };
-    public override string? Url { get; init; }
-    public override bool? IsBundleMod { get; init; } = true; // will ship the scene + preset bundles
-    public override string License { get; init; } = "MIT";
+    public string? Url { get; init; } = BuildInfo.SourceUrl;
+    public string License { get; init; } = "MIT";
+    public bool HasPrepatcher { get; init; } = false;
 }
 
 // binds the backported Terminal map into SPT's native Terminal location slot.
@@ -58,10 +53,13 @@ public record ModMetadata : AbstractModMetadata
 // first-class dormant stub on the Locations record with its own id — every native
 // lookup already resolves, and shoreline's vanilla transit SHO_TRANSIT_25 already
 // targets it. we only have to supply Base + loot data.
-[Injectable(TypePriority = OnLoadOrder.PostDBModLoader + 90000)]
+[Injectable(TypePriority = OnLoadOrder.Preload + 90000)]
 public class TerminalMod(
-    DatabaseService databaseService,
-    ConfigServer configServer,
+    LocationTable locationTable,
+    TemplateTable templateTable,
+    LocaleTable localeTable,
+    LocationConfig locationConfig,
+    InventoryConfig inventoryConfig,
     ICloner cloner,
     JsonUtil jsonUtil,
     ImageRouter imageRouter,
@@ -95,11 +93,12 @@ public class TerminalMod(
         TerminalBannerId,
     };
 
-    public async Task OnLoad()
+    public async Task OnLoadAsync(CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         var modDir = SysPath.GetDirectoryName(typeof(TerminalMod).Assembly.Location)!;
         var basePath = SysPath.Combine(modDir, "db", "base.json");
-        var newBase = await jsonUtil.DeserializeFromFileAsync<LocationBase>(basePath);
+        var newBase = await jsonUtil.DeserializeFromFileAsync<LocationBase>(basePath, cancellationToken);
         if (newBase is null)
         {
             // expected state until phase 6 authors db/base.json — server stays healthy
@@ -107,7 +106,7 @@ public class TerminalMod(
             return;
         }
 
-        var terminal = databaseService.GetLocations().Terminal;
+        var terminal = locationTable.Terminal;
         if (terminal is null)
         {
             logger.Error("[Terminal] Terminal location slot missing from database — aborting");
@@ -116,6 +115,22 @@ public class TerminalMod(
 
         ConfigureTicketArmoredCase();
         ConfigureTerminalEntryNoteSpecialSlot();
+
+        var containerTemplates = await jsonUtil.DeserializeFromFileAsync<Dictionary<MongoId, TemplateItem>>(
+            SysPath.Combine(modDir, "db", "containerTemplates.json"), cancellationToken)
+            ?? throw new InvalidDataException("Terminal containerTemplates.json is missing or invalid");
+        TerminalContainerCatalog.Register(templateTable.Items, containerTemplates);
+        var containerLocales = await jsonUtil.DeserializeFromFileAsync<Dictionary<string, string>>(
+            SysPath.Combine(modDir, "db", "containerLocales.json"), cancellationToken)
+            ?? throw new InvalidDataException("Terminal containerLocales.json is missing or invalid");
+        foreach (var globalLocale in localeTable.Global.Values)
+            globalLocale.AddTransformer(locale =>
+            {
+                if (locale is not null)
+                    foreach (var entry in containerLocales) locale[entry.Key] = entry.Value;
+                return locale;
+            });
+        logger.Info($"[Terminal] {containerTemplates.Count} original container templates registered with authored grids and search sounds");
 
         terminal.Base = newBase;
         // scavs never cross: same lever labs uses; map screen greys it natively
@@ -126,7 +141,7 @@ public class TerminalMod(
         // Retail uses the same Terminal blurb for both.
         try
         {
-            foreach (var kv in databaseService.GetLocales().Global)
+            foreach (var kv in localeTable.Global)
                 kv.Value.AddTransformer(locale =>
                 {
                     foreach (var id in TerminalLocaleIds)
@@ -171,9 +186,12 @@ public class TerminalMod(
         // loader chain as icebreaker: authored db files win, coherent fallback pair
         // otherwise (never mix fallback containers with our pools — KeyNotFound at
         // raid start).
-        var factory = databaseService.GetLocations().Factory4Day;
-        var labs = databaseService.GetLocations().Laboratory;
-        terminal.StaticAmmo = labs.StaticAmmo;
+        var factory = locationTable.Factory4Day;
+        var labs = locationTable.Laboratory;
+        terminal.StaticAmmo = await jsonUtil.DeserializeFromFileAsync<Dictionary<string, IEnumerable<StaticAmmoDetails>>>(
+            SysPath.Combine(modDir, "db", "staticAmmo.json"), cancellationToken)
+            ?? throw new InvalidDataException("Terminal staticAmmo.json is missing or invalid");
+        logger.Info($"[Terminal] Terminal ammunition distributions loaded ({terminal.StaticAmmo.Count} calibers)");
         terminal.AllExtracts = []; // scav extract list — v1 is PMC-only
 
         // EQUIPMENT CABINET — our own container tpl for the gunsafe valberg doors
@@ -186,7 +204,7 @@ public class TerminalMod(
         const string cabinetTpl = "68a4c0ffee0000000000cab1";
         try
         {
-            var itemsDb = databaseService.GetTemplates().Items;
+            var itemsDb = templateTable.Items;
             if (itemsDb is not null && itemsDb.TryGetValue(new MongoId("6223349b3136504a544d1608"), out var crate))
             {
                 var cab = cloner.Clone(crate);
@@ -204,7 +222,7 @@ public class TerminalMod(
                     }
                 }
                 itemsDb[cab.Id] = cab;
-                foreach (var kv in databaseService.GetLocales().Global)
+                foreach (var kv in localeTable.Global)
                     kv.Value.AddTransformer(locale =>
                     {
                         locale[$"{cabinetTpl} Name"] = "Equipment Cabinet";
@@ -224,12 +242,13 @@ public class TerminalMod(
         Dictionary<MongoId, StaticLootDetails>? ourStaticLoot = null;
         if (System.IO.File.Exists(staticLootPath))
         {
-            try { ourStaticLoot = await jsonUtil.DeserializeFromFileAsync<Dictionary<MongoId, StaticLootDetails>>(staticLootPath); }
+            try { ourStaticLoot = await jsonUtil.DeserializeFromFileAsync<Dictionary<MongoId, StaticLootDetails>>(staticLootPath, cancellationToken); }
+            catch (OperationCanceledException) { throw; }
             catch (Exception e) { logger.Warning($"[Terminal] db/staticLoot.json unreadable — falling back: {e.Message}"); }
         }
         if (ourStaticLoot is not null)
         {
-            terminal.StaticLoot = new LazyLoad<Dictionary<MongoId, StaticLootDetails>>(() => ourStaticLoot);
+            terminal.StaticLoot = new LazyLoad<Dictionary<MongoId, StaticLootDetails>>(() => ourStaticLoot, cacheValue: false);
             logger.Info($"[Terminal] container loot pools loaded ({ourStaticLoot.Count} container types)");
         }
         else
@@ -246,9 +265,10 @@ public class TerminalMod(
         {
             try
             {
-                looseJson = System.IO.File.ReadAllText(loosePath);
+                looseJson = await System.IO.File.ReadAllTextAsync(loosePath, cancellationToken);
                 if (jsonUtil.Deserialize<LooseLoot>(looseJson) is null) looseJson = null;
             }
+            catch (OperationCanceledException) { throw; }
             catch (Exception e)
             {
                 looseJson = null;
@@ -262,7 +282,7 @@ public class TerminalMod(
             // raid; the fresh copy is also where group-position picks + forced-
             // probability rolls happen (two generator gaps, verified on icebreaker)
             var json = looseJson;
-            terminal.LooseLoot = new LazyLoad<LooseLoot>(() => RandomiseLooseLoot(jsonUtil.Deserialize<LooseLoot>(json)));
+            terminal.LooseLoot = new LazyLoad<LooseLoot>(() => RandomiseLooseLoot(jsonUtil.Deserialize<LooseLoot>(json))!, cacheValue: false);
             logger.Info("[Terminal] authored loose loot loaded (per-raid group positions + forced-spawn rolls)");
         }
         else
@@ -272,7 +292,7 @@ public class TerminalMod(
                 SpawnpointCount = new SpawnpointCount { Mean = 0, Std = 0 },
                 Spawnpoints = [],
                 SpawnpointsForced = [],
-            });
+            }, cacheValue: false);
         }
 
         // staticContainers.json must come from the BUILT bundle (ids regenerate every
@@ -281,12 +301,16 @@ public class TerminalMod(
         StaticContainerDetails? ourContainers = null;
         if (System.IO.File.Exists(containersPath))
         {
-            try { ourContainers = await jsonUtil.DeserializeFromFileAsync<StaticContainerDetails>(containersPath); }
+            try { ourContainers = await jsonUtil.DeserializeFromFileAsync<StaticContainerDetails>(containersPath, cancellationToken); }
+            catch (OperationCanceledException) { throw; }
             catch (Exception e) { logger.Warning($"[Terminal] db/staticContainers.json unreadable: {e.Message}"); }
         }
         if (ourContainers is not null)
         {
-            terminal.StaticContainers = new LazyLoad<StaticContainerDetails>(() => ourContainers);
+            if (ourStaticLoot is not null)
+                TerminalContainerCatalog.ValidateReferences(templateTable.Items,
+                    ourStaticLoot, terminal.StaticAmmo, ourContainers);
+            terminal.StaticContainers = new LazyLoad<StaticContainerDetails>(() => ourContainers, cacheValue: false);
             logger.Info("[Terminal] container set loaded from bundle scan");
         }
         else
@@ -300,7 +324,6 @@ public class TerminalMod(
         // scav raid time settings keyed by map id — clone a real map's so lookups
         // resolve. key case unverified: icebreaker's slot id was lowercase "suburbs",
         // Terminal's record id is "Terminal" — set both, harmless if one is unused.
-        var locationConfig = configServer.GetConfig<LocationConfig>();
         if (locationConfig.ScavRaidTimeSettings.Maps.TryGetValue("factory4_day", out var factorySettings))
         {
             locationConfig.ScavRaidTimeSettings.Maps["terminal"] = cloner.Clone(factorySettings);
@@ -317,7 +340,7 @@ public class TerminalMod(
     {
         try
         {
-            var items = databaseService.GetTemplates().Items;
+            var items = templateTable.Items;
             if (!items.TryGetValue(new MongoId(TerminalEntryNoteTpl), out var letter)
                 || letter.Properties is null)
             {
@@ -367,7 +390,7 @@ public class TerminalMod(
     {
         try
         {
-            var items = databaseService.GetTemplates().Items;
+            var items = templateTable.Items;
             var caseId = new MongoId(TicketUnlockedCaseTpl);
             var randomContainerId = new MongoId(RandomLootContainerTpl);
             if (!items.TryGetValue(caseId, out var caseTemplate)
@@ -413,7 +436,6 @@ public class TerminalMod(
             props.UnlootableFromSlot = caseProps.UnlootableFromSlot;
             items[caseId] = unpackable;
 
-            var inventoryConfig = configServer.GetConfig<InventoryConfig>();
             ticketCaseRewardDetails = new RewardDetails
             {
                 Type = "Terminal unlocked armored case",

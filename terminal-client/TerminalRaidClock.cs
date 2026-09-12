@@ -10,7 +10,7 @@ namespace Manimal.Terminal
     // darkness. the clock is re-anchored once and keeps TICKING afterward (dynamic
     // time, not a freeze). there are TWO clock objects and they appear at different
     // times: GameWorld.GameDateTime (raid watch) exists at OnGameStarted, but
-    // GClass4.CurrentTime's — the one TerminalLights.TickSkyTime feeds the TOD sky
+    // TODSkyProvider.CurrentTime's — the one TerminalLights.TickSkyTime feeds the TOD sky
     // from — may not, and a single-shot postfix reset only ever caught the first
     // (2026-08-10 raid: "1 clock(s)" anchored, sky stayed daytime). so a small host
     // retries both for up to 20s and reports which landed.
@@ -50,12 +50,12 @@ namespace Manimal.Terminal
                     _worldDone = TryAnchor(Singleton<GameWorld>.Instance?.GameDateTime, h, m, "GameWorld");
                 if (!_skyDone)
                 {
-                    var skyClock = GClass4.Instance?.CurrentTime?.GameDateTime;
+                    var skyClock = TODSkyProvider.Instance?.CurrentTime?.GameDateTime;
                     // same object as the world clock = already anchored by that reset
                     if (skyClock != null && _worldDone && ReferenceEquals(skyClock, Singleton<GameWorld>.Instance?.GameDateTime))
                         _skyDone = true;
                     else if (skyClock != null)
-                        _skyDone = TryAnchor(skyClock, h, m, "sky/GClass4");
+                        _skyDone = TryAnchor(skyClock, h, m, "sky/TODSkyProvider");
                 }
 
                 if (_worldDone && _skyDone)

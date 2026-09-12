@@ -1,0 +1,608 @@
+{
+  "67a0e494e8fc6968ef0fc9da": {
+    "_id": "67a0e494e8fc6968ef0fc9da",
+    "_name": "lc_spec_stash_player_terminal",
+    "_parent": "566965d44bdc2d814c8b4571",
+    "_type": "Item",
+    "_props": {
+      "Grids": [
+        {
+          "_name": "main",
+          "_id": "67a0e494e8fc6968ef0fc9dc",
+          "_parent": "67a0e494e8fc6968ef0fc9da",
+          "_props": {
+            "filters": [
+              {
+                "ExcludedFilter": [
+                  "5448bf274bdc2dfc2f8b456a"
+                ],
+                "Filter": [
+                  "54009119af1c881c07000029"
+                ]
+              }
+            ],
+            "cellsH": 10,
+            "cellsV": 20,
+            "minCount": 1,
+            "maxCount": 40,
+            "maxWeight": 0,
+            "isSortingTable": false
+          },
+          "_proto": "55d329c24bdc2d892f8b4567"
+        }
+      ],
+      "Slots": [],
+      "AnimationVariantsNumber": 0,
+      "BackgroundColor": "blue",
+      "CanRequireOnRagfair": false,
+      "CanSellOnRagfair": true,
+      "ConflictingItems": [],
+      "Description": "lc_spec_stash_player_terminal",
+      "DiscardLimit": -1,
+      "DiscardingBlock": false,
+      "ExamineExperience": 10,
+      "ExamineTime": 1,
+      "ExaminedByDefault": false,
+      "ExtraSizeDown": 0,
+      "ExtraSizeForceAdd": false,
+      "ExtraSizeLeft": 0,
+      "ExtraSizeRight": 0,
+      "ExtraSizeUp": 0,
+      "Height": 1,
+      "HideEntrails": true,
+      "InsuranceDisabled": false,
+      "IsAlwaysAvailableForInsurance": false,
+      "IsLockedafterEquip": false,
+      "IsNotDeletableFromQuestStashAfterQuestComplete": false,
+      "IsSecretExitRequirement": false,
+      "IsSpecialSlotOnly": false,
+      "IsUnbuyable": false,
+      "IsUndiscardable": false,
+      "IsUngivable": false,
+      "IsUnremovable": false,
+      "IsUnsaleable": false,
+      "ItemSound": "generic",
+      "LeftHandItem": false,
+      "LootExperience": 20,
+      "MergesWithChildren": false,
+      "Name": "lc_spec_stash_player_terminal",
+      "NotShownInSlot": false,
+      "Prefab": {
+        "path": "",
+        "rcid": ""
+      },
+      "QuestItem": false,
+      "QuestStashMaxCount": 0,
+      "RagFairCommissionModifier": 1,
+      "RagfairLevelToTrade": 0,
+      "RarityPvE": "Not_exist",
+      "RepairCost": 0,
+      "RepairSpeed": 0,
+      "ShortName": "lc_spec_stash_player_terminal",
+      "StackMaxSize": 1,
+      "StackObjectsCount": 1,
+      "Unlootable": false,
+      "UnlootableFromSide": [],
+      "UnlootableFromSlot": "FirstPrimaryWeapon",
+      "UsePrefab": {
+        "path": "",
+        "rcid": ""
+      },
+      "Weight": 1,
+      "Width": 1,
+      "CanPutIntoDuringTheRaid": true,
+      "CantRemoveFromSlotsDuringRaid": [],
+      "ForbidMissingVitalParts": false,
+      "ForbidNonEmptyContainers": false,
+      "BlocksArmorVest": false,
+      "SearchSound": "drawer_metal_looting",
+      "SpawnFilter": []
+    },
+    "_proto": "578f87a3245977356274f2cb"
+  },
+  "6851450d30cad62593003fa8": {
+    "_id": "6851450d30cad62593003fa8",
+    "_name": "lc_corpse_soldier_terminal",
+    "_parent": "566965d44bdc2d814c8b4571",
+    "_type": "Item",
+    "_props": {
+      "Grids": [
+        {
+          "_name": "main",
+          "_id": "6851450d30cad62593003faa",
+          "_parent": "6851450d30cad62593003fa8",
+          "_props": {
+            "filters": [
+              {
+                "ExcludedFilter": [
+                  "5448bf274bdc2dfc2f8b456a"
+                ],
+                "Filter": [
+                  "54009119af1c881c07000029"
+                ]
+              }
+            ],
+            "cellsH": 5,
+            "cellsV": 5,
+            "minCount": 1,
+            "maxCount": 5,
+            "maxWeight": 0,
+            "isSortingTable": false
+          },
+          "_proto": "55d329c24bdc2d892f8b4567"
+        }
+      ],
+      "Slots": [],
+      "AnimationVariantsNumber": 0,
+      "BackgroundColor": "blue",
+      "CanRequireOnRagfair": false,
+      "CanSellOnRagfair": true,
+      "ConflictingItems": [],
+      "Description": "lc_corpse_soldier_terminal",
+      "DiscardLimit": -1,
+      "DiscardingBlock": false,
+      "ExamineExperience": 10,
+      "ExamineTime": 1,
+      "ExaminedByDefault": false,
+      "ExtraSizeDown": 0,
+      "ExtraSizeForceAdd": false,
+      "ExtraSizeLeft": 0,
+      "ExtraSizeRight": 0,
+      "ExtraSizeUp": 0,
+      "Height": 1,
+      "HideEntrails": true,
+      "InsuranceDisabled": false,
+      "IsAlwaysAvailableForInsurance": false,
+      "IsLockedafterEquip": false,
+      "IsNotDeletableFromQuestStashAfterQuestComplete": false,
+      "IsSecretExitRequirement": false,
+      "IsSpecialSlotOnly": false,
+      "IsUnbuyable": false,
+      "IsUndiscardable": false,
+      "IsUngivable": false,
+      "IsUnremovable": false,
+      "IsUnsaleable": false,
+      "ItemSound": "generic",
+      "LeftHandItem": false,
+      "LootExperience": 20,
+      "MergesWithChildren": false,
+      "Name": "lc_corpse_soldier_terminal",
+      "NotShownInSlot": false,
+      "Prefab": {
+        "path": "",
+        "rcid": ""
+      },
+      "QuestItem": false,
+      "QuestStashMaxCount": 0,
+      "RagFairCommissionModifier": 1,
+      "RagfairLevelToTrade": 0,
+      "RarityPvE": "Not_exist",
+      "RepairCost": 0,
+      "RepairSpeed": 0,
+      "ShortName": "lc_corpse_soldier_terminal",
+      "StackMaxSize": 1,
+      "StackObjectsCount": 1,
+      "Unlootable": false,
+      "UnlootableFromSide": [],
+      "UnlootableFromSlot": "FirstPrimaryWeapon",
+      "UsePrefab": {
+        "path": "",
+        "rcid": ""
+      },
+      "Weight": 1,
+      "Width": 1,
+      "CanPutIntoDuringTheRaid": true,
+      "CantRemoveFromSlotsDuringRaid": [],
+      "ForbidMissingVitalParts": false,
+      "ForbidNonEmptyContainers": false,
+      "BlocksArmorVest": false,
+      "SearchSound": "looting_body_extended",
+      "SpawnFilter": []
+    },
+    "_proto": "578f879c24597735401e6bc6"
+  },
+  "68a5b9af76a25d8e6e0e2e56": {
+    "_id": "68a5b9af76a25d8e6e0e2e56",
+    "_name": "lc_spec_stash_random_terminal",
+    "_parent": "566965d44bdc2d814c8b4571",
+    "_type": "Item",
+    "_props": {
+      "Grids": [
+        {
+          "_name": "main",
+          "_id": "68a5b9af76a25d8e6e0e2e58",
+          "_parent": "68a5b9af76a25d8e6e0e2e56",
+          "_props": {
+            "filters": [
+              {
+                "ExcludedFilter": [
+                  "5448bf274bdc2dfc2f8b456a"
+                ],
+                "Filter": [
+                  "54009119af1c881c07000029"
+                ]
+              }
+            ],
+            "cellsH": 10,
+            "cellsV": 20,
+            "minCount": 1,
+            "maxCount": 30,
+            "maxWeight": 0,
+            "isSortingTable": false
+          },
+          "_proto": "55d329c24bdc2d892f8b4567"
+        }
+      ],
+      "Slots": [],
+      "AnimationVariantsNumber": 0,
+      "BackgroundColor": "blue",
+      "CanRequireOnRagfair": false,
+      "CanSellOnRagfair": true,
+      "ConflictingItems": [],
+      "Description": "lc_spec_stash_random_terminal",
+      "DiscardLimit": -1,
+      "DiscardingBlock": false,
+      "ExamineExperience": 10,
+      "ExamineTime": 1,
+      "ExaminedByDefault": false,
+      "ExtraSizeDown": 0,
+      "ExtraSizeForceAdd": false,
+      "ExtraSizeLeft": 0,
+      "ExtraSizeRight": 0,
+      "ExtraSizeUp": 0,
+      "Height": 1,
+      "HideEntrails": true,
+      "InsuranceDisabled": false,
+      "IsAlwaysAvailableForInsurance": false,
+      "IsLockedafterEquip": false,
+      "IsNotDeletableFromQuestStashAfterQuestComplete": false,
+      "IsSecretExitRequirement": false,
+      "IsSpecialSlotOnly": false,
+      "IsUnbuyable": false,
+      "IsUndiscardable": false,
+      "IsUngivable": false,
+      "IsUnremovable": false,
+      "IsUnsaleable": false,
+      "ItemSound": "generic",
+      "LeftHandItem": false,
+      "LootExperience": 20,
+      "MergesWithChildren": false,
+      "Name": "lc_spec_stash_random_terminal",
+      "NotShownInSlot": false,
+      "Prefab": {
+        "path": "",
+        "rcid": ""
+      },
+      "QuestItem": false,
+      "QuestStashMaxCount": 0,
+      "RagFairCommissionModifier": 1,
+      "RagfairLevelToTrade": 0,
+      "RarityPvE": "Not_exist",
+      "RepairCost": 0,
+      "RepairSpeed": 0,
+      "ShortName": "lc_spec_stash_random_terminal",
+      "StackMaxSize": 1,
+      "StackObjectsCount": 1,
+      "Unlootable": false,
+      "UnlootableFromSide": [],
+      "UnlootableFromSlot": "FirstPrimaryWeapon",
+      "UsePrefab": {
+        "path": "",
+        "rcid": ""
+      },
+      "Weight": 1,
+      "Width": 1,
+      "CanPutIntoDuringTheRaid": true,
+      "CantRemoveFromSlotsDuringRaid": [],
+      "ForbidMissingVitalParts": false,
+      "ForbidNonEmptyContainers": false,
+      "BlocksArmorVest": false,
+      "SearchSound": "drawer_metal_looting",
+      "SpawnFilter": []
+    },
+    "_proto": "578f87a3245977356274f2cb"
+  },
+  "69122598e5b8725fb10f6a93": {
+    "_id": "69122598e5b8725fb10f6a93",
+    "_name": "lc_corpse_soldier_terminal_key",
+    "_parent": "566965d44bdc2d814c8b4571",
+    "_type": "Item",
+    "_props": {
+      "Grids": [
+        {
+          "_name": "main",
+          "_id": "69122598e5b8725fb10f6a95",
+          "_parent": "69122598e5b8725fb10f6a93",
+          "_props": {
+            "filters": [
+              {
+                "ExcludedFilter": [
+                  "5448bf274bdc2dfc2f8b456a"
+                ],
+                "Filter": [
+                  "54009119af1c881c07000029"
+                ]
+              }
+            ],
+            "cellsH": 1,
+            "cellsV": 1,
+            "minCount": 1,
+            "maxCount": 1,
+            "maxWeight": 0,
+            "isSortingTable": false
+          },
+          "_proto": "55d329c24bdc2d892f8b4567"
+        }
+      ],
+      "Slots": [],
+      "AnimationVariantsNumber": 0,
+      "BackgroundColor": "blue",
+      "CanRequireOnRagfair": false,
+      "CanSellOnRagfair": true,
+      "ConflictingItems": [],
+      "Description": "lc_corpse_soldier_terminal_key",
+      "DiscardLimit": -1,
+      "DiscardingBlock": false,
+      "ExamineExperience": 10,
+      "ExamineTime": 1,
+      "ExaminedByDefault": false,
+      "ExtraSizeDown": 0,
+      "ExtraSizeForceAdd": false,
+      "ExtraSizeLeft": 0,
+      "ExtraSizeRight": 0,
+      "ExtraSizeUp": 0,
+      "Height": 1,
+      "HideEntrails": true,
+      "InsuranceDisabled": false,
+      "IsAlwaysAvailableForInsurance": false,
+      "IsLockedafterEquip": false,
+      "IsNotDeletableFromQuestStashAfterQuestComplete": false,
+      "IsSecretExitRequirement": false,
+      "IsSpecialSlotOnly": false,
+      "IsUnbuyable": false,
+      "IsUndiscardable": false,
+      "IsUngivable": false,
+      "IsUnremovable": false,
+      "IsUnsaleable": false,
+      "ItemSound": "generic",
+      "LeftHandItem": false,
+      "LootExperience": 20,
+      "MergesWithChildren": false,
+      "Name": "lc_corpse_soldier_terminal_key",
+      "NotShownInSlot": false,
+      "Prefab": {
+        "path": "",
+        "rcid": ""
+      },
+      "QuestItem": false,
+      "QuestStashMaxCount": 0,
+      "RagFairCommissionModifier": 1,
+      "RagfairLevelToTrade": 0,
+      "RarityPvE": "Not_exist",
+      "RepairCost": 0,
+      "RepairSpeed": 0,
+      "ShortName": "lc_corpse_soldier_terminal_key",
+      "StackMaxSize": 1,
+      "StackObjectsCount": 1,
+      "Unlootable": false,
+      "UnlootableFromSide": [],
+      "UnlootableFromSlot": "FirstPrimaryWeapon",
+      "UsePrefab": {
+        "path": "",
+        "rcid": ""
+      },
+      "Weight": 1,
+      "Width": 1,
+      "CanPutIntoDuringTheRaid": true,
+      "CantRemoveFromSlotsDuringRaid": [],
+      "ForbidMissingVitalParts": false,
+      "ForbidNonEmptyContainers": false,
+      "BlocksArmorVest": false,
+      "SearchSound": "looting_body_extended",
+      "SpawnFilter": []
+    },
+    "_proto": "578f879c24597735401e6bc6"
+  },
+  "691226272a5ee538f10d2f11": {
+    "_id": "691226272a5ee538f10d2f11",
+    "_name": "lc_safe_std_terminal_key",
+    "_parent": "566965d44bdc2d814c8b4571",
+    "_type": "Item",
+    "_props": {
+      "Grids": [
+        {
+          "_name": "main",
+          "_id": "691226272a5ee538f10d2f13",
+          "_parent": "691226272a5ee538f10d2f11",
+          "_props": {
+            "filters": [
+              {
+                "ExcludedFilter": [
+                  "5448bf274bdc2dfc2f8b456a"
+                ],
+                "Filter": [
+                  "54009119af1c881c07000029"
+                ]
+              }
+            ],
+            "cellsH": 3,
+            "cellsV": 3,
+            "minCount": 5,
+            "maxCount": 9,
+            "maxWeight": 0,
+            "isSortingTable": false
+          },
+          "_proto": "55d329c24bdc2d892f8b4567"
+        }
+      ],
+      "Slots": [],
+      "AnimationVariantsNumber": 0,
+      "BackgroundColor": "blue",
+      "CanRequireOnRagfair": false,
+      "CanSellOnRagfair": true,
+      "ConflictingItems": [],
+      "Description": "lc_safe_std_terminal_key",
+      "DiscardLimit": -1,
+      "DiscardingBlock": false,
+      "ExamineExperience": 10,
+      "ExamineTime": 1,
+      "ExaminedByDefault": false,
+      "ExtraSizeDown": 0,
+      "ExtraSizeForceAdd": false,
+      "ExtraSizeLeft": 0,
+      "ExtraSizeRight": 0,
+      "ExtraSizeUp": 0,
+      "Height": 1,
+      "HideEntrails": true,
+      "InsuranceDisabled": false,
+      "IsAlwaysAvailableForInsurance": false,
+      "IsLockedafterEquip": false,
+      "IsNotDeletableFromQuestStashAfterQuestComplete": false,
+      "IsSecretExitRequirement": false,
+      "IsSpecialSlotOnly": false,
+      "IsUnbuyable": false,
+      "IsUndiscardable": false,
+      "IsUngivable": false,
+      "IsUnremovable": false,
+      "IsUnsaleable": false,
+      "ItemSound": "generic",
+      "LeftHandItem": false,
+      "LootExperience": 20,
+      "MergesWithChildren": false,
+      "Name": "lc_safe_std_terminal_key",
+      "NotShownInSlot": false,
+      "Prefab": {
+        "path": "",
+        "rcid": ""
+      },
+      "QuestItem": false,
+      "QuestStashMaxCount": 0,
+      "RagFairCommissionModifier": 1,
+      "RagfairLevelToTrade": 0,
+      "RarityPvE": "Not_exist",
+      "RepairCost": 0,
+      "RepairSpeed": 0,
+      "ShortName": "lc_safe_std_terminal_key",
+      "StackMaxSize": 1,
+      "StackObjectsCount": 1,
+      "Unlootable": false,
+      "UnlootableFromSide": [],
+      "UnlootableFromSlot": "FirstPrimaryWeapon",
+      "UsePrefab": {
+        "path": "",
+        "rcid": ""
+      },
+      "Weight": 1,
+      "Width": 1,
+      "CanPutIntoDuringTheRaid": true,
+      "CantRemoveFromSlotsDuringRaid": [],
+      "ForbidMissingVitalParts": false,
+      "ForbidNonEmptyContainers": false,
+      "BlocksArmorVest": false,
+      "SearchSound": "safe_looting",
+      "SpawnFilter": []
+    },
+    "_proto": "578f8778245977358849a9b5"
+  },
+  "69122762e5b8725fb10f6b32": {
+    "_id": "69122762e5b8725fb10f6b32",
+    "_name": "lc_crate_weapon_long_terminal_key",
+    "_parent": "566965d44bdc2d814c8b4571",
+    "_type": "Item",
+    "_props": {
+      "Grids": [
+        {
+          "_name": "main",
+          "_id": "69122762e5b8725fb10f6b34",
+          "_parent": "69122762e5b8725fb10f6b32",
+          "_props": {
+            "filters": [
+              {
+                "ExcludedFilter": [
+                  "5448bf274bdc2dfc2f8b456a"
+                ],
+                "Filter": [
+                  "54009119af1c881c07000029"
+                ]
+              }
+            ],
+            "cellsH": 6,
+            "cellsV": 2,
+            "minCount": 2,
+            "maxCount": 5,
+            "maxWeight": 0,
+            "isSortingTable": false
+          },
+          "_proto": "55d329c24bdc2d892f8b4567"
+        }
+      ],
+      "Slots": [],
+      "AnimationVariantsNumber": 0,
+      "BackgroundColor": "blue",
+      "CanRequireOnRagfair": false,
+      "CanSellOnRagfair": true,
+      "ConflictingItems": [],
+      "Description": "lc_crate_weapon_long_terminal_key",
+      "DiscardLimit": -1,
+      "DiscardingBlock": false,
+      "ExamineExperience": 10,
+      "ExamineTime": 1,
+      "ExaminedByDefault": false,
+      "ExtraSizeDown": 0,
+      "ExtraSizeForceAdd": false,
+      "ExtraSizeLeft": 0,
+      "ExtraSizeRight": 0,
+      "ExtraSizeUp": 0,
+      "Height": 1,
+      "HideEntrails": true,
+      "InsuranceDisabled": false,
+      "IsAlwaysAvailableForInsurance": false,
+      "IsLockedafterEquip": false,
+      "IsNotDeletableFromQuestStashAfterQuestComplete": false,
+      "IsSecretExitRequirement": false,
+      "IsSpecialSlotOnly": false,
+      "IsUnbuyable": false,
+      "IsUndiscardable": false,
+      "IsUngivable": false,
+      "IsUnremovable": false,
+      "IsUnsaleable": false,
+      "ItemSound": "generic",
+      "LeftHandItem": false,
+      "LootExperience": 20,
+      "MergesWithChildren": false,
+      "Name": "lc_crate_weapon_long_terminal_key",
+      "NotShownInSlot": false,
+      "Prefab": {
+        "path": "",
+        "rcid": ""
+      },
+      "QuestItem": false,
+      "QuestStashMaxCount": 0,
+      "RagFairCommissionModifier": 1,
+      "RagfairLevelToTrade": 0,
+      "RarityPvE": "Not_exist",
+      "RepairCost": 0,
+      "RepairSpeed": 0,
+      "ShortName": "lc_crate_weapon_long_terminal_key",
+      "StackMaxSize": 1,
+      "StackObjectsCount": 1,
+      "Unlootable": false,
+      "UnlootableFromSide": [],
+      "UnlootableFromSlot": "FirstPrimaryWeapon",
+      "UsePrefab": {
+        "path": "",
+        "rcid": ""
+      },
+      "Weight": 1,
+      "Width": 1,
+      "CanPutIntoDuringTheRaid": true,
+      "CantRemoveFromSlotsDuringRaid": [],
+      "ForbidMissingVitalParts": false,
+      "ForbidNonEmptyContainers": false,
+      "BlocksArmorVest": false,
+      "SearchSound": "drawer_metal_looting",
+      "SpawnFilter": []
+    },
+    "_proto": "578f87a3245977356274f2cb"
+  }
+}

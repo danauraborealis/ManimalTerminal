@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
 using Audio.SpatialSystem;
@@ -53,8 +52,8 @@ namespace Manimal.Terminal
     {
         private static IEnumerable<MethodBase> TargetMethods()
         {
-            return typeof(SpatialAudioSystem).GetMethods(BindingFlags.Public | BindingFlags.Instance)
-                .Where(m => m.Name == "ProcessSourceOcclusion");
+            foreach (var method in typeof(SpatialAudioSystem).GetMethods(BindingFlags.Public | BindingFlags.Instance))
+                    if (method.Name == "ProcessSourceOcclusion") yield return method;
         }
 
         private static bool Prefix(ref int __result)
@@ -107,7 +106,7 @@ namespace Manimal.Terminal
     // null-guarded (verified on icebreaker); the loss is breakable window glass.
     // scene-based gate (transit-gate-blindness): this manager Awakes during preload
     // windows where the location gate can still answer the old map.
-    [HarmonyPatch(typeof(WindowBreakerManager), "method_0")]
+    [HarmonyPatch(typeof(WindowBreakerManager), "GenerateStuckPieces")]
     internal static class Patch_WindowBreakerPrewarm
     {
         private static Exception Finalizer(Exception __exception, WindowBreakerManager __instance)
@@ -123,17 +122,17 @@ namespace Manimal.Terminal
         }
     }
 
-    // SpawnPointManagerClass.smethod_3 sets each BotZone.HasPmcBotSpawns by scanning
+    // EFT.Game.Spawning.SpawnPointsCollection.smethod_3 sets each BotZone.HasPmcBotSpawns by scanning
     // its markers' categories — a marker with a null SpawnPoint NREs the whole raid
     // init. only matters for bot-PMC spawning; our player spawns are zone-less.
-    [HarmonyPatch(typeof(SpawnPointManagerClass), "smethod_3")]
+    [HarmonyPatch(typeof(EFT.Game.Spawning.SpawnPointsCollection), "CalculateCanSpawnPmcBots")]
     internal static class Patch_SpawnPmcScan
     {
         private static Exception Finalizer(Exception __exception)
         {
             if (__exception == null) return null;
             if (!TerminalGate.On) return __exception;
-            Plugin.Log.LogWarning($"[RaidFix] swallowed SpawnPointManagerClass.smethod_3: {__exception.Message}");
+            Plugin.Log.LogWarning($"[RaidFix] swallowed EFT.Game.Spawning.SpawnPointsCollection.smethod_3: {__exception.Message}");
             return null;
         }
     }

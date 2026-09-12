@@ -79,7 +79,7 @@ namespace Manimal.Terminal
         }
 
         [HarmonyPatch(typeof(MatchmakerTimeHasCome), nameof(MatchmakerTimeHasCome.Show),
-            new[] { typeof(ISession), typeof(RaidSettings), typeof(MatchmakerPlayerControllerClass) })]
+            new[] { typeof(EFT.IEftSession), typeof(RaidSettings), typeof(EFT.UI.Matchmaker.MatchmakerPlayersController) })]
         internal static class Patch_PlayDuringTerminalLoad
         {
             [HarmonyPostfix]
@@ -152,10 +152,9 @@ namespace Manimal.Terminal
                 _player = gameObject.AddComponent<VideoPlayer>();
                 _player.playOnAwake = false;
                 _player.waitForFirstFrame = true;
-                // A raid load can hitch hard on the first few frames. Dropping video
-                // frames here makes VideoPlayer catch up by cutting off the opening;
-                // this short presentation should instead preserve every frame.
-                _player.skipOnDrop = false;
+                // Loading can stall the visual host for several seconds. Never make
+                // the decoder replay that backlog on the main thread when Unity wakes.
+                _player.skipOnDrop = true;
                 _player.isLooping = false;
                 _player.source = VideoSource.Url;
                 _player.url = path;
@@ -228,7 +227,16 @@ namespace Manimal.Terminal
                 var canvas = component.gameObject.GetComponent<Canvas>();
                 bool added = canvas == null;
                 if (added) canvas = component.gameObject.AddComponent<Canvas>();
-                _promoted.Add(new PromotedCanvas(canvas, added, canvas.overrideSorting, canvas.sortingOrder));
+                // Fika creates FikaStartButton by cloning _cancelButton after this
+                // overlay is installed. A nested Canvas without its own raycaster is
+                // visible but cannot receive clicks, and that broken state is cloned.
+                // Pair every promoted canvas with a raycaster so both the original
+                // cancel button and Fika's later clone remain interactive.
+                var raycaster = component.gameObject.GetComponent<GraphicRaycaster>();
+                bool raycasterAdded = raycaster == null;
+                if (raycasterAdded) raycaster = component.gameObject.AddComponent<GraphicRaycaster>();
+                _promoted.Add(new PromotedCanvas(canvas, added, canvas.overrideSorting, canvas.sortingOrder,
+                    raycaster, raycasterAdded));
                 canvas.overrideSorting = true;
                 canvas.sortingOrder = sortingOrder;
             }
@@ -390,18 +398,24 @@ namespace Manimal.Terminal
                 private readonly bool _added;
                 private readonly bool _oldOverride;
                 private readonly int _oldOrder;
+                private readonly GraphicRaycaster _raycaster;
+                private readonly bool _raycasterAdded;
 
-                internal PromotedCanvas(Canvas canvas, bool added, bool oldOverride, int oldOrder)
+                internal PromotedCanvas(Canvas canvas, bool added, bool oldOverride, int oldOrder,
+                    GraphicRaycaster raycaster, bool raycasterAdded)
                 {
                     _canvas = canvas;
                     _added = added;
                     _oldOverride = oldOverride;
                     _oldOrder = oldOrder;
+                    _raycaster = raycaster;
+                    _raycasterAdded = raycasterAdded;
                 }
 
                 internal void Restore()
                 {
                     if (_canvas == null) return;
+                    if (_raycasterAdded && _raycaster != null) Destroy(_raycaster);
                     if (_added) Destroy(_canvas);
                     else
                     {

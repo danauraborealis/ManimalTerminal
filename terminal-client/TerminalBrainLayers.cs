@@ -263,7 +263,7 @@ namespace Manimal.Terminal
                             // ExternalStart here: Start() walks every BotOwner, including
                             // any bot currently mid-creation, which recreates this race
                             // and also turns a wave order into a raid-global order.
-                            ev.BotZonesLeaveController.NoZoneBlocks = true;
+                            ev._botZonesLeaveController.NoZoneBlocks = true;
                             ev.BotEventActive(pending.Bot);
                             Plugin.Log.LogDebug($"[CrewLayer] {pending.Bot.name}: NATIVE FORCE ATTACK ready after {now - pending.QueuedAt:F1}s role='{pending.Role}'");
                             completed.Add(pair.Key);
@@ -942,7 +942,7 @@ namespace Manimal.Terminal
                 return;
             }
 
-            var target = Singleton<GameWorld>.Instance?.MainPlayer;
+            var target = TerminalCoop.NearestHuman(BotOwner.Position);
             if (!target || target.HealthController == null || !target.HealthController.IsAlive) return;
 
             Vector3 destination = target.Position + _approachOffset;

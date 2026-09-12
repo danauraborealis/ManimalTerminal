@@ -2,14 +2,15 @@ using HarmonyLib;
 using SPTarkov.DI.Annotations;
 using SPTarkov.Server.Core.DI;
 using SPTarkov.Server.Core.Controllers;
+using SPTarkov.Server.Core.Helpers.Profile;
 using SPTarkov.Server.Core.Helpers;
 using SPTarkov.Server.Core.Models.Common;
 using SPTarkov.Server.Core.Models.Eft.Common;
 using SPTarkov.Server.Core.Models.Eft.Common.Tables;
 using SPTarkov.Server.Core.Models.Eft.Match;
-using SPTarkov.Server.Core.Models.Utils;
+using SPTarkov.Common.Models.Logging;
 using SPTarkov.Server.Core.Servers;
-using SPTarkov.Server.Core.Services;
+using SPTarkov.Server.Core.Services.InRaid;
 using SPTarkov.Server.Core.Utils.Cloners;
 
 namespace Manimal.Terminal.Server;
@@ -27,7 +28,7 @@ namespace Manimal.Terminal.Server;
 // (HandleInsuredItemLostEvent prefix) — nothing is lost, nothing returns, no
 // dupes. XP/skills/quest counters from the raid are kept (only the inventory
 // reverts). scav runs untouched (and the map is DisabledForScav anyway).
-[Injectable(TypePriority = OnLoadOrder.PostDBModLoader + 90002)]
+[Injectable(TypePriority = OnLoadOrder.Preload + 90002)]
 public class TerminalSelfContained(
     ISptLogger<TerminalSelfContained> logger,
     ProfileHelper profileHelper,
@@ -57,25 +58,26 @@ public class TerminalSelfContained(
 
     private static readonly Dictionary<string, Snapshot> _snapshots = new();
 
-    public Task OnLoad()
+    public Task OnLoadAsync(CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         _instance = this;
         if (_patched) return Task.CompletedTask;
         _patched = true;
         var h = new Harmony("com.manimal.terminal.selfcontained");
-        h.Patch(AccessTools.Method(typeof(LocationLifecycleService), nameof(LocationLifecycleService.StartLocalRaid)),
+        h.Patch(AccessTools.Method(typeof(LocationLifecycleService), nameof(LocationLifecycleService.StartLocalRaidAsync)),
             prefix: new HarmonyMethod(typeof(TerminalSelfContained), nameof(StartPrefix)));
         var locationFinalizer = new HarmonyMethod(typeof(TerminalSelfContained), nameof(EndFinalizer))
         {
             priority = Priority.Last,
         };
-        h.Patch(AccessTools.Method(typeof(LocationLifecycleService), nameof(LocationLifecycleService.EndLocalRaid)),
+        h.Patch(AccessTools.Method(typeof(LocationLifecycleService), nameof(LocationLifecycleService.EndLocalRaidAsync)),
             finalizer: locationFinalizer);
         var controllerFallback = new HarmonyMethod(typeof(TerminalSelfContained), nameof(EndControllerPostfix))
         {
             priority = Priority.Last,
         };
-        h.Patch(AccessTools.Method(typeof(MatchController), nameof(MatchController.EndLocalRaid)),
+        h.Patch(AccessTools.Method(typeof(MatchController), nameof(MatchController.EndLocalRaidAsync)),
             postfix: controllerFallback);
         // nothing is ever lost on a self-contained map, so the insurance-lost
         // pipeline must not fire at all — it queues return mail for "lost" gear
@@ -162,11 +164,14 @@ public class TerminalSelfContained(
     public static Exception? EndFinalizer(
         MongoId sessionId,
         EndLocalRaidRequestData request,
+        CancellationToken cancellationToken,
+        ref Task __result,
         Exception? __exception)
     {
         if (__exception is null)
         {
-            FinalizeRestore(sessionId, request, "location finalizer");
+            __result = TerminalRaidCompletion.AfterAsync(__result,
+                () => FinalizeRestoreAsync(sessionId, request, "location finalizer", cancellationToken));
         }
         else
         {
@@ -182,12 +187,15 @@ public class TerminalSelfContained(
     /// finalizer has already consumed the snapshot; this is a second boundary in
     /// case a runtime patch prevents that finalizer from executing.
     /// </summary>
-    public static void EndControllerPostfix(MongoId sessionId, EndLocalRaidRequestData request)
+    public static void EndControllerPostfix(MongoId sessionId, EndLocalRaidRequestData request,
+        CancellationToken cancellationToken, ref Task __result)
     {
-        FinalizeRestore(sessionId, request, "controller fallback");
+        __result = TerminalRaidCompletion.AfterAsync(__result,
+            () => FinalizeRestoreAsync(sessionId, request, "controller fallback", cancellationToken));
     }
 
-    private static void FinalizeRestore(MongoId sessionId, EndLocalRaidRequestData request, string boundary)
+    private static async Task FinalizeRestoreAsync(MongoId sessionId, EndLocalRaidRequestData request,
+        string boundary, CancellationToken cancellationToken)
     {
         var self = _instance;
         if (self is null) return;
@@ -215,7 +223,7 @@ public class TerminalSelfContained(
             // LocationLifecycleService has already saved the post-raid state.
             // Save again while the snapshot remains active, and only retire it
             // after the authoritative profile has been serialized successfully.
-            self._saves.SaveProfileAsync(sessionId).GetAwaiter().GetResult();
+            await self._saves.SaveProfileAsync(sessionId, cancellationToken);
             var restoredCount = pmc.Inventory?.Items?.Count ?? 0;
             _snapshots.Remove(key);
             self._log.Info(
@@ -223,6 +231,7 @@ public class TerminalSelfContained(
                 $"({processedCount} post-raid item(s) -> {restoredCount} snapshot item(s)); " +
                 $"health, hydration and energy restored to full via {boundary}");
         }
+        catch (OperationCanceledException) { throw; }
         catch (Exception e)
         {
             // Keep the snapshot until the next raid start rather than discarding

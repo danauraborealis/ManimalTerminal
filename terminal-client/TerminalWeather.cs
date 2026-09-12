@@ -33,6 +33,7 @@ namespace Manimal.Terminal
         private static bool _sidecarTried;
         private static GameObject _marker; // liveness — dies with the raid scenes
         private static bool _rainVisualReady;
+        private static float _nextRainVisualAttempt;
 
         private static readonly Dictionary<long, Component> _comps = new Dictionary<long, Component>();
         private static readonly Dictionary<string, Transform> _pathIndex = new Dictionary<string, Transform>();
@@ -70,6 +71,7 @@ namespace Manimal.Terminal
         {
             _marker = null;
             _rainVisualReady = false;
+            _nextRainVisualAttempt = 0f;
         }
 
         private static JObject Sidecar()
@@ -236,7 +238,7 @@ namespace Manimal.Terminal
 
                 if (_missingAssets.Count > 0)
                     {
-                    // no LINQ: Distinct here resolves to EFT's shadowing GClass1518
+                    // no LINQ: Distinct here resolves to EFT's shadowing Diz.Utils.LinqExtensions
                     // extension (different signature) the moment System.Linq leaves
                     var uniq = new HashSet<string>(_missingAssets);
                     Plugin.Log.LogWarning($"[Weather] MISSING ASSETS ({uniq.Count}) — add via editor carrier pass: {string.Join(", ", uniq)}");
@@ -262,7 +264,7 @@ namespace Manimal.Terminal
 
         private static int _probePasses;
 
-        // RainController.Awake subscribes to CameraClass.OnCameraChanged, but Terminal's
+        // RainController.Awake subscribes to EFT.CameraControl.CameraManager.OnCameraChanged, but Terminal's
         // reconstructed weather stack wakes before the raid camera exists. The one event
         // which normally supplies its camera anchor is therefore missed forever. The old
         // diagnostic repaired that only on its first 25-second probe, visibly switching
@@ -273,12 +275,16 @@ namespace Manimal.Terminal
             if (!_marker) return false;
             try
             {
+                // A Fika headless client has no rendering camera. Checking for it
+                // before FindObjectOfType avoids an 80-95ms full-scene scan every
+                // frame. On a visual client, also bound retries while rain is staging.
+                var camera = EFT.CameraControl.CameraManager.Instance?.Camera;
+                if (!camera) return false;
+                if (Time.realtimeSinceStartup < _nextRainVisualAttempt) return false;
+                _nextRainVisualAttempt = Time.realtimeSinceStartup + 1f;
                 var rc = UnityEngine.Object.FindObjectOfType<RainController>();
                 if (!rc || !rc.enabled || !rc.gameObject.activeInHierarchy) return false;
-
-                var camera = CameraClass.Instance?.Camera;
-                if (!camera) return false;
-                var anchorField = AccessTools.Field(typeof(RainController), "transform_0");
+                var anchorField = AccessTools.Field(typeof(RainController), "_camera");
                 var anchor = anchorField?.GetValue(rc) as Transform;
                 if (!anchor)
                 {
@@ -287,7 +293,7 @@ namespace Manimal.Terminal
                     // later while looking for optional screen-droplet effects; the anchor
                     // is assigned before that point, so retain it and use a direct-set
                     // backstop exactly as the delayed diagnostic previously did.
-                    try { AccessTools.Method(typeof(RainController), "method_0")?.Invoke(rc, null); }
+                    try { AccessTools.Method(typeof(RainController), "CameraChanged")?.Invoke(rc, null); }
                     catch { }
                     anchor = anchorField?.GetValue(rc) as Transform;
                     if (!anchor && anchorField != null)
@@ -299,7 +305,7 @@ namespace Manimal.Terminal
                         Plugin.Log.LogInfo($"[Weather] rain visuals armed before playback on camera '{anchor.name}'");
                 }
 
-                bool stateBuilt = AccessTools.Field(typeof(RainController), "class668_0")?.GetValue(rc) != null;
+                bool stateBuilt = AccessTools.Field(typeof(RainController), "_state")?.GetValue(rc) != null;
                 bool fallReady = AccessTools.Field(typeof(RainController), "_rainFallDrops")?.GetValue(rc) != null;
                 bool depthReady = AccessTools.Field(typeof(RainController), "_depthPhotograper")?.GetValue(rc) != null;
                 _rainVisualReady = anchor && stateBuilt && fallReady && depthReady;
@@ -336,8 +342,8 @@ namespace Manimal.Terminal
                 Plugin.Log.LogWarning("[Weather] RAIN PROBE: "
                     + $"enabled={rc.enabled} active={rc.gameObject.activeInHierarchy} "
                     + $"{F("_rainFallDrops")} {F("_rippleController")} {F("_rainSplashController")} "
-                    + $"{F("_wetRenderer")} {F("_depthPhotograper")} {F("transform_0")} "
-                    + $"stateMachine={(AccessTools.Field(typeof(RainController), "class668_0")?.GetValue(rc) != null ? "BUILT" : "NOT BUILT")} "
+                    + $"{F("_wetRenderer")} {F("_depthPhotograper")} {F("_camera")} "
+                    + $"stateMachine={(AccessTools.Field(typeof(RainController), "_state")?.GetValue(rc) != null ? "BUILT" : "NOT BUILT")} "
                     + $"staticIntensity={RainController.Intensity:0.00} curveRain={curveRain:0.00} "
                     + $"debugEnabled={(wc && wc.WeatherDebug != null ? wc.WeatherDebug.isEnabled.ToString() : "n/a")}");
 
@@ -349,13 +355,13 @@ namespace Manimal.Terminal
                 // anchor. heal: re-run the hookup now that the camera exists; if the
                 // screen-effects tail still throws (Cam2 lacks RainScreenDrops), the
                 // anchor lands BEFORE that line — direct field set as the backstop.
-                var t0 = AccessTools.Field(typeof(RainController), "transform_0");
+                var t0 = AccessTools.Field(typeof(RainController), "_camera");
                 if (t0 != null && !(t0.GetValue(rc) as Transform))
                 {
-                    var cam = CameraClass.Instance?.Camera;
+                    var cam = EFT.CameraControl.CameraManager.Instance?.Camera;
                     if (cam)
                     {
-                        try { AccessTools.Method(typeof(RainController), "method_0")?.Invoke(rc, null); } catch { }
+                        try { AccessTools.Method(typeof(RainController), "CameraChanged")?.Invoke(rc, null); } catch { }
                         if (!(t0.GetValue(rc) as Transform)) t0.SetValue(rc, cam.transform);
                         Plugin.Log.LogWarning($"[Weather] rain camera anchor healed (transform_0 was null — the load-time "
                             + $"hookup ran before the camera existed): now '{(t0.GetValue(rc) as Transform)?.name}'");
@@ -770,20 +776,7 @@ namespace Manimal.Terminal
 
         private static AnimationCurve BuildCurve(JObject o)
         {
-            var keys = o["m_Curve"] as JArray;
-            if (keys == null) return null;
-            var kf = new Keyframe[keys.Count];
-            for (int i = 0; i < keys.Count; i++)
-            {
-                var k = keys[i];
-                kf[i] = new Keyframe(
-                    k.Value<float?>("time") ?? 0f, k.Value<float?>("value") ?? 0f,
-                    k.Value<float?>("inSlope") ?? 0f, k.Value<float?>("outSlope") ?? 0f);
-            }
-            var c = new AnimationCurve(kf);
-            c.preWrapMode = (WrapMode)(o.Value<int?>("m_PreInfinity") ?? 8);
-            c.postWrapMode = (WrapMode)(o.Value<int?>("m_PostInfinity") ?? 8);
-            return c;
+            return TerminalSerializedCurves.FromUnity(o);
         }
 
         // unity's serialized gradient: key0..key7 colors, ctime0..7 / atime0..7 as 0..65535

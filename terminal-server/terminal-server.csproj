@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net9.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <RootNamespace>Manimal.Terminal.Server</RootNamespace>
     <AssemblyName>terminal-server</AssemblyName>
     <ImplicitUsings>enable</ImplicitUsings>
@@ -14,49 +14,65 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <Reference Include="SemanticVersioning"><HintPath>$(SPTServerPath)\SemanticVersioning.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="0Harmony">
-      <HintPath>$(SPTPath)\SPT\0Harmony.dll</HintPath>
+      <HintPath>$(SPTServerPath)\0Harmony.dll</HintPath>
     </Reference>
-    <PackageReference Include="SPTarkov.Common" Version="4.0.13" />
-    <PackageReference Include="SPTarkov.DI" Version="4.0.13" />
-    <PackageReference Include="SPTarkov.Server.Core" Version="4.0.13" />
+    <Reference Include="SPTarkov.Common"><HintPath>$(SPTServerPath)\SPTarkov.Common.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="SPTarkov.DI"><HintPath>$(SPTServerPath)\SPTarkov.DI.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="SPTarkov.Server.Core"><HintPath>$(SPTServerPath)\SPTarkov.Server.Core.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="MoreBotsServer">
       <Private>false</Private>
-      <HintPath>$(SPTPath)\SPT\user\mods\MoreBotsServer\MoreBotsServer.dll</HintPath>
+      <HintPath>$(SPTServerPath)\user\mods\MoreBotsServer\MoreBotsServer.dll</HintPath>
     </Reference>
     <Reference Include="WTT-ServerCommonLib">
       <Private>false</Private>
-      <HintPath>$(SPTPath)\SPT\user\mods\WTT-ServerCommonLib\WTT-ServerCommonLib.dll</HintPath>
+      <HintPath>$(SPTServerPath)\user\mods\WTT-ServerCommonLib\WTT-ServerCommonLib.dll</HintPath>
     </Reference>
   </ItemGroup>
+
+  <Target Name="GenerateBuildInfo" BeforeTargets="CoreCompile">
+    <PropertyGroup>
+      <BuildInfoFile>$(IntermediateOutputPath)BuildInfo.g.cs</BuildInfoFile>
+    </PropertyGroup>
+    <ItemGroup>
+      <_BuildInfoLines Remove="@(_BuildInfoLines)" />
+      <_BuildInfoLines Include="// auto-generated from Directory.Build.props - do not edit" />
+      <_BuildInfoLines Include="namespace $(RootNamespace)" />
+      <_BuildInfoLines Include="{" />
+      <_BuildInfoLines Include="    internal static class BuildInfo" />
+      <_BuildInfoLines Include="    {" />
+      <_BuildInfoLines Include="        public const string Version = %22$(ModVersion)%22%3B" />
+      <_BuildInfoLines Include="        public const string ModGuid = %22$(ModGuid)%22%3B" />
+      <_BuildInfoLines Include="        public const string Name = %22$(ModUsername)$(ModDisplayName)%22%3B" />
+      <_BuildInfoLines Include="        public const string Author = %22$(ModUsername)%22%3B" />
+      <_BuildInfoLines Include="        public const string SourceUrl = %22$(RepositoryUrl)%22%3B" />
+      <_BuildInfoLines Include="    }" />
+      <_BuildInfoLines Include="}" />
+    </ItemGroup>
+    <WriteLinesToFile File="$(BuildInfoFile)" Lines="@(_BuildInfoLines)" Overwrite="true" WriteOnlyWhenDifferent="true" />
+    <ItemGroup>
+      <Compile Include="$(BuildInfoFile)" />
+    </ItemGroup>
+  </Target>
 
   <!--
     deploy dll + db + bundles.json into the dev SPT mod folder. scene/preset BUNDLES
     are NOT copied per-build — those deploy to StreamingAssets by hand or script
     (playbook phase 5: the client resolves bundle keys against StreamingAssets FIRST).
   -->
-  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+  <Target Name="PostBuild" AfterTargets="PostBuildEvent" Condition="'$(SkipDeploy)' != 'true'">
     <PropertyGroup>
-      <DevModDir>$(SPTPath)\SPT\user\mods\ManimalTerminal</DevModDir>
+      <DevModDir>$(SPTServerPath)\user\mods\ManimalTerminal</DevModDir>
     </PropertyGroup>
     <ItemGroup>
-      <DbFiles Include="$(ProjectDir)db\**\*.*" />
+      <DbFiles Include="$(ProjectDir)db\**\*.json;$(ProjectDir)db\**\*.jsonc;$(ProjectDir)db\**\*.png;$(ProjectDir)db\**\*.jpg" />
     </ItemGroup>
     <MakeDir Directories="$(DevModDir)" />
     <Copy SourceFiles="@(DbFiles)" DestinationFiles="@(DbFiles->'$(DevModDir)\db\%(RecursiveDir)%(Filename)%(Extension)')" />
     <Copy SourceFiles="$(ProjectDir)bundles.json" DestinationFolder="$(DevModDir)" />
     <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(DevModDir)" />
-    <!-- mirror to every other non-fika install so any of them can run.
-         fika install is skipped by design (co-op only, hand-mirrored). -->
-    <Copy SourceFiles="@(DbFiles)"                   DestinationFiles="@(DbFiles->'D:\SPTDev\SPT\user\mods\ManimalTerminal\db\%(RecursiveDir)%(Filename)%(Extension)')"        Condition="Exists('D:\SPTDev') And '$(SPTPath)' != 'D:\SPTDev'" />
-    <Copy SourceFiles="$(ProjectDir)bundles.json"    DestinationFolder="D:\SPTDev\SPT\user\mods\ManimalTerminal"                                                                Condition="Exists('D:\SPTDev') And '$(SPTPath)' != 'D:\SPTDev'" />
-    <Copy SourceFiles="$(TargetPath)"                DestinationFolder="D:\SPTDev\SPT\user\mods\ManimalTerminal"                                                                Condition="Exists('D:\SPTDev') And '$(SPTPath)' != 'D:\SPTDev'" />
-    <Copy SourceFiles="@(DbFiles)"                   DestinationFiles="@(DbFiles->'D:\SPTDevSonic\SPT\user\mods\ManimalTerminal\db\%(RecursiveDir)%(Filename)%(Extension)')"    Condition="Exists('D:\SPTDevSonic') And '$(SPTPath)' != 'D:\SPTDevSonic'" />
-    <Copy SourceFiles="$(ProjectDir)bundles.json"    DestinationFolder="D:\SPTDevSonic\SPT\user\mods\ManimalTerminal"                                                            Condition="Exists('D:\SPTDevSonic') And '$(SPTPath)' != 'D:\SPTDevSonic'" />
-    <Copy SourceFiles="$(TargetPath)"                DestinationFolder="D:\SPTDevSonic\SPT\user\mods\ManimalTerminal"                                                            Condition="Exists('D:\SPTDevSonic') And '$(SPTPath)' != 'D:\SPTDevSonic'" />
-    <Copy SourceFiles="@(DbFiles)"                   DestinationFiles="@(DbFiles->'D:\SPTFreshDev\SPT\user\mods\ManimalTerminal\db\%(RecursiveDir)%(Filename)%(Extension)')"    Condition="Exists('D:\SPTFreshDev') And '$(SPTPath)' != 'D:\SPTFreshDev'" />
-    <Copy SourceFiles="$(ProjectDir)bundles.json"    DestinationFolder="D:\SPTFreshDev\SPT\user\mods\ManimalTerminal"                                                            Condition="Exists('D:\SPTFreshDev') And '$(SPTPath)' != 'D:\SPTFreshDev'" />
-    <Copy SourceFiles="$(TargetPath)"                DestinationFolder="D:\SPTFreshDev\SPT\user\mods\ManimalTerminal"                                                            Condition="Exists('D:\SPTFreshDev') And '$(SPTPath)' != 'D:\SPTFreshDev'" />
   </Target>
 
 </Project>

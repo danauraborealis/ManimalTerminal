@@ -57,7 +57,7 @@ namespace Manimal.Terminal
         }
 
         // probe host rides the camera lifecycle — SetCamera fires on every raid
-        [HarmonyPatch(typeof(CameraClass), "SetCamera", typeof(Camera))]
+        [HarmonyPatch(typeof(EFT.CameraControl.CameraManager), "SetCamera", typeof(Camera))]
         internal static class Patch_CaptureCamera
         {
             [HarmonyPostfix]

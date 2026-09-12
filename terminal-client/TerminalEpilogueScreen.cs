@@ -2,7 +2,6 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Reflection;
 using Comfort.Common;
 using EFT;
@@ -77,14 +76,14 @@ namespace Manimal.Terminal
         }
 
         [HarmonyPatch(typeof(SessionResultExitStatus), nameof(SessionResultExitStatus.Show),
-            new[] { typeof(Profile), typeof(LastPlayerStateClass), typeof(ESideType),
-                    typeof(ExitStatus), typeof(TimeSpan), typeof(ISession), typeof(bool) })]
+            new[] { typeof(Profile), typeof(EFT.PlayerVisualRepresentation), typeof(ESideType),
+                    typeof(ExitStatus), typeof(TimeSpan), typeof(EFT.IEftSession), typeof(bool) })]
         internal static class Patch_HijackExitStatus
         {
             [HarmonyPostfix]
             private static void Postfix(SessionResultExitStatus __instance, Profile activeProfile,
-                LastPlayerStateClass lastPlayerState, ESideType side, ExitStatus exitStatus,
-                TimeSpan raidTime, ISession session, bool isOnline)
+                EFT.PlayerVisualRepresentation lastPlayerState, ESideType side, ExitStatus exitStatus,
+                TimeSpan raidTime, EFT.IEftSession session, bool isOnline)
             {
                 try
                 {
@@ -139,7 +138,7 @@ namespace Manimal.Terminal
             private SessionResultExitStatus _host;
             private Profile _profile;
             private TimeSpan _raidTime;
-            private ISession _session;
+            private EFT.IEftSession _session;
             private JObject _cfg;
             private JArray _slides;
             private JObject _leftPanel;
@@ -152,7 +151,7 @@ namespace Manimal.Terminal
             private readonly List<GameObject> _hiddenChildren = new List<GameObject>();
             private readonly HashSet<GameObject> _preserved = new HashSet<GameObject>();
 
-            internal void Init(SessionResultExitStatus host, Profile profile, TimeSpan raidTime, ISession session)
+            internal void Init(SessionResultExitStatus host, Profile profile, TimeSpan raidTime, EFT.IEftSession session)
             {
                 _host = host; _profile = profile; _raidTime = raidTime; _session = session;
                 StartCoroutine(Run());
@@ -763,9 +762,7 @@ namespace Manimal.Terminal
                 if (_usecSprite != null && _bearSprite != null) return;
                 try
                 {
-                    var t = AppDomain.CurrentDomain.GetAssemblies()
-                        .SelectMany(a => { try { return a.GetTypes(); } catch { return Type.EmptyTypes; } })
-                        .FirstOrDefault(x => x.Name == "InventoryPlayerModelWithStatsWindow");
+                    var t = HarmonyLib.AccessTools.TypeByName("InventoryPlayerModelWithStatsWindow");
                     if (t == null) return;
                     // FindObjectsOfTypeAll includes inactive prefab instances
                     var comps = Resources.FindObjectsOfTypeAll(t);
@@ -1076,7 +1073,7 @@ namespace Manimal.Terminal
             }
 
             // achievements grid — same lookup path AchievementIconView uses:
-            //   GClass4014.Instance.GetAllAchievementTemplates() gives every
+            //   EFT.Quests.ConditionalTemplatesStorage.Instance.GetAllAchievementTemplates() gives every
             //   template, we filter to what the player has in AchievementsData,
             //   then read template.Sprite (loading it via LoadIconSprite(session)
             //   if not cached yet). retail cell = square dark border with the
@@ -1146,12 +1143,12 @@ namespace Manimal.Terminal
                 StartCoroutine(StaggerFadeIn(groups, 0.03f, 0.15f));
             }
 
-            // GClass4014.Instance.GetAllAchievementTemplates() + filter to
+            // EFT.Quests.ConditionalTemplatesStorage.Instance.GetAllAchievementTemplates() + filter to
             // profile.AchievementsData keys. templates come back as opaque
-            // objects (GClass4061) — caller reads .Sprite / LoadIconSprite via
+            // objects (EFT.Achievements.AchievementTemplate) — caller reads .Sprite / LoadIconSprite via
             // reflection so we don't take a hard type dep on obfuscated names.
             // ids from both sides are lowercased for the match — MongoID's
-            // ToString may not match GClass4061.Id verbatim across casings.
+            // ToString may not match EFT.Achievements.AchievementTemplate.Id verbatim across casings.
             private List<object> ResolveUnlockedTemplates()
             {
                 var list = new List<object>();
@@ -1166,13 +1163,11 @@ namespace Manimal.Terminal
                     }
                     Plugin.Log.LogInfo($"[Epilogue] AchievementsData has {unlockedDict.Count} unlocked id(s)");
 
-                    var g4014 = AppDomain.CurrentDomain.GetAssemblies()
-                        .SelectMany(a => { try { return a.GetTypes(); } catch { return Type.EmptyTypes; } })
-                        .FirstOrDefault(t => t.Name == "GClass4014");
-                    if (g4014 == null) { Plugin.Log.LogWarning("[Epilogue] GClass4014 type not found"); return list; }
+                    var g4014 = HarmonyLib.AccessTools.TypeByName("EFT.Quests.ConditionalTemplatesStorage");
+                    if (g4014 == null) { Plugin.Log.LogWarning("[Epilogue] EFT.Quests.ConditionalTemplatesStorage type not found"); return list; }
                     var instProp = g4014.GetProperty("Instance", BindingFlags.Public | BindingFlags.Static);
                     var instance = instProp?.GetValue(null);
-                    if (instance == null) { Plugin.Log.LogWarning("[Epilogue] GClass4014.Instance null"); return list; }
+                    if (instance == null) { Plugin.Log.LogWarning("[Epilogue] EFT.Quests.ConditionalTemplatesStorage.Instance null"); return list; }
                     var getAll = g4014.GetMethod("GetAllAchievementTemplates", BindingFlags.Public | BindingFlags.Instance);
                     var all = getAll?.Invoke(instance, null) as System.Collections.IEnumerable;
                     if (all == null) { Plugin.Log.LogWarning("[Epilogue] GetAllAchievementTemplates returned null"); return list; }
@@ -1332,9 +1327,7 @@ namespace Manimal.Terminal
                     if (!_prestigeTemplateChecked)
                     {
                         _prestigeTemplateChecked = true;
-                        var t = AppDomain.CurrentDomain.GetAssemblies()
-                            .SelectMany(a => { try { return a.GetTypes(); } catch { return Type.EmptyTypes; } })
-                            .FirstOrDefault(x => x.Name == "PrestigeRewardView");
+                        var t = HarmonyLib.AccessTools.TypeByName("PrestigeRewardView");
                         if (t != null)
                         {
                             var comps = Resources.FindObjectsOfTypeAll(t);
@@ -1479,8 +1472,8 @@ namespace Manimal.Terminal
                     _borrowedKillListGo = klGo;
                     if (!klGo.activeSelf) klGo.SetActive(true);
 
-                    var showMethod = killList.GetType().GetMethods(BindingFlags.Public | BindingFlags.Instance)
-                        .FirstOrDefault(m => m.Name == "Show" && m.GetParameters().Length == 2);
+                    var showMethod = Array.Find(killList.GetType().GetMethods(BindingFlags.Public | BindingFlags.Instance),
+                        m => m.Name == "Show" && m.GetParameters().Length == 2);
                     if (showMethod != null && victims != null)
                         showMethod.Invoke(killList, new[] { victims, tags });
                     else Plugin.Log.LogWarning($"[Epilogue] KillList Show(victims,tags) not resolved");
@@ -1544,7 +1537,7 @@ namespace Manimal.Terminal
             private GameObject _borrowedKillListGo;
 
             // wait for Unity to finalize the borrowed container's layout (its
-            // rows are populated by GClass3823, a coroutine that yields), then
+            // rows are populated by EFT.UI.BindableViewList, a coroutine that yields), then
             // push the measured height into the scroll Content sizeDelta so
             // the ScrollRect knows the actual scroll extent. we poll for a
             // few frames — Unity's layout pass may take 1-2 frames after
@@ -1629,12 +1622,12 @@ namespace Manimal.Terminal
 
             // final NEXT: restore the borrowed KillList container to its
             // original parent + anchors, then force-close the whole SessionEnd
-            // stack. CurrentScreenSingletonClass.CloseAllScreensForced tears
+            // stack. EFT.UI.Screens.EftScreenManager.CloseAllScreensForced tears
             // down every registered screen (ExitStatus / KillList / Stats /
             // XP) and returns to the main menu — verified path used by
-            // MainMenuControllerClass:792.
+            // EFT.MainMenuShowOperation:792.
             // final NEXT: invoke the ScreenController's GoToMainMenu (fires
-            // OnGoToMainMenu event that PostRaidHealthScreenClass.method_14
+            // OnGoToMainMenu event that EFT.SessionResultShowOperation.method_14
             // is subscribed to → method_9 → method_10 does the actual close +
             // preloader + main-menu transition). previous CloseAllScreensForced
             // approach only closed screens but left the UI in a null state
@@ -1679,7 +1672,7 @@ namespace Manimal.Terminal
                     _borrowedContainer.sizeDelta = _borrowedContainerOrigSize.sizeDelta;
                     _borrowedContainer.anchoredPosition = _borrowedContainerOrigSize.anchoredPos;
                     // KillList GO stays inactive — we already handed off; the
-                    // shell will re-activate it via CurrentScreenSingletonClass
+                    // shell will re-activate it via EFT.UI.Screens.EftScreenManager
                     // if it's ever shown again
                 }
                 catch { }
@@ -1695,8 +1688,8 @@ namespace Manimal.Terminal
         }
 
         // reflection-safe reader over EFT.Profile — paths verified against
-        // D:\SPT400_assembly\ (Profile.cs, InfoClass.cs, ProfileStats.cs,
-        // SessionCountersClass.cs, SessionCounterTypesAbstractClass.cs).
+        // D:\SPT400_assembly\ (Profile.cs, EFT.ProfileInfo.cs, ProfileStats.cs,
+        // EFT.Counters.CountersCollection.cs, EFT.Counters.PredefinedCounters.cs).
         // reads directly off the Profile passed in (guaranteed valid at
         // SessionResultExitStatus.Show time), so no null-GameWorld hazards.
         internal static class ProfileData
@@ -1843,9 +1836,7 @@ namespace Manimal.Terminal
                     // to the typed GetLong(SessionCounterIdentifierValueClass) overload —
                     // avoids GetLong(params object[])'s enum-hashing path which won't
                     // match a pre-built identifier
-                    var identType = AppDomain.CurrentDomain.GetAssemblies()
-                        .SelectMany(a => { try { return a.GetTypes(); } catch { return Type.EmptyTypes; } })
-                        .FirstOrDefault(t => t.Name == "SessionCounterTypesAbstractClass");
+                    var identType = HarmonyLib.AccessTools.TypeByName("EFT.Counters.PredefinedCounters");
                     if (identType == null) return 0;
 
                     var field = identType.GetField(tagName, BindingFlags.Public | BindingFlags.Static);

@@ -25,10 +25,11 @@ namespace Manimal.Terminal
         private static bool _staged;
         private static bool _timerCut;
         private static Door _door;
-        private static GDelegate83 _handler;
+        private static EFT.Interactive.WorldInteractiveObjectInteract _handler;
 
         internal static void ResetForRaid()
         {
+            if (_door != null && _handler != null) _door.OnDoorStateChanged -= _handler;
             _staged = false;
             _timerCut = false;
             _door = null;
@@ -85,7 +86,7 @@ namespace Manimal.Terminal
                 {
                     if (d.Id != doorId) continue;
                     _door = d;
-                    _handler = new GDelegate83(OnDoorStateChanged);
+                    _handler = new EFT.Interactive.WorldInteractiveObjectInteract(OnDoorStateChanged);
                     d.OnDoorStateChanged += _handler;
                     break;
                 }
@@ -93,6 +94,8 @@ namespace Manimal.Terminal
                 else Plugin.Log.LogInfo($"[FinalExit] watching gate 3 door '{doorId}' — opening it cuts raid time to {EvacSeconds / 60f:0} min");
 
                 _staged = true;
+                if (_door != null && _door.DoorState == EDoorState.Open)
+                    OnDoorStateChanged(_door, EDoorState.Shut, EDoorState.Open);
             }
             catch (Exception e)
             {
@@ -108,11 +111,11 @@ namespace Manimal.Terminal
         // authored FinalExitZone box, LoadSettings from the same server exits row the
         // scene point would have gotten, appended to the controller's array. works
         // whether or not a scene copy ever comes back (skips if the name exists).
-        [HarmonyLib.HarmonyPatch(typeof(ExfiltrationControllerClass), nameof(ExfiltrationControllerClass.InitAllExfiltrationPoints))]
+        [HarmonyLib.HarmonyPatch(typeof(CommonAssets.Scripts.Game.ExfiltrationController), nameof(CommonAssets.Scripts.Game.ExfiltrationController.InitAllExfiltrationPoints))]
         internal static class Patch_BuildZubrExit
         {
             [HarmonyLib.HarmonyPostfix]
-            private static void Postfix(ExfiltrationControllerClass __instance, MongoID locationId, LocationExitClass[] settings, bool giveAuthority)
+            private static void Postfix(CommonAssets.Scripts.Game.ExfiltrationController __instance, MongoID locationId, JsonType.BackendExitTriggerSettings[] settings, bool giveAuthority)
             {
                 try
                 {
@@ -121,8 +124,8 @@ namespace Manimal.Terminal
                     foreach (var p in pts)
                         if (p != null && p.Settings != null && p.Settings.Name == ExitName) return; // scene copy survived
 
-                    LocationExitClass row = null;
-                    foreach (var s in settings ?? new LocationExitClass[0])
+                    JsonType.BackendExitTriggerSettings row = null;
+                    foreach (var s in settings ?? new JsonType.BackendExitTriggerSettings[0])
                         if (s != null && s.Name == ExitName) { row = s; break; }
                     if (row == null) { Plugin.Log.LogWarning($"[FinalExit] no '{ExitName}' exits row from the server — cannot build the point"); return; }
 
@@ -158,17 +161,30 @@ namespace Manimal.Terminal
 
         private static void OnDoorStateChanged(WorldInteractiveObject obj, EDoorState prevState, EDoorState nextState)
         {
+            if (TerminalCoop.Active)
+            {
+                if (!_timerCut && nextState == EDoorState.Open && TerminalCoop.Authority)
+                    TerminalCoop.Request(TerminalEvent.Evac, obj.Id);
+                return;
+            }
+            if (_timerCut || nextState != EDoorState.Open) return;
+            ApplyCountdown(EvacSeconds, true);
+        }
+
+        internal static bool ApplyCountdown(double seconds, bool announce)
+        {
+            var game = Singleton<AbstractGame>.Instance;
+            var timer = game?.GameTimer;
+            if (timer == null) return false;
+            float duration = (float)Math.Max(0, Math.Min(EvacSeconds, seconds));
+            bool first = !_timerCut;
             try
             {
-                if (_timerCut || nextState != EDoorState.Open) return;
                 _timerCut = true;
-                var game = Singleton<AbstractGame>.Instance;
-                var timer = game != null ? game.GameTimer : null;
-                if (timer == null) { Plugin.Log.LogWarning("[FinalExit] no game timer — cannot cut raid time"); return; }
                 var remaining = (timer.SessionTime ?? TimeSpan.Zero) - timer.PastTime;
-                if (remaining > TimeSpan.FromSeconds(EvacSeconds))
+                if (remaining > TimeSpan.FromSeconds(duration + (first ? 0 : 0.25)))
                 {
-                    timer.ChangeSessionTime(timer.PastTime + TimeSpan.FromSeconds(EvacSeconds));
+                    timer.ChangeSessionTime(timer.PastTime + TimeSpan.FromSeconds(duration));
                     // the HUD timer caches its escape DateTime at Show — poke it or the
                     // display keeps the old countdown (2026-08-18 report)
                     try
@@ -181,16 +197,16 @@ namespace Manimal.Terminal
                             panel = HarmonyLib.AccessTools.Field(panel.GetType(), "_mainTimerPanel")?.GetValue(panel);
                         if (panel is EFT.UI.BattleTimer.TimerPanel tp)
                         {
-                            HarmonyLib.AccessTools.Field(typeof(EFT.UI.BattleTimer.TimerPanel), "dateTime_0")
-                                .SetValue(tp, EFTDateTimeClass.UtcNow.AddSeconds(EvacSeconds));
-                            Plugin.Log.LogInfo("[FinalExit] HUD timer poked to 3:00");
+                            HarmonyLib.AccessTools.Field(typeof(EFT.UI.BattleTimer.TimerPanel), "_dateTime")
+                                .SetValue(tp, EFT.DateTimeExtensions.UtcNow.AddSeconds(duration));
+                            if (first) Plugin.Log.LogInfo($"[FinalExit] HUD timer synchronized to {duration:F1}s remaining");
                         }
-                        else Plugin.Log.LogWarning("[FinalExit] no TimerPanel reachable — HUD keeps the old countdown");
+                        else if (first && TerminalCoop.LocalHuman) Plugin.Log.LogWarning("[FinalExit] no TimerPanel reachable — HUD keeps the old countdown");
                     }
                     catch (Exception te) { Plugin.Log.LogWarning($"[FinalExit] timer UI poke failed: {te.Message}"); }
-                    Plugin.Log.LogInfo($"[FinalExit] GATE 3 OPEN — evac window: raid time cut from {remaining:mm\\:ss} to {EvacSeconds / 60f:0}:00");
+                    if (first) Plugin.Log.LogInfo($"[FinalExit] GATE 3 OPEN — {duration:F1}s evacuation window");
                 }
-                else Plugin.Log.LogInfo($"[FinalExit] gate 3 open with {remaining:mm\\:ss} left — already inside the evac window");
+                else if (first) Plugin.Log.LogInfo($"[FinalExit] gate 3 open with {remaining:mm\\:ss} left — already inside the evac window");
 
                 // retail's loudspeaker announcement (user screenshot): subtitle text +
                 // audio through the authored AnnouncementSystem speakers. the real VO
@@ -198,6 +214,7 @@ namespace Manimal.Terminal
                 // dump 2026-08-18); siren only if the fx bundle predates it
                 try
                 {
+                    if (!first || !announce || !TerminalCoop.LocalHuman) return true;
                     // authored 1.0 loudspeaker subtitle (locale 6924d5327d890c5d7e3ae2c9);
                     // duration matches vsrf_evac_3min clip (7.1s) plus a small tail
                     TerminalSubtitles.ShowStandalone(
@@ -210,16 +227,16 @@ namespace Manimal.Terminal
                         int speakers = 0;
                         float nearest = float.MaxValue;
                         var me = Singleton<GameWorld>.Instance?.MainPlayer;
-                        var announce = TerminalRigFill.FindRootNamed("AnnouncementSystem");
-                        if (announce)
-                            foreach (var t in announce.GetComponentsInChildren<Transform>(true))
+                        var speakersRoot = TerminalRigFill.FindRootNamed("AnnouncementSystem");
+                        if (speakersRoot)
+                            foreach (var t in speakersRoot.GetComponentsInChildren<Transform>(true))
                                 if (t.name.StartsWith("announcement_speaker"))
                                 {
                                     TerminalGatesExplosion.PlayAt(clip, t.position, 90f);
                                     if (me != null) nearest = Mathf.Min(nearest, (t.position - me.Position).magnitude);
                                     speakers++;
                                 }
-                        if (speakers == 0) TerminalGatesExplosion.PlayAt(clip, obj.transform.position, 200f);
+                        if (speakers == 0 && _door) TerminalGatesExplosion.PlayAt(clip, _door.transform.position, 200f);
                         // flat 2D bed so the line reads wherever the player stands
                         // (2026-08-18: played over 8 speakers, user heard none — gate 3
                         // may sit outside every speaker's 90m rolloff)
@@ -231,6 +248,7 @@ namespace Manimal.Terminal
                 catch (Exception ae) { Plugin.Log.LogWarning($"[FinalExit] announcement failed: {ae.Message}"); }
             }
             catch (Exception e) { Plugin.Log.LogWarning($"[FinalExit] timer cut failed: {e}"); }
+            return true;
         }
     }
 }

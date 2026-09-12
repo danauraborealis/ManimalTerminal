@@ -14,7 +14,7 @@ namespace Manimal.Terminal
 {
     // THE GATES_EXPLOSION RESTORE (decoded 2026-08-17, playbook 'GATES_EXPLOSION
     // DECODED'): retail's gate is a data-authored TRIGGER NETWORK. the engine
-    // (GClass3592 emitter, created offline by ClientLocalGameWorld) and most
+    // (EFT.GameTriggers.TriggersEmitter emitter, created offline by ClientLocalGameWorld) and most
     // handler classes are ALIVE in 4.0 — we resurrect those from the sidecar
     // (terminal_gates.json, full retail values) and re-implement only the
     // 1.0-only INTERACTION layer as action-menu sessions that EMIT triggers
@@ -47,6 +47,7 @@ namespace Manimal.Terminal
         internal static bool _boomSeen;
 
         private static bool _staged;
+        internal static bool Ready => _staged;
         private static Transform _root;
 
         // native 4.0 classes resurrected verbatim from the sidecar. NOT in the set,
@@ -75,7 +76,7 @@ namespace Manimal.Terminal
         {
             if (_staged || !Plugin.GatesExplosion.Value) return;
             if (!TerminalGate.On) return;
-            // handlers Subscribe via GClass3592.Instance in their Start — stage only
+            // handlers Subscribe via EFT.GameTriggers.TriggersEmitter.Instance in their Start — stage only
             // once the emitter exists or every handler dies on a silent NRE
             var gw = Singleton<GameWorld>.Instantiated ? Singleton<GameWorld>.Instance : null;
             if (gw == null || gw.TriggersEmitter == null) return;
@@ -145,14 +146,14 @@ namespace Manimal.Terminal
                 // system is skipped)
                 try
                 {
-                    GClass3592.Instance.Subscribe(ExplosionTrigger, new Action(OnExplosionVfx));
+                    EFT.GameTriggers.TriggersEmitter.Instance.Subscribe(ExplosionTrigger, new Action(OnExplosionVfx));
                     // FUSE WATCHDOG (raid report 2026-08-18: plant worked, timer ran,
                     // no boom — the resurrected HandlerDelay never fired). track the
                     // native explosion, and if 10.5s pass after the plant with no boom
                     // seen, emit it ourselves — the rest of the native graph (blast,
                     // anim, prop hide) hangs off the trigger either way.
-                    GClass3592.Instance.Subscribe(ExplosionTrigger, new Action(() => _boomSeen = true));
-                    GClass3592.Instance.Subscribe(PlaceTrigger, new Action(() =>
+                    EFT.GameTriggers.TriggersEmitter.Instance.Subscribe(ExplosionTrigger, new Action(() => _boomSeen = true));
+                    EFT.GameTriggers.TriggersEmitter.Instance.Subscribe(PlaceTrigger, new Action(() =>
                     {
                         var host = new GameObject("Terminal_GateFuseWatchdog");
                         host.AddComponent<FuseWatchdog>();
@@ -175,6 +176,7 @@ namespace Manimal.Terminal
 
         private static void OnExplosionVfx()
         {
+            if (TerminalCoop.Replaying) return;
             try
             {
                 if (!_root) return;
@@ -210,10 +212,36 @@ namespace Manimal.Terminal
             {
                 TerminalWorldDiff.RecordEvent("map trigger", trigger);
                 var player = Singleton<GameWorld>.Instance?.MainPlayer;
-                GClass3592.Instance.Emit(trigger, player != null ? player.ProfileId : "");
+                EFT.GameTriggers.TriggersEmitter.Instance.Emit(trigger, player != null ? player.ProfileId : "");
                 Plugin.Log.LogInfo($"[Gates] emitted '{trigger}'");
             }
             catch (Exception e) { Plugin.Log.LogWarning($"[Gates] emit '{trigger}' failed: {e}"); }
+        }
+
+        // Called only after the owner receives the host's exclusive plant grant.
+        // Completion means the native transaction succeeded, not merely validation.
+        internal static async System.Threading.Tasks.Task<bool> ConsumeChargeCoop(Player player)
+        {
+            var item = FindCharge(player);
+            if (item == null) return false;
+            if (IsCharge(player.HandsController?.Item))
+            {
+                var done = new System.Threading.Tasks.TaskCompletionSource<bool>();
+                player.SetEmptyHands(new Callback<EFT.IEmptyHandsController>(r => done.TrySetResult(true)));
+                if (await System.Threading.Tasks.Task.WhenAny(done.Task, System.Threading.Tasks.Task.Delay(30000)) != done.Task)
+                    return false;
+                if (IsCharge(player.HandsController?.Item)) return false;
+            }
+            var unbind = player.InventoryController.UnbindItemDirect(item, true);
+            if (!unbind.Failed)
+            {
+                var result = await player.InventoryController.TryRunNetworkTransaction(unbind, null);
+                if (result == null || result.Failed) return false;
+            }
+            var op = EFT.InventoryLogic.ItemManipulator.Remove(item, player.InventoryController, true);
+            if (op.Failed) return false;
+            var removed = await player.InventoryController.TryRunNetworkTransaction(op, null);
+            return removed != null && !removed.Failed;
         }
 
         // ---------------------------------------------------------------- charge
@@ -249,7 +277,7 @@ namespace Manimal.Terminal
             }
             catch (Exception e) { Plugin.Log.LogWarning($"[Gates] unbind attempt threw (continuing): {e.Message}"); }
 
-            var op = InteractionsHandlerClass.Remove(item, player.InventoryController, true);
+            var op = EFT.InventoryLogic.ItemManipulator.Remove(item, player.InventoryController, true);
             if (op.Failed)
             {
                 Plugin.Log.LogWarning($"[Gates] charge remove validation failed: {op.Error}");
@@ -273,7 +301,7 @@ namespace Manimal.Terminal
                 return true;
             }
             Plugin.Log.LogInfo("[Gates] charge IN HANDS — swapping to a weapon before consuming");
-            player.SetFirstAvailableItem(new Callback<IHandsController>(r =>
+            player.SetFirstAvailableItem(new Callback<EFT.IHandsController>(r =>
             {
                 try
                 {
@@ -341,6 +369,7 @@ namespace Manimal.Terminal
 
         private void Update()
         {
+            if (TerminalCoop.Active && !TerminalCoop.Authority) { Destroy(gameObject); return; }
             if (TerminalGatesExplosion._boomSeen) { Destroy(gameObject); return; }
             if (Time.time - _armed < 10.5f) return;
             Plugin.Log.LogWarning("[Gates] native fuse silent 10.5s after the plant — watchdog detonating");
@@ -442,12 +471,13 @@ namespace Manimal.Terminal
     // own the gate switches' action menus (the icebreaker chain-door pattern) —
     // matched by GO NAME in a Terminal scene, not by switch Id (id fields are
     // drift-suspect in the rip; names survived)
-    [HarmonyPatch(typeof(GetActionsClass), "smethod_11")]
+    [HarmonyPatch(typeof(EFT.InteractionContextHelper), nameof(EFT.InteractionContextHelper.GetAvailableActions),
+        typeof(GamePlayerOwner), typeof(EFT.Interactive.Switch))]
     internal static class Patch_GateSwitchActions
     {
-        private static void Replace(ref ActionsReturnClass result, ActionsTypesClass act)
+        private static void Replace(ref EFT.UI.AvailableInteractionState result, EFT.UI.InteractionAction act)
         {
-            if (result == null) result = new ActionsReturnClass { Actions = new List<ActionsTypesClass> { act } };
+            if (result == null) result = new EFT.UI.AvailableInteractionState { Actions = new List<EFT.UI.InteractionAction> { act } };
             else { result.Actions.Clear(); result.Actions.Add(act); }
         }
 
@@ -461,7 +491,7 @@ namespace Manimal.Terminal
             catch { return false; }
         }
 
-        private static void Postfix(ref ActionsReturnClass __result, GamePlayerOwner owner, EFT.Interactive.Switch interactiveSwitch)
+        private static void Postfix(ref EFT.UI.AvailableInteractionState __result, GamePlayerOwner owner, EFT.Interactive.Switch interactiveSwitch)
         {
             try
             {
@@ -479,7 +509,7 @@ namespace Manimal.Terminal
                     var player = Singleton<GameWorld>.Instance?.MainPlayer;
                     bool hasCharge = player != null && TerminalGatesExplosion.FindCharge(player) != null;
                     var sw = interactiveSwitch;
-                    Replace(ref __result, new ActionsTypesClass
+                    Replace(ref __result, new EFT.UI.InteractionAction
                     {
                         Name = "Plant",
                         Disabled = !hasCharge,
@@ -495,6 +525,11 @@ namespace Manimal.Terminal
                             s.OnSuccess = () =>
                             {
                                 var p = Singleton<GameWorld>.Instance?.MainPlayer;
+                                if (TerminalCoop.Active)
+                                {
+                                    TerminalCoop.Plant?.Invoke(p);
+                                    return;
+                                }
                                 if (p == null || !TerminalGatesExplosion.ConsumeCharge(p))
                                 {
                                     Plugin.Log.LogDebug("[Gates] hold finished but no charge — cancelled");
@@ -525,7 +560,7 @@ namespace Manimal.Terminal
                     bool elite = false;
                     try { elite = player != null && player.Skills.Strength.IsEliteLevel; } catch { }
                     var sw = interactiveSwitch;
-                    Replace(ref __result, new ActionsTypesClass
+                    Replace(ref __result, new EFT.UI.InteractionAction
                     {
                         Name = elite ? "Open" : "Open (requires Elite Strength)",
                         Disabled = !elite,
@@ -541,6 +576,11 @@ namespace Manimal.Terminal
                             s.FoleyClip = "amb_terminal_interactive_gates_02_handle_open";
                             s.OnSuccess = () =>
                             {
+                                if (TerminalCoop.Active)
+                                {
+                                    TerminalCoop.Request(TerminalEvent.GateOpen);
+                                    return;
+                                }
                                 TerminalGatesExplosion.Opened = true;
                                 TerminalGatesExplosion.Emit(TerminalGatesExplosion.SoloOpenTrigger);
                                 try { owner?.ClearInteractionState(); } catch { }

@@ -12,7 +12,7 @@ namespace Manimal.Terminal
     //    OURS attribution (Plugin.Update tick cost measured by stopwatch), ported
     //    from icebreaker's stutter probe — UNTRACKED means "not this component"
     //  - last-8-frame ring + gc deltas on each spike: one giant frame vs creep
-    //  - 60s census: object counts that only ever grow reveal the leak (renderers,
+    //  - opt-in 60s census: object counts that grow help investigate retention (renderers,
     //    audio sources, particle systems, gameobject total via scene roots)
     internal static class TerminalPerfWatch
     {
@@ -47,7 +47,16 @@ namespace Manimal.Terminal
             _nextCensusAt = 0f;
             _censusNum = 0;
             _nextHeartAt = 0f;
+            _avg = 1f / 60f;
+            _ringIdx = 0;
+            Array.Clear(_ring, 0, _ring.Length);
+            _gc0Prev = GC.CollectionCount(0);
+            _nextTrace = _traceMaxDt = 0f;
+            _traceFrames = 0;
+            _psCache = null;
+            _nextPsRefresh = 0f;
             TerminalTickProfiler.Reset();
+            TerminalPathDiagnostics.ResetForRaid();
             TerminalRenderProfiler.ResetForRaid();
             TerminalFramePhase.ResetForRaid();
             TerminalLoopProbe.ResetForRaid();
@@ -97,7 +106,7 @@ namespace Manimal.Terminal
             catch { return -1; }
         }
 
-        private static void TickTrace(Player p)
+        private static void TickTrace(GameWorld world, Player p)
         {
             try
             {
@@ -136,6 +145,20 @@ namespace Manimal.Terminal
                 long memMB = GC.GetTotalMemory(false) / (1024 * 1024);
                 int gen0 = GC.CollectionCount(0);
                 TerminalVramProbe.Read(out long vramTotal, out long vramBudget, out long vramUsed);
+                // AllAlivePlayersList can retain lootable dead players. Count health
+                // states in the existing registry so a corpse-only cleanup can be
+                // distinguished from removing living AI without a scene search.
+                int livingAi = 0, deadAi = 0;
+                var players = world != null ? world.RegisteredPlayers : null;
+                if (players != null)
+                {
+                    foreach (var player in players)
+                    {
+                        if (player == null || !player.IsAI || player.HealthController == null) continue;
+                        if (player.HealthController.IsAlive) livingAi++;
+                        else deadAi++;
+                    }
+                }
 
                 // FinishFrameRendering ramps to ~45ms while the camera's own cull
                 // (1.5) and render (1.7) stay flat — so ~40ms sits AFTER the camera
@@ -173,6 +196,7 @@ namespace Manimal.Terminal
                     + $" parts={psLive} emit={psEmitting}"
                     + $" postFx={postFx:F1} resScale={wScale:F3}x{hScale:F3} camPx={camW}x{camH}"
                     + $" cmdBufs={cmdBufs} memMB={memMB} gc0={gen0}"
+                    + $" livingAi={livingAi} deadAi={deadAi}"
                     + $" vramMB={vramUsed}/{vramBudget}/{vramTotal}"
                     + $" pos={pos.x:F0},{pos.y:F0},{pos.z:F0}");
                 _traceMaxDt = 0f;
@@ -203,11 +227,13 @@ namespace Manimal.Terminal
 
             var gw = Singleton<GameWorld>.Instantiated ? Singleton<GameWorld>.Instance : null;
             var p = gw != null ? gw.MainPlayer : null;
-            TickTrace(p);
+            TickTrace(gw, p);
             if (p != null) TerminalWorldDiff.Tick(_avg * 1000f, p);
 
-            // 60s census — the ramp fingerprint. counts that only grow = the leak.
-            if (p != null && Time.realtimeSinceStartup >= _nextCensusAt)
+            // Whole-scene discovery is intrusive on this map; keep it opt-in so
+            // the diagnostic itself cannot introduce a periodic gameplay hitch.
+            if (p != null && Plugin.SceneCensus != null && Plugin.SceneCensus.Value
+                && Time.realtimeSinceStartup >= _nextCensusAt)
             {
                 _nextCensusAt = Time.realtimeSinceStartup + 60f;
                 _censusNum++;

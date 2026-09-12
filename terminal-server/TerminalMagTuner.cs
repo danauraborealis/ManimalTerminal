@@ -3,11 +3,11 @@ using HarmonyLib;
 using SPTarkov.DI.Annotations;
 using SPTarkov.Server.Core.DI;
 using SPTarkov.Server.Core.Extensions;
-using SPTarkov.Server.Core.Generators;
+using SPTarkov.Server.Core.Generators.Loot;
 using SPTarkov.Server.Core.Models.Common;
 using SPTarkov.Server.Core.Models.Eft.Common;
 using SPTarkov.Server.Core.Models.Eft.Common.Tables;
-using SPTarkov.Server.Core.Models.Utils;
+using SPTarkov.Common.Models.Logging;
 
 namespace Manimal.Terminal.Server;
 
@@ -33,13 +33,14 @@ internal static class TerminalRaidContext
 // item AND the template authored cartridges children for the chosen root. weapons
 // (full tree), ammo boxes (SPT adds stacks), money/ammo (no cartridges children)
 // all fall through untouched.
-[Injectable(TypePriority = OnLoadOrder.PostDBModLoader + 90001)]
+[Injectable(TypePriority = OnLoadOrder.Preload + 90001)]
 public class TerminalMagTuner(ISptLogger<TerminalMagTuner> logger) : IOnLoad
 {
     private static bool _patched;
 
-    public Task OnLoad()
+    public Task OnLoadAsync(CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         if (_patched) return Task.CompletedTask;
         _patched = true;
         var h = new Harmony("com.manimal.terminal.magtuner");

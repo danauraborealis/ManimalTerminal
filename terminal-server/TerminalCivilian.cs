@@ -34,12 +34,14 @@ public sealed class TerminalCivilianRegistration(
         "bear",
     ];
 
-    public async Task OnLoad()
+    public async Task OnLoadAsync(CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         var assembly = Assembly.GetExecutingAssembly();
         var typeList = new List<string> { BotTypeName };
 
         await moreBotsApi.LoadBotsShared(assembly, BotTypeName, typeList);
+        cancellationToken.ThrowIfCancellationRequested();
 
         customBotTypeService.AddCustomWildSpawnTypeNames(new Dictionary<int, string>
         {
@@ -62,8 +64,9 @@ public sealed class TerminalCivilianRegistration(
             TypePriority = MoreBotsLoadOrder.LoadFactions)]
 public sealed class TerminalCivilianFaction(FactionService factionService) : IOnLoad
 {
-    public async Task OnLoad()
+    public async Task OnLoadAsync(CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         if (!factionService.Factions.ContainsKey(TerminalCivilianRegistration.FactionName))
         {
             factionService.Factions.Add(TerminalCivilianRegistration.FactionName, new Faction

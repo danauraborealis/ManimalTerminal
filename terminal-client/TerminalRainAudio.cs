@@ -40,17 +40,14 @@ namespace Manimal.Terminal
             try
             {
                 // season sound data: the system's own, else any loaded donor SO
-                var dataProp = AccessTools.Property(typeof(AmbientAudioSystem), "AmbientSoundData")
-                    ?? null;
-                object soData = dataProp?.GetValue(sys);
+                object soData = sys.AmbientSoundData;
                 if (soData == null)
                 {
                     var sos = Resources.FindObjectsOfTypeAll<SeasonAmbientSoundDataSO>();
                     if (sos.Length > 0)
                     {
                         soData = sos[0];
-                        if (dataProp != null && dataProp.CanWrite) dataProp.SetValue(sys, soData);
-                        else AccessTools.Field(typeof(AmbientAudioSystem), "AmbientSoundData")?.SetValue(sys, soData);
+                        sys.AmbientSoundData = sos[0];
                     }
                 }
                 bool catalogUsable = HasPrecipitationClips(soData as SeasonAmbientSoundDataSO);

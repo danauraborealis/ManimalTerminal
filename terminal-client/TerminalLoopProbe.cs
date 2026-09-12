@@ -52,7 +52,11 @@ namespace Manimal.Terminal
 
         internal static void Tick()
         {
-            bool want = TerminalGate.On && Plugin.ProfilePlayerLoop.Value;
+            // This rewrites Unity's global player loop and exists only for profiler
+            // raids. Older configs persisted the original test-build default=true;
+            // require DevMode as an additional explicit opt-in so normal players do
+            // not carry the instrumentation after updating.
+            bool want = TerminalGate.On && Plugin.DevMode.Value && Plugin.ProfilePlayerLoop.Value;
             if (want && !_installed) { Install(); return; }
             if (!want && _installed) { Restore(); return; }
             if (!want || !_installed) return;

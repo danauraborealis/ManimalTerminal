@@ -1,0 +1,93 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <RootNamespace>Manimal.Terminal.Fika</RootNamespace>
+    <AssemblyName>ManimalTerminalFika</AssemblyName>
+    <Nullable>disable</Nullable>
+    <Authors>$(ModUsername)</Authors>
+    <AssemblyVersion>$(ModVersion).0</AssemblyVersion>
+    <FileVersion>$(AssemblyVersion)</FileVersion>
+    <Configurations>Debug;Release</Configurations>
+    <Version>$(ModVersion)</Version>
+    <LangVersion>latest</LangVersion>
+    <Deterministic>true</Deterministic>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="UnityEngine.AudioModule">
+      <HintPath>$(SPTPath)\EscapeFromTarkov_Data\Managed\UnityEngine.AudioModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.PhysicsModule">
+      <HintPath>$(SPTPath)\EscapeFromTarkov_Data\Managed\UnityEngine.PhysicsModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <!-- Private=false everywhere: nothing but our own dll ships from this project -->
+    <Reference Include="BepInEx">
+      <HintPath>$(SPTPath)\BepInEx\core\BepInEx.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="0Harmony">
+      <HintPath>$(SPTPath)\BepInEx\core\0Harmony.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Assembly-CSharp">
+      <HintPath>$(SPTPath)\EscapeFromTarkov_Data\Managed\Assembly-CSharp.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Comfort">
+      <HintPath>$(SPTPath)\EscapeFromTarkov_Data\Managed\Comfort.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine">
+      <HintPath>$(SPTPath)\EscapeFromTarkov_Data\Managed\UnityEngine.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.AnimationModule">
+      <HintPath>$(SPTPath)\EscapeFromTarkov_Data\Managed\UnityEngine.AnimationModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.CoreModule">
+      <HintPath>$(SPTPath)\EscapeFromTarkov_Data\Managed\UnityEngine.CoreModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <!-- the real runtime dll from the fika test install — compile-time only, never shipped -->
+    <Reference Include="Fika.Core">
+      <HintPath>$(FikaPath)\BepInEx\plugins\Fika\Fika.Core.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\terminal-client\terminal-client.csproj">
+      <Private>false</Private>
+    </ProjectReference>
+  </ItemGroup>
+
+  <Target Name="GenerateBuildInfo" BeforeTargets="CoreCompile">
+    <PropertyGroup>
+      <BuildInfoFile>$(IntermediateOutputPath)BuildInfo.g.cs</BuildInfoFile>
+    </PropertyGroup>
+    <ItemGroup>
+      <_BuildInfoLines Remove="@(_BuildInfoLines)" />
+      <_BuildInfoLines Include="// auto-generated from Directory.Build.props — do not edit" />
+      <_BuildInfoLines Include="namespace $(RootNamespace)" />
+      <_BuildInfoLines Include="{" />
+      <_BuildInfoLines Include="    internal static class BuildInfo" />
+      <_BuildInfoLines Include="    {" />
+      <_BuildInfoLines Include="        public const string Version = %22$(ModVersion)%22%3B" />
+      <_BuildInfoLines Include="        public const string ModGuid = %22$(ModGuid).fika%22%3B" />
+      <_BuildInfoLines Include="        public const string CoreModGuid = %22$(ModGuid)%22%3B" />
+      <_BuildInfoLines Include="        public const string PluginName = %22$(ModUsername)-$(ModDisplayName)Fika%22%3B" />
+      <_BuildInfoLines Include="    }" />
+      <_BuildInfoLines Include="}" />
+    </ItemGroup>
+    <WriteLinesToFile File="$(BuildInfoFile)" Lines="@(_BuildInfoLines)" Overwrite="true" WriteOnlyWhenDifferent="true" />
+    <ItemGroup>
+      <Compile Include="$(BuildInfoFile)" />
+    </ItemGroup>
+  </Target>
+
+  <!-- Deliberately no automatic deployment. package-fika.ps1 makes the separate addon zip. -->
+</Project>

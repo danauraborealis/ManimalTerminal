@@ -232,7 +232,12 @@ namespace Manimal.Terminal
         internal class DelayShimHost : MonoBehaviour
         {
             public void Run(string input, string output, float secs, string tag)
-                => StartCoroutine(Fire(input, output, secs, tag));
+            {
+                // In coop the authority emits each delayed transition once. Clients
+                // receive those transitions; replay never starts another timer.
+                if (TerminalCoop.Active && (!TerminalCoop.Authority || TerminalCoop.Replaying)) return;
+                StartCoroutine(Fire(input, output, secs, tag));
+            }
 
             private System.Collections.IEnumerator Fire(string input, string output, float secs, string tag)
             {
@@ -263,7 +268,7 @@ namespace Manimal.Terminal
                 var parts = new List<string>();
                 foreach (var id in ids)
                 {
-                    em.Dictionary_0.TryGetValue(StableHash(id), out var list);
+                    em._actionsMap.TryGetValue(StableHash(id), out var list);
                     parts.Add($"{id}={list?.Count ?? 0}");
                 }
                 Plugin.Log.LogInfo($"[{tag}] SUBSCRIBERS: {string.Join(", ", parts)}");

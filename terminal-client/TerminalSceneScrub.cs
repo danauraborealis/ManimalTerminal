@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using HarmonyLib;
 using Newtonsoft.Json.Linq;
 using UnityEngine;
@@ -64,11 +63,21 @@ namespace Manimal.Terminal
         // same system holds them disabled, hiding them from an enabled-only walk.
         private static int HideBlockers(Scene scene)
         {
-            int blockers = 0, cubes = 0, sampleLayer = -1;
+            int blockers = 0, stencils = 0, cubes = 0, sampleLayer = -1;
             foreach (var root in scene.GetRootGameObjects())
                 foreach (var r in root.GetComponentsInChildren<MeshRenderer>(true))
                 {
                     if (!r || r.forceRenderingOff) continue;
+                    // The rip turned stencil-only helper geometry into solid white
+                    // meshes. Hide just the named renderer, not its building/root or
+                    // colliders. forceRenderingOff survives PerfectCulling re-enables.
+                    var mesh = r.GetComponent<MeshFilter>();
+                    if (IsStencilHelper(r.name) || (mesh && mesh.sharedMesh && IsStencilHelper(mesh.sharedMesh.name)))
+                    {
+                        r.forceRenderingOff = true;
+                        stencils++;
+                        continue;
+                    }
                     bool border = LayerMask.LayerToName(r.gameObject.layer) == "LevelBorder";
                     if (!border)
                         for (var up = r.transform; up != null; up = up.parent)
@@ -96,7 +105,18 @@ namespace Manimal.Terminal
                 // the blockers matched NOTHING two raids running — name the escapees
                 Plugin.Log.LogWarning($"[Scrub] '{scene.name}': 0 blockers matched but {cubes} Cube renderer(s) present "
                     + $"(sample layer {sampleLayer} '{LayerMask.LayerToName(sampleLayer)}')");
-            return blockers;
+            if (stencils > 0)
+                Plugin.Log.LogInfo($"[Scrub] '{scene.name}': {stencils} stencil helper renderer(s) hidden (colliders preserved)");
+            return blockers + stencils;
+        }
+
+        private static bool IsStencilHelper(string name)
+        {
+            if (string.IsNullOrEmpty(name)) return false;
+            int token = name.IndexOf("_STENCIL", StringComparison.OrdinalIgnoreCase);
+            if (token < 0) return false;
+            int end = token + "_STENCIL".Length;
+            return end == name.Length || name[end] == '_' || name[end] == ' ' || name[end] == '(';
         }
 
         // belt-and-braces re-pass once the raid is up: catches scenes whose
@@ -330,7 +350,7 @@ namespace Manimal.Terminal
             void ApplyRows(string cls, Component target)
             {
                 if (target == null) return;
-                var row = (comps[cls] as JArray)?.FirstOrDefault()?["fields"] as JObject;
+                var row = (comps[cls] as JArray)?.First?["fields"] as JObject;
                 if (row == null) return;
                 foreach (var prop in row.Properties())
                 {
@@ -494,7 +514,7 @@ namespace Manimal.Terminal
             {
                 if (m == null || !seen.Add(m) || m.shader == null) return;
                 Shader native = null;
-                try { native = GClass872.Find(m.shader.name); } catch { }
+                try { native = ShadersFinder.Find(m.shader.name); } catch { }
                 if (native == null || !native.isSupported)
                 {
                     Plugin.Log.LogWarning($"[Sky] no native shader for '{m.name}' ('{m.shader.name}') — stays on the bundle copy");

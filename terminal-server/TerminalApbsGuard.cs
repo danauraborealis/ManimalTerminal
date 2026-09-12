@@ -1,7 +1,7 @@
 using HarmonyLib;
 using SPTarkov.DI.Annotations;
 using SPTarkov.Server.Core.DI;
-using SPTarkov.Server.Core.Models.Utils;
+using SPTarkov.Common.Models.Logging;
 
 namespace Manimal.Terminal.Server;
 
@@ -35,7 +35,7 @@ namespace Manimal.Terminal.Server;
 // The APBS type/method is resolved via reflection (AccessTools), so this has no
 // compile-time dependency on APBS and stays inert (logs a warning, does nothing) if
 // APBS isn't installed or has changed its internals.
-[Injectable(TypePriority = OnLoadOrder.PostDBModLoader + 90004)]
+[Injectable(TypePriority = OnLoadOrder.Preload + 90004)]
 public class TerminalApbsGuard(ISptLogger<TerminalApbsGuard> logger) : IOnLoad
 {
     private const string TargetTypeName = "ProgressiveBotSystem.Models.MapRangeWeights";
@@ -47,8 +47,9 @@ public class TerminalApbsGuard(ISptLogger<TerminalApbsGuard> logger) : IOnLoad
     private static ISptLogger<TerminalApbsGuard>? _log;
     private static bool _patched;
 
-    public Task OnLoad()
+    public Task OnLoadAsync(CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         _log = logger;
         if (_patched) return Task.CompletedTask;
         _patched = true;

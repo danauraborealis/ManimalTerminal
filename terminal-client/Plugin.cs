@@ -8,7 +8,7 @@ namespace Manimal.Terminal
     // ManimalTerminal client — backport of the retail 1.0 Terminal map into SPT 4.x.
     // skeleton: logs itself alive; systems get ported from ManimalIcebreaker one
     // phase at a time (see docs/MAP-BACKPORT-PLAYBOOK.md).
-    [BepInPlugin(BuildInfo.ModGuid, "Manimal-Terminal", BuildInfo.Version)]
+    [BepInPlugin(BuildInfo.ModGuid, BuildInfo.PluginName, BuildInfo.Version)]
     //
     // HARD DEPENDENCIES — declare, dont trust filename load-order luck (lesson from
     // icebreaker). guids read off the loaded plugins / verified icebreaker list, NOT
@@ -68,6 +68,9 @@ namespace Manimal.Terminal
         internal static ConfigEntry<int> MaxAliveScavs;
         internal static ConfigEntry<int> MaxAliveBots;
         internal static ConfigEntry<int> MaxResidentScavs;
+        internal static ConfigEntry<float> FreshProfileWaveInterval;
+        internal static ConfigEntry<float> LowPopulationWaveInterval;
+        internal static ConfigEntry<int> LowPopulationWaveThreshold;
         internal static ConfigEntry<int> MaxBotsCreatedPerRaid;
         internal static ConfigEntry<bool> DisableAllBots;
         internal static ConfigEntry<bool> ScavCorpseCleanup;
@@ -89,6 +92,7 @@ namespace Manimal.Terminal
         internal static ConfigEntry<bool> ProfilePlayerLoop;
         internal static ConfigEntry<bool> TraceFrameCycle;
         internal static ConfigEntry<bool> WorldDiff;
+        internal static ConfigEntry<bool> SceneCensus;
         internal static ConfigEntry<bool> WeaponLightShadows;
         internal static ConfigEntry<bool> ShowSpawnTriggers;
         internal static ConfigEntry<float> NvgAmbient;
@@ -172,7 +176,7 @@ namespace Manimal.Terminal
             TerminalAILimitFirewall.Install(HarmonyInstance);
             TerminalSainCompat.Install(HarmonyInstance);
 
-            // finalizer guard on Class308.LocalRaidStarted for the 2026-08-20
+            // finalizer guard on EFT.EftClientBackendSession.LocalRaidStarted for the 2026-08-20
             // NRE at raid start — see TerminalCrashGuard.cs comments. runs
             // before the config binds so any resolution failure logs early.
             TerminalCrashGuard.TryPatch(HarmonyInstance);
@@ -193,7 +197,7 @@ namespace Manimal.Terminal
             AmbientIntensity = Config.Bind("Terminal", "AmbientIntensity", 1.8f,
                 new ConfigDescription("flat ambient fill light — lifts shadowed areas out of black (no real bounce without a bake)",
                     new AcceptableValueRange<float>(0f, 3f)));
-            AmbientColorOverride = Config.Bind("Terminal", "AmbientColorOverride", false,
+            AmbientColorOverride = Config.Bind("Terminal", "AmbientColorOverride", true,
                 new ConfigDescription("override the sky-sampled ambient tint with the R/G/B values below. flip live to A/B a colour"));
             AmbientColorR = Config.Bind("Terminal", "AmbientColorR", 0.10f,
                 new ConfigDescription("ambient red (0-1) when AmbientColorOverride is on", new AcceptableValueRange<float>(0f, 1f)));
@@ -355,6 +359,15 @@ namespace Manimal.Terminal
             MaxResidentScavs = Config.Bind("Population", "MaxResidentScavs", 32,
                 new ConfigDescription("maximum resident ordinary-scav resources: living scavs plus uncleaned scav corpses. retiring a corpse refunds capacity, while recycled survivors add no cost. prevents corpse/resource accumulation without permanently exhausting later-map spawns. 0 = unlimited",
                     new AcceptableValueRange<int>(0, 120)));
+            FreshProfileWaveInterval = Config.Bind("Population", "FreshProfileWaveInterval", 5f,
+                new ConfigDescription("minimum seconds between Terminal admissions that must generate fresh bot profiles. fully recycled waves bypass this clock. 0 = disabled",
+                    new AcceptableValueRange<float>(0f, 30f)));
+            LowPopulationWaveInterval = Config.Bind("Population", "LowPopulationWaveInterval", 2f,
+                new ConfigDescription("fresh-profile wave interval while living AI is at or below LowPopulationWaveThreshold, allowing the map to refill faster when action is sparse. 0 = no delay in low-population catch-up",
+                    new AcceptableValueRange<float>(0f, 30f)));
+            LowPopulationWaveThreshold = Config.Bind("Population", "LowPopulationWaveThreshold", 12,
+                new ConfigDescription("effective AI count (living plus admitted/loading placements) at or below which LowPopulationWaveInterval replaces the normal fresh-profile interval",
+                    new AcceptableValueRange<int>(0, 60)));
             MaxBotsCreatedPerRaid = Config.Bind("Terminal", "MaxBotsCreatedPerRaid", 0,
                 new ConfigDescription("DIAGNOSTIC lifetime bot budget for one Terminal raid. each final bot placement consumes one slot and deaths do NOT refund it, so corpses/replacements/new gear cannot accumulate past this many unique bot instances. 0 = unlimited lifetime spawns; takes effect next raid",
                     new AcceptableValueRange<int>(0, 500)));
@@ -408,9 +421,11 @@ namespace Manimal.Terminal
                 new ConfigDescription("let bot/player weapon flashlights and IR illuminators cast real-time shadows. OFF is the fix for the north-half frame chop: these accumulate through a raid (1 -> 23 shadow casters measured) and each one re-renders shadow casters into a shadow map every frame against a 208k-renderer scene, stalling the GPU. corpses keep their lights on, which is why killing bots never helped. map lamps are unaffected — they follow LampShadows"));
             WorldDiff = Config.Bind("Terminal", "WorldDiff", false,
                 new ConfigDescription("automatic sawtooth-onset recorder: keeps 45 seconds of frame-phase history and recent map events, snapshots component counts plus per-instance animator/particle/audio/timeline/light/camera/probe state while smooth, then dumps the before/after evidence when postLate chop becomes sustained. causes a brief hitch during state snapshots: diagnostic raids only"));
+            SceneCensus = Config.Bind("Terminal", "SceneCensus", false,
+                new ConfigDescription("DIAGNOSTIC: scan all scene renderers, audio sources, particles, lights and cameras every 60 seconds. these whole-scene searches can cause a hitch on Terminal; leave off for normal play. lightweight frame timings and population heartbeats remain enabled"));
             TraceFrameCycle = Config.Bind("Terminal", "TraceFrameCycle", false,
                 new ConfigDescription("log frame timings 4x/sec so the chop's actual WAVEFORM is visible — period, duty cycle, and which phase leads. every other perf number here is a 30s average, which cannot resolve a ~4-5s cycle at all. noisy: diagnostic raids only"));
-            ProfilePlayerLoop = Config.Bind("Terminal", "ProfilePlayerLoop", true,
+            ProfilePlayerLoop = Config.Bind("Terminal", "ProfilePlayerLoop", false,
                 new ConfigDescription("TEST-BUILD DIAGNOSTIC: instrument Unity's PostLateUpdate subsystems individually (UpdateAllRenderers / UpdateAllSkinnedMeshes / PlayerUpdateCanvases / particles / cloth) and report per-system ms in the perf heartbeat. useful in tester logs; disable after the performance test cycle"));
             BreachDoorProbe = Config.Bind("Terminal", "BreachDoorProbe", false,
                 new ConfigDescription("log every door interaction's action list + full breach flag state when you look at a door — the why-is-BREACH-greyed-out switch"));
@@ -483,8 +498,11 @@ namespace Manimal.Terminal
             Patch(typeof(TerminalIntroCutscene.Patch_PlayAtRaidStart));
             Patch(typeof(TerminalAttackCutscene.Patch_ArmAttackTimer));
             Patch(typeof(TerminalShaderRebind.Patch_RebindAtRaidStart));
+            Patch(typeof(TerminalWater.Patch_PerPlaneMatrices));
             Patch(typeof(TerminalSoundRig.Patch_AttachAtRaidStart));
             Patch(typeof(TerminalAIBake.Patch_RestoreCoversData));
+            Patch(typeof(TerminalPathDiagnostics.Patch_CoverRoute));
+            Patch(typeof(TerminalPathDiagnostics.Patch_NavQuery));
             Patch(typeof(TerminalAIPlaces.Patch_BuildSpawnTriggers));
             Patch(typeof(TerminalBotFixes.Patch_CoversCache));
             Patch(typeof(TerminalBotFixes.Patch_BotDoorsRefresh));
@@ -532,7 +550,12 @@ namespace Manimal.Terminal
             Patch(typeof(Patch_EffectsControllerInit));
             Patch(typeof(TerminalCullingDriver.Patch_CaptureCamera));
             Patch(typeof(TerminalCullingDriver.Patch_AttachAtRaidStart));
-            Patch(typeof(TerminalGrass.Patch_RestoreAtRaidStart));
+            try { new TerminalGrass.Patch_RestoreAtRaidStart().Enable(); }
+            catch (System.Exception e) { Log.LogError($"grass patch FAILED: {e}"); }
+            try { new TerminalVegetation.TramplerAwakePatch().Enable(); }
+            catch (System.Exception e) { Log.LogError($"grass trampler patch FAILED: {e}"); }
+            try { new TerminalVegetation.RaidStartedPatch().Enable(); }
+            catch (System.Exception e) { Log.LogError($"vegetation patch FAILED: {e}"); }
             Patch(typeof(Patch_OcclusionWhenUninitialized));
             Patch(typeof(Patch_WindowBreakerPrewarm));
             Patch(typeof(Patch_SpawnPmcScan));
@@ -547,6 +570,7 @@ namespace Manimal.Terminal
             Patch(typeof(TerminalHoldLock.Patch_FreezeDuringHold));
             Patch(typeof(TerminalFinalExit.Patch_BuildZubrExit));
             Patch(typeof(Patch_PumpSwitchActions));
+            Patch(typeof(TerminalPumpStation.Patch_SelectAtRaidStart));
             Patch(typeof(TerminalEndingCutscene.Patch_InterceptExtraction));
             Patch(typeof(TerminalEpilogueScreen.Patch_HijackExitStatus));
             Patch(typeof(TerminalEpilogueScreen.Patch_TestArmOnAnyExit));
@@ -572,8 +596,8 @@ namespace Manimal.Terminal
             try { TerminalLockableDoorsOff.TryPatch(HarmonyInstance); }
             catch (System.Exception e) { Log.LogWarning($"lockable-doors shim failed: {e}"); }
 
-            // safety-net for the 2026-08-20 raid-start NRE (Class304.method_3 /
-            // Class308.LocalRaidStarted) — see TerminalCrashGuard.cs for the full story
+            // safety-net for the 2026-08-20 raid-start NRE (Backend.method_3 /
+            // EFT.EftClientBackendSession.LocalRaidStarted) — see TerminalCrashGuard.cs for the full story
             try { TerminalCrashGuard.TryPatch(HarmonyInstance); }
             catch (System.Exception e) { Log.LogError($"crash guard failed: {e}"); }
 

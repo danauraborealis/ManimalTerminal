@@ -26,6 +26,7 @@ namespace Manimal.Terminal
         private const string FallTrigger = "Fall_01_2944538615";
 
         private static bool _staged;
+        internal static bool Ready => _staged;
 
         // HandlerDelay deliberately OUT — gutted in this build, shimmed instead
         private static readonly HashSet<string> NativeSet = new HashSet<string>
@@ -117,9 +118,9 @@ namespace Manimal.Terminal
                 // and whether anything consumes (2026-08-18 raid: rig fully inert)
                 try
                 {
-                    GClass3592.Instance.Subscribe("Switch_crane_enter", new Action(() =>
+                    EFT.GameTriggers.TriggersEmitter.Instance.Subscribe("Switch_crane_enter", new Action(() =>
                         Plugin.Log.LogInfo("[Crane] TRIGGERED — player under the crane, fall chain should run")));
-                    GClass3592.Instance.Subscribe(FallTrigger, new Action(() =>
+                    EFT.GameTriggers.TriggersEmitter.Instance.Subscribe(FallTrigger, new Action(() =>
                         Plugin.Log.LogInfo("[Crane] fall trigger fired — animator should be dropping the crane")));
                 }
                 catch (Exception e) { Plugin.Log.LogWarning($"[Crane] diag subscribe failed: {e.Message}"); }

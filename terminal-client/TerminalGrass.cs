@@ -2,10 +2,12 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
+using System.Reflection;
 using System.Runtime.InteropServices;
 using EFT;
 using GPUInstancer;
 using HarmonyLib;
+using SPT.Reflection.Patching;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -25,10 +27,11 @@ namespace Manimal.Terminal
         private static GameObject _host;
         private static GPUInstancerPrefabPrototype _prototype;
 
-        [HarmonyPatch(typeof(GameWorld), nameof(GameWorld.OnGameStarted))]
-        internal static class Patch_RestoreAtRaidStart
+        internal sealed class Patch_RestoreAtRaidStart : ModulePatch
         {
-            [HarmonyPostfix]
+            protected override MethodBase GetTargetMethod() => AccessTools.Method(typeof(GameWorld), nameof(GameWorld.OnGameStarted));
+
+            [PatchPostfix]
             private static void Postfix()
             {
                 if (!TerminalGate.On || !Plugin.GrassEnabled.Value) return;
@@ -116,12 +119,12 @@ namespace Manimal.Terminal
                 _host.SetActive(true); // manager Awake/OnEnable builds native runtime data
 
                 byte[] bytes = File.ReadAllBytes(placementPath);
-                int stride = Marshal.SizeOf(typeof(GStruct116));
+                int stride = Marshal.SizeOf(typeof(GPUInstancer.GrassPrefabData));
                 if (bytes.Length == 0 || bytes.Length % stride != 0)
                     throw new InvalidDataException($"PCL length {bytes.Length} is not divisible by native stride {stride}");
 
                 int count = bytes.Length / stride;
-                var overlay = new GStruct115 { bytes = bytes };
+                var overlay = new GPUInstancer.GrassData { bytes = bytes };
                 var matrices = new Matrix4x4[count];
                 var variants = new int[count];
                 for (int i = 0; i < count; i++)
@@ -215,9 +218,9 @@ namespace Manimal.Terminal
             manager.SetColorBuffers(
                 new List<Color> { new Color(1f, 0.9411765f, 0.0784314f, 0f), new Color(0.4745098f, 0.5607843f, 0.35686275f, 0f) },
                 new List<Color> { new Color(1f, 0.6156863f, 0.20000002f, 0f), Color.white });
-            GClass1257.InitializeWithMatrix4x4Array(manager, prototype, matrices);
-            GClass1257.SetInstanceCount(manager, prototype, matrices.Length);
-            GClass1257.DefineAndAddVariationFromArray(manager, prototype, VariationBuffer, variants);
+            GPUInstancer.GPUInstancerAPI.InitializeWithMatrix4x4Array(manager, prototype, matrices);
+            GPUInstancer.GPUInstancerAPI.SetInstanceCount(manager, prototype, matrices.Length);
+            GPUInstancer.GPUInstancerAPI.DefineAndAddVariationFromArray(manager, prototype, VariationBuffer, variants);
         }
 
         private static void MoveIntoGrassScene(GameObject host)
@@ -261,13 +264,17 @@ namespace Manimal.Terminal
 
         private static Shader FindGameShader(string name)
         {
+            // Shader.Find can return the imported shader with the same name.
+            // Prefer the game's registered donor, as Lighthouse does.
+            if (ShadersFinder.SHADERS.TryGetValue(name, out Shader registered)
+                && registered != null && registered.isSupported) return registered;
             Shader shader = Shader.Find(name);
-            if (shader == null)
+            if (shader == null || !shader.isSupported)
             {
-                try { shader = GClass872.Find(name); }
+                try { shader = ShadersFinder.Find(name); }
                 catch { }
             }
-            return shader;
+            return shader != null && shader.isSupported ? shader : null;
         }
 
         private static Material FindNativeMaterial(string name, Shader shader)

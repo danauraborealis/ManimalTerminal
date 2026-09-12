@@ -7,6 +7,10 @@
     <Nullable>disable</Nullable>
     <LangVersion>latest</LangVersion>
     <Configurations>Debug;Release</Configurations>
+    <Authors>$(ModUsername)</Authors>
+    <Version>$(ModVersion)</Version>
+    <AssemblyVersion>$(ModVersion).0</AssemblyVersion>
+    <FileVersion>$(AssemblyVersion)</FileVersion>
   </PropertyGroup>
 
   <ItemGroup>
@@ -17,11 +21,11 @@
       <HintPath>$(SPTPath)\BepInEx\core\Mono.Cecil.dll</HintPath>
     </Reference>
     <Reference Include="MoreBotsPrepatch">
-      <HintPath>$(SPTPath)\BepInEx\patchers\MoreBotsPrepatch.dll</HintPath>
+      <HintPath>$(SPTPath)\BepInEx\patchers\MoreBotsPrepatch\MoreBotsPrepatch.dll</HintPath>
     </Reference>
   </ItemGroup>
 
-  <Target Name="DevDeploy" AfterTargets="PostBuildEvent">
+  <Target Name="DevDeploy" AfterTargets="PostBuildEvent" Condition="'$(SkipDeploy)' != 'true'">
     <MakeDir Directories="$(SPTPath)\BepInEx\patchers\ManimalTerminalPrepatch" />
     <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(SPTPath)\BepInEx\patchers\ManimalTerminalPrepatch" />
   </Target>

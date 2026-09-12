@@ -7,16 +7,18 @@ using BezierSplineTools;
 using Comfort.Common;
 using EFT;
 using UnityEngine;
+using UnityEngine.Audio;
 using UnityEngine.Networking;
 using UnityEngine.SceneManagement;
 
 namespace Manimal.Terminal
 {
     // Terminal_Sound retains the two retail sea splines, their native
-    // SoundAmbientZoneCalculators and all six LoopAmbientSoundPlayers. Only the three
-    // sharedassets clips are absent from the custom bundle. This loader supplies those
-    // assets before TerminalAcoustics stages the retail ambient tree; Tarkov's native
-    // spline controllers own playback, positioning, spread and distance from then on.
+    // SoundAmbientZoneCalculators and six LoopAmbientSoundPlayers (three belong to
+    // an inactive alternate branch). The three sharedassets clips are absent
+    // from the custom bundle. Supply those assets and
+    // project dedicated sources onto the original splines. Do not let the partially
+    // initialized native zone/culling stack also own these playback sources.
     internal static class TerminalShoreAudio
     {
         private static TerminalShoreAudioLoader _instance;
@@ -44,29 +46,29 @@ namespace Manimal.Terminal
         }
 
         internal static void MarkReady() => _assetsReady = true;
+        internal static void MarkReloading() => _assetsReady = false;
     }
 
     // Run after Tarkov's default-order AmbientAudioSystem.LateUpdate so the safety
-    // projection is the final authority for these six sources each frame.
+    // projection is the final authority for these sources each frame.
     [DefaultExecutionOrder(10000)]
     internal sealed class TerminalShoreAudioLoader : MonoBehaviour
     {
-        // Retail's two sea splines are closed. In the original 1.0 location their
-        // surrounding ambient stack supplies a correctly initialized listener and
-        // zone state. In the custom-map reconstruction an incomplete native init can
-        // instead take SoundAmbientZoneCalculator's "inside loop" branch, which sets
-        // maxDistance=float.MaxValue and spatialBlend=0. That is the global,
-        // deafening ocean reported by testers. Keep the retail spline geometry and
-        // authored player rolloffs, but deterministically project each branch onto
-        // its own spline and enforce a physical shoreline cutoff.
-        private const float HardCutoffMeters = 115f;
+        // The native ambient dependency graph is still incomplete. Until it owns
+        // playback, position these sources on the authored splines and retain each
+        // player's own distance/rolloff pair. Unity normalizes custom rolloff by
+        // maxDistance: replacing the authored 85/100m with 220m moved the loud
+        // offshore layers inland, including the spawn room at ~104m.
         private const int SplineSamples = 160;
 
         private sealed class ShoreSource
         {
             internal AudioSource Source;
-            internal float AuthoredMaxDistance;
+            internal AudioClip Clip;
             internal float AuthoredVolume;
+            internal AudioSource NativeSource;
+            internal float NextStartAttempt;
+            internal int PreviousSample = -1;
         }
 
         private sealed class ShoreBranch
@@ -79,23 +81,58 @@ namespace Manimal.Terminal
         private readonly List<AudioClip> _ownedClips = new List<AudioClip>();
         private readonly List<ShoreBranch> _branches = new List<ShoreBranch>();
         private float _nextRoutingCheck;
-        private bool _nativeRoutingLogged;
+        private AudioMixerGroup _mixer;
+        private float _nextPlaybackDiagnostic;
         private bool _guardLogged;
         private bool _guardStateKnown;
         private bool _lastGuardAudible;
+        private int _audioGeneration;
+        private bool _reloadClips;
+        private bool _loadingClips;
+
+        private void Awake()
+        {
+            AudioSettings.OnAudioConfigurationChanged += OnAudioConfigurationChanged;
+        }
+
+        private void OnAudioConfigurationChanged(bool deviceWasChanged)
+        {
+            // LocalGame resets the audio engine after scene loading. Downloaded
+            // clips then report Loaded but have zero samples; LoadAudioData cannot
+            // recover them. Read the WAVs again, including after device changes.
+            _audioGeneration++;
+            _reloadClips = true;
+            TerminalShoreAudio.MarkReloading();
+            Plugin.Log.LogInfo($"[ShoreAudio] audio engine reset; reloading shoreline WAVs (deviceChanged={deviceWasChanged})");
+        }
 
         private IEnumerator Start()
         {
-            yield return Load("amb_terminal_spline_sea_close_quite.wav", "amb_terminal_spline_sea_close_quite");
-            yield return Load("amb_terminal_spline_sea_distant_quite.wav", "amb_terminal_spline_sea_distant_quite");
-            yield return Load("amb_terminal_spline_sea_far_quite.wav", "amb_terminal_spline_sea_far_quite");
-            TerminalShoreAudio.MarkReady();
-            Plugin.Log.LogInfo($"[ShoreAudio] native shoreline assets ready: {_ownedClips.Count}/3 clip(s); "
-                + "retail SoundAmbientZoneCalculators now own playback and positioning");
+            yield return ReloadClips();
         }
 
-        private IEnumerator Load(string fileName, string clipName)
+        private IEnumerator ReloadClips()
         {
+            _loadingClips = true;
+            do
+            {
+                _reloadClips = false;
+                int generation = _audioGeneration;
+                yield return Load("amb_terminal_spline_sea_close_quite.wav", "amb_terminal_spline_sea_close_quite", generation);
+                yield return Load("amb_terminal_spline_sea_distant_quite.wav", "amb_terminal_spline_sea_distant_quite", generation);
+                yield return Load("amb_terminal_spline_sea_far_quite.wav", "amb_terminal_spline_sea_far_quite", generation);
+                // A reset during an asynchronous read invalidates that whole pass.
+            } while (_reloadClips);
+            _loadingClips = false;
+            TerminalShoreAudio.MarkReady();
+            int valid = _ownedClips.FindAll(c => c && c.samples > 0).Count;
+            Plugin.Log.LogInfo($"[ShoreAudio] native shoreline assets ready: {valid}/3 clip(s); "
+                + "dedicated playback will follow the authored sea group membership");
+        }
+
+        private IEnumerator Load(string fileName, string clipName, int generation)
+        {
+            if (generation != _audioGeneration) yield break;
             string path = Path.Combine(Path.GetDirectoryName(typeof(Plugin).Assembly.Location) ?? ".",
                 "plugin-data", "audio", fileName);
             if (!File.Exists(path))
@@ -115,25 +152,44 @@ namespace Manimal.Terminal
 
                 var clip = DownloadHandlerAudioClip.GetContent(request);
                 if (!clip) yield break;
+                if (generation != _audioGeneration || clip.samples <= 0)
+                {
+                    Destroy(clip);
+                    yield break;
+                }
                 clip.name = clipName;
+                var previous = _ownedClips.Find(c => c && c.name == clipName);
+                if (previous) _ownedClips.Remove(previous);
                 _ownedClips.Add(clip);
-                TerminalAcoustics.RegisterRecoveredLoopClip(clipName, clip);
+                // Rebind both native authoring and any already-created playback
+                // sources without waking native players that we have taken over.
+                TerminalAcoustics.RegisterRecoveredLoopClip(clipName, clip, _branches.Count == 0);
+                foreach (var branch in _branches)
+                    foreach (var state in branch.Sources)
+                        if (state.Clip && state.Clip.name == clipName)
+                        {
+                            state.Clip = clip;
+                            state.NextStartAttempt = 0f;
+                            state.PreviousSample = -1;
+                            if (state.Source)
+                            {
+                                state.Source.Stop();
+                                state.Source.clip = clip;
+                            }
+                        }
+                if (previous) Destroy(previous);
+                Plugin.Log.LogInfo($"[ShoreAudio] loaded '{clipName}': samples={clip.samples}, channels={clip.channels}, frequency={clip.frequency}");
             }
         }
 
         private void Update()
         {
+            if (_reloadClips && !_loadingClips) StartCoroutine(ReloadClips());
             if (!TerminalShoreAudio.AssetsReady || Time.realtimeSinceStartup < _nextRoutingCheck) return;
             _nextRoutingCheck = Time.realtimeSinceStartup + 1f;
-            if (!_nativeRoutingLogged)
-            {
-                int nativeSources = TerminalAcoustics.EnsureNativeShoreRouting();
-                if (nativeSources > 0)
-                {
-                    _nativeRoutingLogged = true;
-                    Plugin.Log.LogInfo($"[ShoreAudio] {nativeSources} native shoreline source(s) verified on Tarkov's AmbientOut mixer");
-                }
-            }
+            // Cache mixer lookup, especially while BetterAudio is still starting.
+            // No global Resources scans in the per-frame positioning path.
+            _mixer = TerminalAudioRouting.AmbientBed();
 
             if (_branches.Count == 0 && TerminalAcoustics.AmbientStaged)
                 DiscoverBranches();
@@ -141,7 +197,7 @@ namespace Manimal.Terminal
 
         private void LateUpdate()
         {
-            if (_branches.Count == 0) return;
+            if (_branches.Count == 0 || !TerminalShoreAudio.AssetsReady) return;
 
             Player player = Singleton<GameWorld>.Instantiated
                 ? Singleton<GameWorld>.Instance?.MainPlayer
@@ -149,8 +205,8 @@ namespace Manimal.Terminal
             bool masterAudible = true;
             try
             {
-                if (Singleton<SharedGameSettingsClass>.Instantiated)
-                    masterAudible = Singleton<SharedGameSettingsClass>.Instance
+                if (Singleton<EFT.Settings.SettingsManager>.Instantiated)
+                    masterAudible = Singleton<EFT.Settings.SettingsManager>.Instance
                         ?.Sound?.Settings?.OverallVolume?.Value > 0;
             }
             catch { }
@@ -158,6 +214,9 @@ namespace Manimal.Terminal
             Vector3 listener = player != null ? player.Position : Vector3.zero;
             float nearestSq = float.MaxValue;
             bool anyBranchInRange = false;
+            int playingSources = 0;
+            bool diagnose = Time.realtimeSinceStartup >= _nextPlaybackDiagnostic;
+            if (diagnose) _nextPlaybackDiagnostic = Time.realtimeSinceStartup + 30f;
             foreach (var branch in _branches)
             {
                 if (branch?.Spline == null) continue;
@@ -176,33 +235,58 @@ namespace Manimal.Terminal
                     closest = point;
                 }
 
-                bool inRange = player != null && closestSq <= HardCutoffMeters * HardCutoffMeters;
                 if (closestSq < nearestSq) nearestSq = closestSq;
-                anyBranchInRange |= inRange;
+                float sourceDistanceSq = (closest - listener).sqrMagnitude;
                 foreach (var state in branch.Sources)
                 {
                     var source = state.Source;
                     if (!source) continue;
-                    // Run after AmbientAudioSystem.LateUpdate so its broken closed-loop
-                    // "inside" result cannot put these sources back into 2D/global mode.
+                    bool inRange = player != null && sourceDistanceSq <= source.maxDistance * source.maxDistance;
+                    anyBranchInRange |= inRange;
+                    // The original source is no longer a playback owner. In particular,
+                    // AudioSourceCulling may toggle its enabled flag but cannot restart
+                    // an inactive GO, and cannot touch this unregistered replacement.
+                    if (state.NativeSource && state.NativeSource.gameObject.activeSelf)
+                        state.NativeSource.gameObject.SetActive(false);
                     source.transform.position = closest;
-                    source.spatialBlend = 1f;
-                    source.maxDistance = state.AuthoredMaxDistance;
                     // Terminal's F12 sound-rig volume is a continuous local trim;
                     // Tarkov's overall-volume slider continues to act in the mixer.
                     source.volume = state.AuthoredVolume * Mathf.Clamp01(Plugin.SoundRigVolume.Value);
-                    source.mute = !masterAudible || !inRange || !TerminalAudioRouting.Route(source);
+                    source.outputAudioMixerGroup = _mixer;
+                    source.mute = !masterAudible || !inRange || !_mixer;
+                    bool shouldPlay = !source.mute && source.volume > 0f && source.gameObject.activeInHierarchy;
+                    if (shouldPlay && !source.isPlaying && Time.realtimeSinceStartup >= state.NextStartAttempt)
+                    {
+                        state.NextStartAttempt = Time.realtimeSinceStartup + 1f;
+                        source.enabled = true;
+                        if (state.Clip.loadState == AudioDataLoadState.Unloaded) state.Clip.LoadAudioData();
+                        if (state.Clip.loadState == AudioDataLoadState.Loaded && state.Clip.samples > 0) source.Play();
+                    }
+                    else if (!shouldPlay && source.isPlaying) source.Stop();
+                    if (source.isPlaying && !source.mute) playingSources++;
+                    if (diagnose)
+                    {
+                        int sample = source.timeSamples;
+                        Plugin.Log.LogInfo($"[ShoreAudio][playback] '{state.Clip.name}' playing={source.isPlaying}"
+                            + $" enabled={source.enabled} active={source.gameObject.activeInHierarchy} mute={source.mute}"
+                            + $" volume={source.volume:F2} pitch={source.pitch:F2} load={state.Clip.loadState}"
+                            + $" clipSamples={state.Clip.samples} listenerPaused={AudioListener.pause}"
+                            + $" distance={Mathf.Sqrt(sourceDistanceSq):F1}m maxDistance={source.maxDistance:F1}m"
+                            + $" sample={sample} previousSample={state.PreviousSample}"
+                            + $" mixer='{(_mixer ? _mixer.name : "missing")}'");
+                        state.PreviousSample = sample;
+                    }
                 }
             }
 
-            bool guardAudible = masterAudible && anyBranchInRange;
+            bool guardAudible = playingSources > 0;
             if (!_guardStateKnown || guardAudible != _lastGuardAudible)
             {
                 _guardStateKnown = true;
                 _lastGuardAudible = guardAudible;
-                Plugin.Log.LogInfo($"[ShoreAudio] shoreline {(guardAudible ? "AUDIBLE" : "MUTED")}: "
+                Plugin.Log.LogInfo($"[ShoreAudio] shoreline {(guardAudible ? "PLAYING" : "STOPPED")}: "
                     + $"nearestSpline={(nearestSq < float.MaxValue ? Mathf.Sqrt(nearestSq).ToString("F0") : "n/a")}m, "
-                    + $"masterAudible={masterAudible}");
+                    + $"masterAudible={masterAudible}, inRange={anyBranchInRange}, playingSources={playingSources}");
             }
         }
 
@@ -228,24 +312,60 @@ namespace Manimal.Terminal
                     if (!emitterRoot) continue;
                     foreach (var player in emitterRoot.GetComponentsInChildren<BaseAmbientSoundPlayer>(true))
                     {
-                        if (!player) continue;
+                        // Hierarchy presence is not playback membership. Retail's
+                        // group lists three players; the louder alternate branch is
+                        // authored inactive and must not be woken by this fallback.
+                        if (!player || !TerminalAcoustics.IsConfiguredShorePlayer(player)) continue;
                         var clip = player.GetClip();
                         if (!clip || !clip.name.StartsWith("amb_terminal_spline_sea_",
                                 StringComparison.OrdinalIgnoreCase)) continue;
                         var source = player.Source;
                         if (!source) continue;
-                        // Native inside-loop handling may already have replaced this
-                        // with float.MaxValue, so recover the retail per-layer values.
+                        // Activate only the branch selected by the authored group.
+                        for (var t = player.transform; t != null && t != ambientRoot; t = t.parent)
+                            if (!t.gameObject.activeSelf) t.gameObject.SetActive(true);
                         float authoredVolume = player.GetBaseVolume();
-                        float authoredMax = clip.name.IndexOf("far", StringComparison.OrdinalIgnoreCase) >= 0
-                            && authoredVolume < 0.3f ? 100f : 85f;
+                        // The native calculator can temporarily expand maxDistance
+                        // inside a closed zone. Its public reset uses _maxDistance,
+                        // restoring the player's serialized value before we copy it.
+                        player.ScaleMaxDistance(0f);
+                        // Copy the authored layered rolloff, not the native calculator's
+                        // mutated 2D blend or infinite maxDistance. Parent under the sea
+                        // group so cutscene/root silencing still applies automatically.
+                        var go = new GameObject("Terminal_Shore_" + clip.name);
+                        go.SetActive(false);
+                        go.transform.SetParent(root, false);
+                        var playback = go.AddComponent<AudioSource>();
+                        playback.playOnAwake = false;
+                        playback.loop = true;
+                        playback.clip = clip;
+                        playback.pitch = player.GetPitch();
+                        playback.spatialBlend = 1f;
+                        playback.dopplerLevel = 0f;
+                        playback.minDistance = source.minDistance;
+                        playback.maxDistance = source.maxDistance;
+                        playback.rolloffMode = AudioRolloffMode.Custom;
+                        playback.SetCustomCurve(AudioSourceCurveType.CustomRolloff,
+                            source.GetCustomCurve(AudioSourceCurveType.CustomRolloff));
+                        playback.spread = source.spread;
+                        playback.SetCustomCurve(AudioSourceCurveType.Spread,
+                            source.GetCustomCurve(AudioSourceCurveType.Spread));
+                        playback.volume = 0f;
+                        playback.mute = true;
+                        playback.outputAudioMixerGroup = _mixer;
+                        Plugin.Log.LogInfo($"[ShoreAudio] taking over '{clip.name}': nativeEnabled={source.enabled},"
+                            + $" nativePlaying={source.isPlaying}, nativePitch={source.pitch:F2}; "
+                            + $"dedicated source, authored range={playback.minDistance:F1}-{playback.maxDistance:F1}m, same spline/rolloff");
+                        player.Stop(true); // cancels fader/play coroutines and unregisters from culling
+                        source.gameObject.SetActive(false);
+                        go.SetActive(true);
                         branch.Sources.Add(new ShoreSource
                         {
-                            Source = source,
-                            AuthoredMaxDistance = authoredMax,
+                            Source = playback,
+                            NativeSource = source,
+                            Clip = clip,
                             AuthoredVolume = authoredVolume,
                         });
-                        source.mute = true;
                     }
                     if (branch.Sources.Count > 0) _branches.Add(branch);
                 }
@@ -256,13 +376,18 @@ namespace Manimal.Terminal
                 _guardLogged = true;
                 int sources = 0;
                 foreach (var branch in _branches) sources += branch.Sources.Count;
-                Plugin.Log.LogInfo($"[ShoreAudio] spline guard ready: {_branches.Count} authored branch(es), "
-                    + $"{sources} source(s), {HardCutoffMeters:F0}m hard cutoff + game master-volume zero gate");
+                _nextPlaybackDiagnostic = Time.realtimeSinceStartup + 10f;
+                Plugin.Log.LogInfo($"[ShoreAudio] dedicated spline playback ready: {_branches.Count} authored branch(es), "
+                    + $"{sources} source(s), per-player authored ranges, AmbientSplines={Plugin.AmbientSplines.Value}, AmbientOut/master-volume gate");
             }
         }
 
         private void OnDestroy()
         {
+            AudioSettings.OnAudioConfigurationChanged -= OnAudioConfigurationChanged;
+            foreach (var branch in _branches)
+                foreach (var state in branch.Sources)
+                    if (state.Source) Destroy(state.Source.gameObject);
             foreach (var clip in _ownedClips)
                 if (clip) Destroy(clip);
             _ownedClips.Clear();

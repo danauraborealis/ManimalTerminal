@@ -52,12 +52,14 @@ namespace Manimal.Terminal
         internal static class Patch_InterceptExtraction
         {
             [HarmonyPrefix]
-            private static bool Prefix(LocalGame __instance, string profileId, ExitStatus exitStatus, string exitName, float delay)
+            internal static bool Prefix(BaseLocalGame<EftGamePlayerOwner> __instance, string profileId, ExitStatus exitStatus, string exitName, float delay)
             {
                 try
                 {
                     if (PassThrough) return true;
                     if (!TerminalGate.On || !Plugin.EndingCutscene.Value) return true;
+                    var local = Singleton<GameWorld>.Instance?.MainPlayer;
+                    if (!TerminalCoop.IsHuman(local) || local.ProfileId != profileId) return true;
                     // the 3-minute evac timer keeps RUNNING under the take — its
                     // MissingInAction stop raced in mid-cutscene and ended the raid
                     // under us (2026-08-18 raid: MIA screen + truncated ending). while
@@ -83,8 +85,13 @@ namespace Manimal.Terminal
                     // No encounter can be reached after extraction. Stop every admission
                     // path first, then use EFT's native non-corpse despawn so the long
                     // cinematic does not render/tick an unseen battlefield behind it.
-                    TerminalSpawnGate.StopForEnding();
-                    TerminalPopulationDirector.DespawnAllForEnding();
+                    // Other humans may still be fighting. A local extraction must
+                    // never shut down the host's world or despawn their enemies.
+                    if (!TerminalCoop.Active)
+                    {
+                        TerminalSpawnGate.StopForEnding();
+                        TerminalPopulationDirector.DespawnAllForEnding();
+                    }
                     var go = new GameObject("Terminal_EndingCutscene");
                     var c = go.AddComponent<EndingRunner>();
                     c.Game = __instance;
@@ -103,7 +110,7 @@ namespace Manimal.Terminal
 
     internal class EndingRunner : MonoBehaviour
     {
-        public LocalGame Game;
+        public BaseLocalGame<EftGamePlayerOwner> Game;
         public string ProfileId;
         public string ExitName;
 
@@ -159,7 +166,7 @@ namespace Manimal.Terminal
 
             try { TerminalShaderRebind.RebindNow(); }
             catch (Exception e) { Plugin.Log.LogWarning($"[Ending] shader rebind failed: {e.Message}"); }
-            try { TerminalLights.CutsceneShowAll(); }
+            try { TerminalLights.CutsceneBeginLightTracking(); }
             catch (Exception e) { Plugin.Log.LogWarning($"[Ending] culler hold failed: {e.Message}"); }
 
             foreach (var rgo in _scene.GetRootGameObjects())
@@ -203,7 +210,7 @@ namespace Manimal.Terminal
             var lst = _rigCam.GetComponent<AudioListener>();
             if (lst != null) lst.enabled = false;
 
-            _realCam = CameraClass.Instance?.Camera;
+            _realCam = EFT.CameraControl.CameraManager.Instance?.Camera;
             if (_realCam == null) _realCam = Camera.main;
             if (_realCam == null) { Bail("no main camera"); yield break; }
 
@@ -361,7 +368,7 @@ namespace Manimal.Terminal
                 {
                     var prof = Singleton<GameWorld>.Instance?.MainPlayer?.Profile;
                     if (prof != null)
-                        voice = Singleton<CustomizationSolverClass>.Instance
+                        voice = Singleton<EFT.CustomizationSolver>.Instance
                             .GetVoice(prof.Customization[EBodyModelPart.Voice])?.Name ?? "";
                 }
                 catch { }
@@ -717,6 +724,7 @@ namespace Manimal.Terminal
             if (cam != _realCam || _rigCam == null) return;
             var t = _rigCam.transform;
             cam.transform.SetPositionAndRotation(t.position, t.rotation);
+			TerminalLights.TrackCutsceneCamera(t.position);
             float want = _rigCam.fieldOfView;
             if (want > 1f && want < 179f) cam.fieldOfView = want;
         }

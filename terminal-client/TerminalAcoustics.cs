@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using SysIoPath = System.IO.Path;
 using Audio.AmbientSubsystem;
 using Audio.SpatialSystem;
@@ -157,7 +156,7 @@ namespace Manimal.Terminal
 
                 root.SetActive(false);
                 var em = root.AddComponent<EnvironmentManager>();
-                var emRow = (sc["scenes"]?["Terminal_Scripts"]?["EnvironmentManager"] as JArray)?.FirstOrDefault();
+                var emRow = (sc["scenes"]?["Terminal_Scripts"]?["EnvironmentManager"] as JArray)?.First;
                 if (emRow?["fields"] is JObject emFields)
                     FillFields(em, emFields, name => name != "Bounds");
                 // same reasoning as the per-trigger offsets above: don't let the manager
@@ -199,6 +198,9 @@ namespace Manimal.Terminal
         // read (the same deactivated-create discipline the spatial tier uses).
         private static GameObject _ambientRoot;
         private static Dictionary<long, Component> _ambientComponents;
+        private static readonly HashSet<Component> _configuredShorePlayers = new HashSet<Component>();
+
+        internal static bool IsConfiguredShorePlayer(Component player) => _configuredShorePlayers.Contains(player);
         private static readonly Dictionary<string, UnityEngine.Object> _banks =
             new Dictionary<string, UnityEngine.Object>();
         private static readonly HashSet<string> _bankClipMisses = new HashSet<string>();
@@ -210,6 +212,7 @@ namespace Manimal.Terminal
         {
             _recoveredLoopClips.Clear();
             _ambientComponents = null;
+            _configuredShorePlayers.Clear();
             _clipCache = null;
             _shoreAssetWaitLogged = false;
         }
@@ -217,7 +220,7 @@ namespace Manimal.Terminal
         // The three sea clips live in retail sharedassets rather than the custom map
         // bundle. Register them in FindClip's catalog before the one-shot ambient-tree
         // stage; the late repair remains as a defensive recovery path.
-        internal static void RegisterRecoveredLoopClip(string clipName, AudioClip clip)
+        internal static void RegisterRecoveredLoopClip(string clipName, AudioClip clip, bool wakePlayers = true)
         {
             if (string.IsNullOrEmpty(clipName) || !clip) return;
             _recoveredLoopClips[clipName] = clip;
@@ -237,6 +240,8 @@ namespace Manimal.Terminal
 
                 var fi = AccessTools.Field(player.GetType(), "_loopClip");
                 if (fi != null && fi.FieldType == typeof(AudioClip)) fi.SetValue(player, clip);
+                if (!wakePlayers || (IsUnderSeaGroup(player.transform) && !IsConfiguredShorePlayer(player)))
+                { bound++; continue; }
                 // These authored emitter branches ship inactive and normally wake
                 // only after their clip is available. A disk load may complete after
                 // ambient staging, so activate the branch now (but never override a
@@ -259,10 +264,10 @@ namespace Manimal.Terminal
             Plugin.Log.LogInfo($"[ShoreAudio] '{clipName}' bound to {bound} authored shoreline player(s)");
         }
 
-        // creation order: content providers first, consumers after. every one of these
-        // is alive in 4.0's Assembly-CSharp (verified 2026-08-11); the season/event
-        // variants are deliberately absent — their 1.0 preset structs still drift and
-        // their rows carry parse_error.
+        // Content providers precede consumers. Season/event variants remain excluded
+        // from this shipped graph until their recovered dependencies are wired.
+        // Their old parse errors were generator string-list defects, not proof of
+        // incompatible 1.0 structs: see docs/TERMINAL-PARITY.md and the recovery tool.
         private static readonly string[] AmbientClasses =
         {
             "BezierSpline", "SoundPoint", "SoundPointsManager",
@@ -319,7 +324,7 @@ namespace Manimal.Terminal
                         found++;
                         float d = me != null ? (src.transform.position - me.Position).magnitude : -1f;
                         Plugin.Log.LogInfo($"[Ambient][sea] '{src.gameObject.name}' clip='{(src.clip ? src.clip.name : "NULL")}'"
-                            + $" playing={src.isPlaying} vol={src.volume:F2} blend={src.spatialBlend:F1}"
+                            + $" playing={src.isPlaying} enabled={src.enabled} mute={src.mute} pitch={src.pitch:F2} vol={src.volume:F2} blend={src.spatialBlend:F1}"
                             + $" maxDist={src.maxDistance:F0} activeGO={src.gameObject.activeInHierarchy} dist={d:F0}m"
                             + $" mixer='{(src.outputAudioMixerGroup ? src.outputAudioMixerGroup.name : "BYPASS/NULL")}'");
                     }
@@ -482,7 +487,7 @@ namespace Manimal.Terminal
             var sound = sc?["scenes"]?["Terminal_Sound"] as JObject;
             if (sound == null) return false;
 
-            var sysRow = Rows(sound, "AmbientAudioSystem").FirstOrDefault();
+            var sysRow = Rows(sound, "AmbientAudioSystem").First;
             var rootPath = sysRow?.Value<string>("go") ?? "AmbientAudioSystem";
             var goIndex = BuildGoIndex();
             if (!goIndex.TryGetValue(rootPath, out var roots) || roots.Count == 0)
@@ -629,6 +634,11 @@ namespace Manimal.Terminal
                 // sea sources logged clip=NULL/activeGO=False despite valid sea clips.
                 _ambientRoot = root;
                 _ambientComponents = comps;
+                _configuredShorePlayers.Clear();
+                foreach (long id in TerminalShoreAuthoring.ConfiguredPlayerIds(sound))
+                    if (comps.TryGetValue(id, out var shorePlayer) && shorePlayer)
+                        _configuredShorePlayers.Add(shorePlayer);
+                Plugin.Log.LogInfo($"[Ambient] shoreline playback membership: {_configuredShorePlayers.Count} player(s) from the authored sea group");
                 int woken = WakeGroupPlayers(comps);
                 if (grouped > 0 || pruned > 0 || woken > 0)
                     Plugin.Log.LogInfo($"[Ambient] spline emitters: {grouped} group emitter(s) wired (sea/waves), {pruned} dead emitter/mover(s) pruned, {woken} loop player(s) woken");
@@ -643,7 +653,18 @@ namespace Manimal.Terminal
                         var initialized = AccessTools.PropertyGetter(sysType, "Initialized");
                         bool already = initialized != null && (bool)initialized.Invoke(sysComp, null);
                         if (!already) AccessTools.Method(sysType, "Initialize")?.Invoke(sysComp, null);
-                        Plugin.Log.LogInfo("[Ambient] AmbientAudioSystem initialized");
+                        // Initialize catches its own exceptions and may also defer to
+                        // the season controller. Returning is not proof of success.
+                        bool ready = initialized != null && (bool)initialized.Invoke(sysComp, null);
+                        if (ready) Plugin.Log.LogInfo("[Ambient] AmbientAudioSystem initialized (native state verified)");
+                        else
+                        {
+                            bool effectsPresent = AccessTools.Field(sysType, "EffectsData")?.GetValue(sysComp)
+                                is UnityEngine.Object effects && effects;
+                            Plugin.Log.LogWarning($"[Ambient] tree staged but native initialization is incomplete "
+                                + $"(EffectsData present={effectsPresent}); native spline updates are not ready. "
+                                + "Check the game's ambient-init errors or pending season initialization.");
+                        }
                     }
                 }
                 catch (Exception e) { Plugin.Log.LogWarning($"[Ambient] system init failed: {e.Message}"); }
@@ -664,7 +685,7 @@ namespace Manimal.Terminal
                 _seaDiagAt = Time.realtimeSinceStartup + 30f;
                 if (_bankClipMisses.Count > 0)
                     Plugin.Log.LogWarning($"[Ambient] {_bankClipMisses.Count} bank clip(s) missing from the bundle "
-                        + $"(rerun Author 26 + rebuild): {string.Join(", ", _bankClipMisses.Take(6).ToArray())}"
+                        + $"(rerun Author 26 + rebuild): {string.Join(", ", new List<string>(_bankClipMisses).GetRange(0, Math.Min(6, _bankClipMisses.Count)))}"
                         + (_bankClipMisses.Count > 6 ? "..." : ""));
                 return true;
             }
@@ -805,6 +826,7 @@ namespace Manimal.Terminal
             foreach (var player in players)
             {
                 if (!loopType.IsInstanceOfType(player)) continue;
+                if (IsUnderSeaGroup(player.transform) && !IsConfiguredShorePlayer(player)) continue;
                 var clip = fLoopClip?.GetValue(player) as AudioClip;
                 if (clip == null) continue;
                 // walk parents, activate anything inactive up to the ambient root
@@ -935,6 +957,7 @@ namespace Manimal.Terminal
                         float maxD = f.Value<float?>("_maxDistance") ?? 40f;
                         bool onAwake = (f.Value<int?>("_playOnAwake") ?? 0) != 0;
                         var rtr = f["_randomTimeRange"] as JObject;
+                        var rolloff = Curve(f["_rolloffCurve"]);
 
                         var sources = t.GetComponents<AudioSource>();
                         if (sources.Length == 0) sources = t.GetComponentsInChildren<AudioSource>(true);
@@ -946,6 +969,11 @@ namespace Manimal.Terminal
                             src.spatialBlend = blend;
                             src.minDistance = minD;
                             src.maxDistance = maxD;
+                            if (rolloff != null && rolloff.length > 0)
+                            {
+                                src.rolloffMode = AudioRolloffMode.Custom;
+                                src.SetCustomCurve(AudioSourceCurveType.CustomRolloff, rolloff);
+                            }
                             if (isLoop)
                             {
                                 src.loop = true;
@@ -1070,7 +1098,7 @@ namespace Manimal.Terminal
                 if (info == null) return outp;
                 void Collect(IEnumerable<HarmonyLib.Patch> patches, HarmonyPatchType kind)
                 {
-                    foreach (var p in patches ?? Enumerable.Empty<HarmonyLib.Patch>())
+                    foreach (var p in patches ?? Array.Empty<HarmonyLib.Patch>())
                         if (p.owner != null && !p.owner.StartsWith(BuildInfo.ModGuid, StringComparison.OrdinalIgnoreCase))
                             outp.Add(new Suspended { Target = target, Patch = p, Kind = kind });
                 }
@@ -1079,8 +1107,12 @@ namespace Manimal.Terminal
                 var h = new Harmony(BuildInfo.ModGuid + ".spatialisolation");
                 foreach (var s in outp) h.Unpatch(s.Target, s.Patch.PatchMethod);
                 if (outp.Count > 0)
+                {
+                    var owners = new HashSet<string>();
+                    foreach (var suspended in outp) owners.Add(suspended.Patch.owner);
                     Plugin.Log.LogInfo($"[Acoustics] suspended {outp.Count} third-party patch(es) on Initialize "
-                        + $"({string.Join(", ", outp.Select(s => s.Patch.owner).Distinct().ToArray())}) — restored right after");
+                        + $"({string.Join(", ", owners)}) — restored right after");
+                }
             }
             catch (Exception e) { Plugin.Log.LogWarning($"[Acoustics] patch suspend failed: {e.Message}"); }
             return outp;
@@ -1225,13 +1257,13 @@ namespace Manimal.Terminal
                 if (_roomTonesBound > 0 || _roomToneMisses.Count > 0)
                     Plugin.Log.LogInfo($"[Acoustics] bound {_roomTonesBound} authored room tones" +
                         (_roomToneMisses.Count > 0
-                            ? $"; missing from the bundle: {string.Join(", ", _roomToneMisses.Take(8).ToArray())}{(_roomToneMisses.Count > 8 ? "..." : "")}"
+                            ? $"; missing from the bundle: {string.Join(", ", new List<string>(_roomToneMisses).GetRange(0, Math.Min(8, _roomToneMisses.Count)))}{(_roomToneMisses.Count > 8 ? "..." : "")}"
                             : ""));
 
                 // the room tracker enumerates rooms ONLY through
                 // SpatialAudioCrossSceneGroup.AllCrossGroups — it must exist on the
                 // room-tree root AFTER our components (Awake self-collects children)
-                var rootPath = Rows(sound, "SpatialAudioCrossSceneGroup").FirstOrDefault()?.Value<string>("go")
+                var rootPath = Rows(sound, "SpatialAudioCrossSceneGroup").First?.Value<string>("go")
                                ?? "SpatialAudioSystem";
                 if (goIndex.TryGetValue(rootPath, out var roots) && roots.Count > 0)
                 {
@@ -1258,7 +1290,7 @@ namespace Manimal.Terminal
                 if (system.poolsConfig == null)
                 {
                     system.poolsConfig = new SpatialAudioPoolsConfig();
-                    if (sound["SpatialAudioSystem"] is JArray sysRows && sysRows.FirstOrDefault()?["fields"]?["poolsConfig"] is JObject pc)
+                    if (sound["SpatialAudioSystem"] is JArray sysRows && sysRows.First?["fields"]?["poolsConfig"] is JObject pc)
                         FillFields(system.poolsConfig, pc, null);
                 }
 
@@ -1366,8 +1398,8 @@ namespace Manimal.Terminal
             catch { }
         }
 
-        private static IEnumerable<JToken> Rows(JObject scene, string cls)
-            => (scene[cls] as JArray) ?? Enumerable.Empty<JToken>();
+        private static JArray Rows(JObject scene, string cls)
+            => (scene[cls] as JArray) ?? new JArray();
 
         private static long? RefId(JToken token)
             => (token as JObject)?.Value<long?>("ref");
@@ -1380,10 +1412,11 @@ namespace Manimal.Terminal
         private static bool ValidateSpatialGraph(JObject sound, JObject info, out string error)
         {
             error = null;
-            var rooms = Rows(sound, "SpatialAudioRoom").ToArray();
-            var portals = Rows(sound, "SpatialAudioPortal")
-                .Concat(Rows(sound, "UniversalTriggerSpatialAudioPortal")).ToArray();
-            var areas = Rows(sound, "AudioTriggerArea").ToArray();
+            var rooms = new List<JToken>(Rows(sound, "SpatialAudioRoom")).ToArray();
+            var portalRows = new List<JToken>(Rows(sound, "SpatialAudioPortal"));
+            portalRows.AddRange(Rows(sound, "UniversalTriggerSpatialAudioPortal"));
+            var portals = portalRows.ToArray();
+            var areas = new List<JToken>(Rows(sound, "AudioTriggerArea")).ToArray();
             int expectedRooms = info?.Value<int?>("roomsCount") ?? 76;
             int expectedPortals = info?.Value<int?>("portalsCount") ?? 220;
 
@@ -1393,19 +1426,24 @@ namespace Manimal.Terminal
                 return false;
             }
 
-            var roomPaths = new HashSet<long>(rooms.Select(r => r.Value<long>("path_id")));
-            var portalPaths = new HashSet<long>(portals.Select(p => p.Value<long>("path_id")));
-            var areaPaths = new HashSet<long>(areas.Select(a => a.Value<long>("path_id")));
-            var roomIds = rooms.Select(r => r["fields"]?.Value<int?>("_iD") ?? -1).ToArray();
-            var portalIds = portals.Select(p => p["fields"]?.Value<int?>("_iD") ?? -1).ToArray();
-            if (roomIds.Distinct().Count() != expectedRooms ||
-                !new HashSet<int>(roomIds).SetEquals(Enumerable.Range(1, expectedRooms)))
+            var roomPaths = new HashSet<long>();
+            var portalPaths = new HashSet<long>();
+            var areaPaths = new HashSet<long>();
+            var roomIds = new HashSet<int>();
+            var portalIds = new HashSet<int>();
+            foreach (var room in rooms) { roomPaths.Add(room.Value<long>("path_id")); roomIds.Add(room["fields"]?.Value<int?>("_iD") ?? -1); }
+            foreach (var portal in portals) { portalPaths.Add(portal.Value<long>("path_id")); portalIds.Add(portal["fields"]?.Value<int?>("_iD") ?? -1); }
+            foreach (var area in areas) areaPaths.Add(area.Value<long>("path_id"));
+            bool roomRange = roomIds.Count == expectedRooms;
+            bool portalRange = portalIds.Count == expectedPortals;
+            for (int id = 1; id <= expectedRooms; id++) roomRange &= roomIds.Contains(id);
+            for (int id = 1; id <= expectedPortals; id++) portalRange &= portalIds.Contains(id);
+            if (!roomRange)
             {
                 error = "room IDs are not the unique contiguous bake range";
                 return false;
             }
-            if (portalIds.Distinct().Count() != expectedPortals ||
-                !new HashSet<int>(portalIds).SetEquals(Enumerable.Range(1, expectedPortals)))
+            if (!portalRange)
             {
                 error = "portal IDs are not the unique contiguous bake range";
                 return false;
@@ -1415,9 +1453,13 @@ namespace Manimal.Terminal
             foreach (var portal in portals)
             {
                 long path = portal.Value<long>("path_id");
-                var ends = ((portal["fields"]?["_connectedRooms"] as JArray) ?? new JArray())
-                    .Select(RefId).Where(id => id.HasValue).Select(id => id.Value).ToArray();
-                if (ends.Length != 2 || ends[0] == ends[1] || ends.Any(id => !roomPaths.Contains(id)))
+                var ends = new List<long>();
+                foreach (var reference in (portal["fields"]?["_connectedRooms"] as JArray) ?? new JArray())
+                {
+                    var id = RefId(reference);
+                    if (id.HasValue) ends.Add(id.Value);
+                }
+                if (ends.Count != 2 || ends[0] == ends[1] || !roomPaths.Contains(ends[0]) || !roomPaths.Contains(ends[1]))
                 {
                     error = $"portal {portal["fields"]?.Value<int?>("_iD")} does not connect two valid distinct rooms";
                     return false;
@@ -1425,7 +1467,8 @@ namespace Manimal.Terminal
                 portalEnds[path] = new HashSet<long>(ends);
             }
 
-            var portalMentions = portalPaths.ToDictionary(path => path, _ => 0);
+            var portalMentions = new Dictionary<long, int>();
+            foreach (var path in portalPaths) portalMentions.Add(path, 0);
             foreach (var room in rooms)
             {
                 long roomPath = room.Value<long>("path_id");
@@ -1461,9 +1504,9 @@ namespace Manimal.Terminal
                 }
             }
 
-            if (portalMentions.Any(pair => pair.Value != 2))
+            foreach (var bad in portalMentions)
             {
-                var bad = portalMentions.First(pair => pair.Value != 2);
+                if (bad.Value == 2) continue;
                 error = $"portal path {bad.Key} appears in {bad.Value} room connection lists instead of 2";
                 return false;
             }
@@ -1783,6 +1826,9 @@ namespace Manimal.Terminal
             if (type.IsPrimitive) return Convert.ChangeType(((JValue)tok).Value, type,
                 System.Globalization.CultureInfo.InvariantCulture);
 
+            if (type == typeof(AnimationCurve))
+                return TerminalSerializedCurves.FromUnity(tok) ?? existing;
+
             if (tok is JObject o)
             {
                 if (type == typeof(Vector3)) return V3(o);
@@ -1824,17 +1870,7 @@ namespace Manimal.Terminal
 
         private static AnimationCurve Curve(JToken tok)
         {
-            var keys = tok?["m_Curve"] as JArray;
-            if (keys == null || keys.Count == 0) return null;
-            var kf = new Keyframe[keys.Count];
-            for (int i = 0; i < keys.Count; i++)
-            {
-                var k = keys[i];
-                kf[i] = new Keyframe(
-                    k.Value<float?>("time") ?? 0f, k.Value<float?>("value") ?? 0f,
-                    k.Value<float?>("inSlope") ?? 0f, k.Value<float?>("outSlope") ?? 0f);
-            }
-            return new AnimationCurve(kf);
+            return TerminalSerializedCurves.FromUnity(tok);
         }
 
         private static Vector3 V3(JToken t)

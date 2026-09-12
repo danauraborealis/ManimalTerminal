@@ -8,7 +8,7 @@ namespace Manimal.Terminal
     // icebreaker but not for terminal yet").
     //
     // the failure mode here was nastier than icebreaker's. Jehree.LockableDoors hooks
-    // GetActionsClass.GetAvailableActions with a POSTFIX, and on terminal it THREW:
+    // EFT.InteractionContextHelper.GetAvailableActions with a POSTFIX, and on terminal it THREW:
     //
     //   LockableDoors.Models.CustomInteraction.get_ActionsTypesClass
     //   LockableDoors.Components.DoorLock.AddUninitializedLockInteractionsToActionList

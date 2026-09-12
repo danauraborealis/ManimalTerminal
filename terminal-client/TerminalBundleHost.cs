@@ -10,7 +10,7 @@ namespace Manimal.Terminal
     // SERVES OUR BUNDLES STRAIGHT OUT OF THE PLUGIN FOLDER — nothing is ever written
     // into EscapeFromTarkov_Data. 1:1 port of IcebreakerBundleHost.
     //
-    // how it works, from BundlesManagerClass.Class3524.smethod_0: the loaded-bundle
+    // how it works, from EFT.AssetsManager.BundlesManager.BundleLoadOperation.smethod_0: the loaded-bundle
     // dictionary is checked FIRST, and only a miss falls through to a URL fetch (the
     // route that 404'd on the SPT manifest attempt). so we load the file ourselves
     // with AssetBundle.LoadFromFile (memory-mapped — a multi-GB bundle costs a
@@ -43,16 +43,16 @@ namespace Manimal.Terminal
                     return;
                 }
 
-                _entryType = AccessTools.Inner(typeof(BundlesManagerClass), "Class3523");
-                _loadedDict = AccessTools.Field(typeof(BundlesManagerClass), "Dictionary_0");
+                _entryType = AccessTools.Inner(typeof(EFT.AssetsManager.BundlesManager), "AssetBundleReference");
+                _loadedDict = AccessTools.Field(typeof(EFT.AssetsManager.BundlesManager), "_bundles");
                 if (_entryType == null || _loadedDict == null)
                 {
-                    Plugin.Log.LogError("[Bundles] BundlesManagerClass layout changed — cannot host bundles from the plugin folder");
+                    Plugin.Log.LogError("[Bundles] EFT.AssetsManager.BundlesManager layout changed — cannot host bundles from the plugin folder");
                     return;
                 }
 
                 harmony.Patch(
-                    AccessTools.Method(typeof(BundlesManagerClass), nameof(BundlesManagerClass.LoadBundleAsync)),
+                    AccessTools.Method(typeof(EFT.AssetsManager.BundlesManager), nameof(EFT.AssetsManager.BundlesManager.LoadBundleAsync)),
                     prefix: new HarmonyMethod(typeof(TerminalBundleHost), nameof(BeforeLoadBundle)));
 
                 Plugin.Log.LogInfo($"[Bundles] hosting {_ours.Count} bundle(s) from the plugin folder: " +
@@ -111,7 +111,7 @@ namespace Manimal.Terminal
             }
         }
 
-        private static void BeforeLoadBundle(BundlesManagerClass __instance, string bundleName)
+        private static void BeforeLoadBundle(EFT.AssetsManager.BundlesManager __instance, string bundleName)
         {
             try
             {
